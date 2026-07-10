@@ -3,19 +3,21 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.16
+// @version      1.1.18
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B)
+// @x-release-date 2026/7/10 09:22:44
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
 
+// 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.16                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.18                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -305,6 +307,8 @@
         let _lastBlockAdvanceAt = 0;           // 0 = 尚未建立基线（不判 stalled，避免启动即误判）
         let _lastTickAt = 0, _driftSinceAt = 0;
         let _prevFrozen = false;
+        let _fallbackAnnounced = false;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C1：fallback 首次成功读值只播报一次（防刷屏）
+        let _lastHeartbeatAt = 0;         // 🔻SYNC→内部版[1.1.17 可观测性批次] C2：0=启动后首个 eval 即允许打首条心跳
         window.__frontendFrozen = window.__frontendFrozen || false;
 
         function _ingestBlock(bn) {
@@ -323,6 +327,8 @@
                 _lastBlockAdvanceAt = Date.now();   // 订阅成功才建立基线
                 if (typeof bn$.getValue === 'function') _ingestBlock(bn$.getValue());
                 else if (typeof bn$ === 'object' && 'value' in bn$) _ingestBlock(bn$.value);
+                // 🔻SYNC→内部版[1.1.17 可观测性批次] C1：首次订阅成功播报（纯日志，仅一次；_subscribed 门天然去重）
+                log(`%c🧊 [前端传感器] 已订阅 blockNumber$，传感器启动（当前块=${_lastBlock ?? '待首个块'}）`, 'color:#2980b9');
             } catch (e) {}
         }
         function _readBlockFallback() {
@@ -335,7 +341,14 @@
                 if (typeof bn$.getValue === 'function') v = bn$.getValue();
                 else if (typeof bn$ === 'object' && 'value' in bn$) v = bn$.value;
                 else if (typeof bn$ !== 'object') v = bn$;
-                if (v != null) { if (_lastBlockAdvanceAt === 0) _lastBlockAdvanceAt = Date.now(); _ingestBlock(v); }
+                if (v != null) {
+                    if (_lastBlockAdvanceAt === 0) _lastBlockAdvanceAt = Date.now(); _ingestBlock(v);
+                    // 🔻SYNC→内部版[1.1.17 可观测性批次] C1：走 fallback（bn$ 不可订阅）时首次成功读值只播报一次（_fallbackAnnounced 门防刷屏）
+                    if (!_fallbackAnnounced) {
+                        _fallbackAnnounced = true;
+                        log(`%c🧊 [前端传感器] blockNumber$ 不可订阅，退化为轮询读值模式（当前块=${_lastBlock ?? v}）`, 'color:#e67e22');
+                    }
+                }
             } catch (e) {}
         }
         function _connectionDown() {
@@ -386,6 +399,13 @@
                     log(`%c🧊 [前端传感器] 冻死判定翻转 → frozen=${frozen} | blockStalled=${blockStalled}(块=${_lastBlock},停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s,已订阅=${_subscribed}) connDown=${connectionDown} timerDrift=${timerDrift} canaryNull=${canaryNull} hidden=${hidden}`,
                         frozen ? 'color:#c0392b;font-weight:bold' : 'color:#27ae60;font-weight:bold');
                     _prevFrozen = frozen;
+                }
+
+                // 🔻SYNC→内部版[1.1.17 可观测性批次] C2：传感器每小时心跳（纯日志；_lastHeartbeatAt=0 → 启动后首个 eval 即打首条，之后≥1h 一条防刷屏）
+                if (now - _lastHeartbeatAt >= 3600000) {
+                    _lastHeartbeatAt = now;
+                    const _hbStall = haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA';
+                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden}`, 'color:#7f8c8d');
                 }
                 return frozen;
             } catch (e) {
@@ -1243,13 +1263,55 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('✅ Kamigotchi核心脚本-公开版 v1.1.16 已成功启动，等待网页加载完成…');
+    log('✅ Kamigotchi核心脚本-公开版 v1.1.18 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
     log(`%c   Mac: 系统设置 → 能耗 → 「显示器关闭时防止自动进入睡眠」打开`,
         'color: #d4a017;');
     log(`%c   Windows: 设置 → 系统 → 电源 → 「使设备保持唤醒状态」选「永不」`,
         'color: #d4a017;');
+
+    // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
+    // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
+    (function versionCheck() {
+        const SELF_NAME = '核心脚本';
+        const SELF_VERSION = '1.1.18';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
+        let firstSeen = null;
+        try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
+            const k = 'kami_ver_seen_' + SELF_NAME + '_' + SELF_VERSION;
+            firstSeen = localStorage.getItem(k);
+            if (!firstSeen) { firstSeen = new Date().toLocaleString('zh-CN'); localStorage.setItem(k, firstSeen); }
+        } catch (e) { firstSeen = '未知'; }
+        const cmpVer = (a, b) => {   // 返回 -1/0/1
+            const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                const d = (pa[i] || 0) - (pb[i] || 0);
+                if (d) return d > 0 ? 1 : -1;
+            }
+            return 0;
+        };
+        setTimeout(async () => {
+            try {
+                const resp = await fetch(META_URL + '?_=' + Date.now(), { cache: 'no-store' });
+                const txt = await resp.text();
+                const remoteVer = (txt.match(/@version\s+v?([\d.]+)/) || [])[1];
+                const relDate = (txt.match(/@x-release-date\s+(\S+[^\n\r]*)/) || [])[1] || '未知';
+                if (!remoteVer) { log(`ℹ️ [版本检查] 无法解析 GitHub 最新版本，跳过（网络/格式异常）`); return; }
+                const c = cmpVer(SELF_VERSION, remoteVer);
+                if (c === 0) {
+                    log(`✅ [版本检查] ${SELF_NAME} v${SELF_VERSION} 已是 GitHub 最新（该版发布于 ${relDate}；本机安装/更新于 ${firstSeen}）`);
+                } else if (c < 0) {
+                    log(`%c⚠️ [版本检查] GitHub 最新为 v${remoteVer}（发布于 ${relDate}），本机 ${SELF_NAME} 还是 v${SELF_VERSION}（本机更新于 ${firstSeen}）→ 请到篡改猴面板「实用工具→检查用户脚本更新」拉取最新`,
+                        'color: orange; font-weight: bold;');
+                } else {
+                    log(`ℹ️ [版本检查] 本机 ${SELF_NAME} v${SELF_VERSION} 比 GitHub(v${remoteVer}) 更新（本地开发版）`);
+                }
+            } catch (e) {
+                log(`ℹ️ [版本检查] 获取 GitHub 最新版本失败（${e && e.message || e}），跳过`);
+            }
+        }, 8000);   // 延迟 8s，避开启动拥挤；raw 带 CORS *，页面上下文可直接 fetch
+    })();
 
     // ============================================================
     // 【板块：账户规模检查（小账户警告）】
@@ -1324,7 +1386,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.16 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.18 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -1573,6 +1635,9 @@
      */
     function releaseEmergencyLock() {
         if (window.__txEmergencyLock) {
+            // 🔻SYNC→内部版[1.1.17 可观测性批次] C3：锁持有时长诊断（since 为取锁时刻，纯日志；>120s 才打防刷屏）
+            const __heldMs = Date.now() - window.__txEmergencyLock.since;
+            if (__heldMs > 120000) log(`⏱️ [锁诊断] 紧急锁[emergency_stop] 持有 ${Math.round(__heldMs / 1000)}s（>120s，长持锁）`);
             log(`[TX锁] 🚨 释放紧急锁`);
             window.__txEmergencyLock = null;
         }
@@ -1620,6 +1685,9 @@
     function releaseNormalLock(operation, script) {
         if (window.__txNormalLock?.operation === operation &&
             window.__txNormalLock?.script === script) {
+            // 🔻SYNC→内部版[1.1.17 可观测性批次] C3：锁持有时长诊断（since 为取锁时刻，纯日志；>120s 才打防刷屏）
+            const __heldMs = Date.now() - window.__txNormalLock.since;
+            if (__heldMs > 120000) log(`⏱️ [锁诊断] 普通锁[${script}/${operation}] 持有 ${Math.round(__heldMs / 1000)}s（>120s，长持锁）`);
             log(`[TX锁] 🔓 释放普通锁 [${script}/${operation}]`);
             window.__txNormalLock = null;
         }
@@ -2202,6 +2270,7 @@
     const __stopStuckThisInvocation = new Set();
     const __stopConfirmedThisInvocation = new Set();          // Change B：本次调用内已强证据确认停成的 kamiId
     const __stopCooldownDeferredThisInvocation = new Map();   // Change D：dbIndex -> item，classify 发现的冷却项汇入
+    let __pendingVerifyBatchCount = 0;                        // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用内产生 pendingVerify 的批数（纯统计，invocation 开头清零）
 
     /**
      * 停采失败记账：同一次 emergencyStopHarvest 调用内，同一 kamiId 最多 +1。
@@ -3640,6 +3709,7 @@
         // 改动B/D新增状态同样只在单次调用范围内生效，一并清空
         __stopConfirmedThisInvocation.clear();
         __stopCooldownDeferredThisInvocation.clear();
+        __pendingVerifyBatchCount = 0;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用 pendingVerify 批数清零
 
         // 标记是否设置了紧急锁（用于finally中判断是否需要释放）
         let emergencyLockSet = false;
@@ -4226,6 +4296,10 @@
                     'color: green; font-weight: bold;');
             }
 
+            // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：停采收敛小结（纯日志/统计；简化版=只报本次 pendingVerify 批数，
+            // tx确认耗时中位/索引器确认只数因现场无累计变量暂不取，保守不为凑指标改流程；已确认停成只数取自本次调用去重集）
+            log(`📊 [停采诊断/收敛小结] 本次 pendingVerify批=${__pendingVerifyBatchCount} 已确认停成=${__stopConfirmedThisInvocation.size}只（gas 不作停成凭据，成功以下轮 state≠HARVESTING 复读为准）`);
+
         } finally {
             // 只有设置了紧急锁才需要释放
             if (emergencyLockSet) {
@@ -4768,6 +4842,7 @@
             if (level === 'full_exec') {
                 // BEFORE(Bug B前): full_exec 直接 for(item) _stopCreditSuccess(...) 并 return success，gas 单独驱动 remaining 剔除。
                 __stopConsecutiveRevertBatches = 0;
+                __pendingVerifyBatchCount++;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：pendingVerify 批数 +1（纯统计）
                 log(`🟡 [停采诊断/gas] 每只≈${Math.round(perKami)} 像执行了，但 gas 不作停成凭据 → pendingVerify（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）`);
                 _emergencyDiagIndexLag(items, `tx:${hash}`);
                 return {
@@ -6361,6 +6436,7 @@
             const estimatedExecuted = Math.max(0, Math.round((gasUsedNum - EMERGENCY_CONFIG.GAS_REVERT_BASE) / EMERGENCY_CONFIG.GAS_PER_KAMI_ESTIMATE));
             if (perKami >= EMERGENCY_CONFIG.GAS_FULL_EXEC_PER_KAMI && estimatedExecuted >= harvestIds.length) {
                 // BEFORE(Bug B前): gas full_exec 直接 return true，调用点据此 _stopCreditSuccess。
+                __pendingVerifyBatchCount++;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：pendingVerify 批数 +1（纯统计）
                 log(`🟡 [AllowFailure停采/gas观察] gas=${gasUsedNum} 每只均摊=${Math.round(perKami)} 估算执行${estimatedExecuted}≥全员${harvestIds.length} tx:${hash} → gas 不作停成凭据，pendingVerify: ${fmtListForLog}`);
                 return null;
             }

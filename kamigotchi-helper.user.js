@@ -2,18 +2,20 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.19
+// @version      1.1.21
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
+// @x-release-date 2026/7/10 09:22:44
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每周全网最强杀手扫描)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
 
+// 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.1.19                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.1.21                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -177,7 +179,49 @@
   }
 
   //=====提示脚本启动======
-  log('✅Kamigotchi辅助脚本-公开版 v1.1.19 已成功启动，等待网页加载完成…');
+  log('✅Kamigotchi辅助脚本-公开版 v1.1.21 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+
+  // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
+  // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
+  (function versionCheck() {
+      const SELF_NAME = '辅助脚本';
+      const SELF_VERSION = '1.1.21';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
+      let firstSeen = null;
+      try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
+          const k = 'kami_ver_seen_' + SELF_NAME + '_' + SELF_VERSION;
+          firstSeen = localStorage.getItem(k);
+          if (!firstSeen) { firstSeen = new Date().toLocaleString('zh-CN'); localStorage.setItem(k, firstSeen); }
+      } catch (e) { firstSeen = '未知'; }
+      const cmpVer = (a, b) => {   // 返回 -1/0/1
+          const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+              const d = (pa[i] || 0) - (pb[i] || 0);
+              if (d) return d > 0 ? 1 : -1;
+          }
+          return 0;
+      };
+      setTimeout(async () => {
+          try {
+              const resp = await fetch(META_URL + '?_=' + Date.now(), { cache: 'no-store' });
+              const txt = await resp.text();
+              const remoteVer = (txt.match(/@version\s+v?([\d.]+)/) || [])[1];
+              const relDate = (txt.match(/@x-release-date\s+(\S+[^\n\r]*)/) || [])[1] || '未知';
+              if (!remoteVer) { log(`ℹ️ [版本检查] 无法解析 GitHub 最新版本，跳过（网络/格式异常）`); return; }
+              const c = cmpVer(SELF_VERSION, remoteVer);
+              if (c === 0) {
+                  log(`✅ [版本检查] ${SELF_NAME} v${SELF_VERSION} 已是 GitHub 最新（该版发布于 ${relDate}；本机安装/更新于 ${firstSeen}）`);
+              } else if (c < 0) {
+                  log(`%c⚠️ [版本检查] GitHub 最新为 v${remoteVer}（发布于 ${relDate}），本机 ${SELF_NAME} 还是 v${SELF_VERSION}（本机更新于 ${firstSeen}）→ 请到篡改猴面板「实用工具→检查用户脚本更新」拉取最新`,
+                      'color: orange; font-weight: bold;');
+              } else {
+                  log(`ℹ️ [版本检查] 本机 ${SELF_NAME} v${SELF_VERSION} 比 GitHub(v${remoteVer}) 更新（本地开发版）`);
+              }
+          } catch (e) {
+              log(`ℹ️ [版本检查] 获取 GitHub 最新版本失败（${e && e.message || e}），跳过`);
+          }
+      }, 8000);   // 延迟 8s，避开启动拥挤；raw 带 CORS *，页面上下文可直接 fetch
+  })();
 
   // ============================================================
   // 【板块：LT 显示样式注入（injectLTStyle）】
@@ -2210,7 +2254,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.1.19 可用命令', 'color: green; font-weight: bold;');
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.1.21 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -4265,7 +4309,10 @@
   // ❌/不足 等词命中 __HEALTH_ERRWORDS，被误计入模块"带错"。剥离 __HEALTH_ZEROFAIL
   // 片段后若整行命中本白名单则不计带错；不影响真错误行（如"Transaction failed"、
   // "真失败 2"）与事件层（__HEALTH_EVENTS，含"复活丝带断货"）判定——两者互不相干。
-  const __HEALTH_COND_SKIP = /需 ≥|缺 \d+|步长不足|库存不足|等恢复或喝体力药|无匹配食物|档位不匹配/;
+  // 🔻SYNC→内部版[1.1.20 看板白名单三批]：追加 pendingVerify / gas 不作停成凭据 两模式——
+  // 核心 1.1.17 起 gas 判为 full_exec 时打"gas 不作停成凭据 → pendingVerify（本批不计成功/不计失败）"
+  // 观察行，含"失败"二字会命中 __HEALTH_ERRWORDS 被误计带错；这是正常观察不是真错误，故并入白名单（不影响真错误行判定）。
+  const __HEALTH_COND_SKIP = /需 ≥|缺 \d+|步长不足|库存不足|等恢复或喝体力药|无匹配食物|档位不匹配|pendingVerify|gas 不作停成凭据/;
   let __healthPrev = null;   // 上次自检快照（卡死旗/缓冲增长的两点比较，≥15 分钟才刷新）
   // 汇总健康状态（纯内存计算：日志缓冲近 6000 行 + 埋点 + window/localStorage 直读）
   // v3 四层：心跳层（该跑没跑）→ 事件层（跑出坏事）→ 闭环层（开头没收尾）→ 状态层（数据不对）
