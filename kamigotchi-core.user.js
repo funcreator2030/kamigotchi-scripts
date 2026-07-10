@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.23
+// @version      1.1.24
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 18:26:20
+// @x-release-date 2026/7/10 23:13:15
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.23                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.24                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1270,7 +1270,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.23 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.24 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1283,7 +1283,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.23';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.24';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1458,7 +1458,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.23 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.24 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -4018,27 +4018,27 @@
                 }
             }
 
-            // 凑批门槛 / 危险判定线（修剪与凑批决策共用）
+            // 凑批门槛 / 危险判定线（凑批与cooldown补停用；1.1.24起修剪不再用危险线）
             const TARGET_BATCH_MIN = 6;
             const EMERGENCY_DANGER_DELTA = -1;
 
-            // 可选修剪（仅硬触发路径 opts.trimTo）：扫描完成后、凑批决策前。
-            // 挑选优先级：① STARVING ② 危险(delta≤EMERGENCY_DANGER_DELTA) ③ 其余 delta 升序；
-            // 安全兜底：STARVING+危险数量 > 超额时全部照停（允许停后剩余 < trimTo）。
+            // 🔻SYNC→内部版[1.1.24 修剪语义修正] 可选修剪（仅硬触发路径 opts.trimTo）：扫描完成后、凑批决策前。
+            // ▍语义（用户 0710 定案）：本触发器**没有杀手威胁**，纯粹是数量管理——贪婪模式下 Δ≤-1 本来
+            //   就可以继续采（那正是贪婪的意义），不做"危险级必停"的紧急处理（杀手/紧急路径不走此分支，不受影响）。
+            //   规则=严格修剪：只停超额数（nCand−trimTo），停到剩 trimTo 只继续采。
+            //   挑选顺序：① STARVING（0HP 已不产出，停下喂食救援，且优先占用超额名额）② 其余按 delta 升序（最接近线的先停）。
+            //   仅当 STARVING 数量 > 超额时才会停超过超额数（救援优先），此时保留数 < trimTo 属预期。
             if (trimTo != null && stopList.length > trimTo) {
                 const nCand = stopList.length;
-                const excess = nCand - trimTo; // 理想停数（修剪到 trimTo）
-                const mustStop = stopList.filter(x => x.isStarving || x.delta <= EMERGENCY_DANGER_DELTA);
-                const normals = stopList.filter(x => !x.isStarving && x.delta > EMERGENCY_DANGER_DELTA);
-                normals.sort((a, b) => a.delta - b.delta); // 离停采线最近（越负越危）先停
-                const mustCount = mustStop.length;
-                const stopTarget = Math.max(excess, mustCount); // 保命优先于修剪目标
-                const normalStop = normals.slice(0, Math.max(0, stopTarget - mustCount));
-                stopList = mustStop.concat(normalStop);
-                const aStarving = mustStop.filter(x => x.isStarving).length;
-                const bDanger = mustStop.filter(x => !x.isStarving).length;
-                const cUrgent = normalStop.length;
-                log(`✂️ [批量修剪] 候选${nCand}只→停最危险${stopList.length}只(STARVING=${aStarving} 危险=${bDanger} urgent=${cUrgent})，保留${trimTo}只继续采`);
+                const excess = nCand - trimTo;                       // 严格停数（修剪到 trimTo）
+                const starving = stopList.filter(x => x.isStarving); // 救援组：必停（不占健康 kami 的采集时长）
+                const normals = stopList.filter(x => !x.isStarving);
+                normals.sort((a, b) => a.delta - b.delta);           // 离停采线最近（越负越低血）先停
+                const stopTarget = Math.max(excess, starving.length);
+                const normalStop = normals.slice(0, Math.max(0, stopTarget - starving.length));
+                stopList = starving.concat(normalStop);
+                const kept = nCand - stopList.length;
+                log(`✂️ [批量修剪] 候选${nCand}只→停${stopList.length}只(STARVING=${starving.length} urgent=${normalStop.length})，实际保留${kept}只继续采(目标${trimTo})`);
             }
 
             // 凑批决策："等"模式——不够凑批门槛且无危险就跳过本轮。
