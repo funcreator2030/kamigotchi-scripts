@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.21
+// @version      1.1.22
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 12:22:48
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17)
+// @x-release-date 2026/7/10 17:37:21
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.21                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.22                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -405,7 +405,14 @@
                 if (now - _lastHeartbeatAt >= 3600000) {
                     _lastHeartbeatAt = now;
                     const _hbStall = haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA';
-                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden}`, 'color:#7f8c8d');
+                    // 🔻SYNC→内部版[1.1.22 退避复读] C5：组件滞后信号（补盲，纯观测，不进 frozen 判定/不影响门闩）。
+                    //   判据：退避复读队列中存在 attempts≥4(≥90s 档)仍未确认已停的条目 → componentLag=疑似。
+                    //   意图：CZ 类"病态组件滞后可达数十分钟(blockNumber$ 仍正常前进=blockStalled 盲区)"的补盲信号，供下一步标定。
+                    let _componentLag = '正常';
+                    try {
+                        for (const e of __stopPendingVerify.values()) { if (e.attempts >= 4) { _componentLag = '疑似'; break; } }
+                    } catch (_) {}
+                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden} componentLag=${_componentLag}(退避未确认${(() => { try { return __stopPendingVerify.size; } catch (_) { return '?'; } })()}只)`, 'color:#7f8c8d');
                 }
                 return frozen;
             } catch (e) {
@@ -1263,7 +1270,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.21 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.22 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1276,7 +1283,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.21';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.22';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1451,7 +1458,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.21 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.22 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -1519,6 +1526,9 @@
         console.log('');
         console.log('// 切换停采发送通道：mud=MUD队列(默认,统一nonce) / raw=原始签名器(回退)；不填参数查当前');
         console.log("setStopTxChannel('mud'|'raw')");
+        console.log('');
+        console.log('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点卡片非按钮区;真人操作自动让路)；默认on');
+        console.log("setKeepAlive('on'|'off')");
         console.log('');
         console.log('───────── 💰 mETH 消耗追踪 ─────────');
         console.log('// 查看所有账户最近 20 条记录 + 累计折算（最常用，不带参数）');
@@ -2341,6 +2351,188 @@
     let __pendingVerifyBatchCount = 0;                        // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用内产生 pendingVerify 的批数（纯统计，invocation 开头清零）
     let __stopChanFallbackCount = 0;                          // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：本次调用内 mud→raw 跌落次数（纯统计，invocation 开头清零）
 
+    // ============================================================
+    // 🔻SYNC→内部版[1.1.22 退避复读] 停采反馈查询重构：数据驱动退避复读 + 假卡链四件套
+    // ------------------------------------------------------------
+    // 病灶（0710 下午 CZ 实测）：tx 确认 p50=5.3s/p90=11s/p95=16s/max=376s(拥堵长尾)，
+    //   索引器翻面 p50=3.1s/p95=3.9s/max=21s；但"疑似卡链"3 笔可在几分钟内凑满，
+    //   快于长尾确认 → 41 只已停成的 kami 被误判卡链拉黑。
+    // 修复核心：estimateGas revert + 仍 HARVESTING 的"疑似卡链"不再当场记失败，
+    //   而是入 __stopPendingVerify 退避复读队列（相对 sentAt 的 7/20/45/90/180/300s 表），
+    //   由 15s 轻量调度器零 gas 复读 state；仅当走完全表(≥6 档/跨度≥300s)仍 HARVESTING
+    //   且 estimateGas 仍 revert 才真正记失败——等效"拉黑需 ≥15 分钟持续证据"(I2 保留)。
+    // I3 红线：pendingVerify→成功 的唯一出口仍是 state≠HARVESTING，gas 永不作凭据。
+    // ============================================================
+    const STOP_BACKOFF_TABLE_MS = [7000, 20000, 45000, 90000, 180000, 300000];  // 相对 sentAt 的复读时刻表（实测 tx 确认长尾 max=376s → 300s 兜到绝大多数）
+    const STOP_BACKOFF_FULL_MS = 300000;          // C3：走完全表的最小跨度（≥5min ≫ 索引翻面 max=21s；真卡链最早此后 + ≥3 次调用 ≈ 15min 才拉黑）
+    const STOP_BACKOFF_SCAN_MAX = 20;             // C2：单轮扫描最多复读只数（读数极限背压，其余下轮）
+    const STOP_BACKOFF_GASLIKELY_FULL_MS = 30 * 60 * 1000;  // B1b：gasLikely(gas像执行过)的count证据窗=30min——CZ组件滞后达数十分钟，300s表按索引21s滞后标定差一个数量级(grok审查关键洞)
+    const STOP_BACKOFF_MASSLAG_MIN = 3;           // B1a：≥3只卡在90s+档未确认=群体组件滞后(CZ特征；真卡链是孤例不会成群)→冻结全体count
+    let __stopMassLagLogged = false;              // 群体滞后冻结日志节流(每invocation一条)
+    const STOP_BACKOFF_STALE_MS = 30 * 60 * 1000; // I4：兜底——30 分钟仍未确认的条目移除并告警（防 Map 泄漏）
+    const STOP_BACKOFF_SCAN_INTERVAL_MS = 15000;  // C2：调度器扫描周期（全表过点后按此周期持续复读）
+    // kamiId -> { item, sentAt, attempts, nextAt, gasLikely, enrolledAt }
+    //   跨调用存续（invocation 结束不清）；终态（确认停成/拉黑/复活死亡/兜底超时）时删除。
+    const __stopPendingVerify = new Map();
+    let __stopBackoffTickRunning = false;         // C2：调度器重入保护（getByIndex 慢于扫描周期时防并发迭代 Map）
+    let __stopTxConfirmMsList = [];               // C4：本 invocation 各批 tx 确认耗时(ms)，完成小结算中位/最慢（invocation 开头清空）
+    let __stopIndexLagMsList = [];                // C4：本 invocation 各 kami 索引器滞后(ms)，完成小结算中位（invocation 开头清空）
+    const __stopRevertReasonSeen = new Set();     // C6：本 invocation 已打过的 revert 原因串（去重防刷屏，invocation 开头清空）
+
+    /**
+     * 🔻SYNC→内部版[1.1.22 退避复读] C2：把一只 kami 纳入退避复读队列。
+     * gasLikely：本批 gas 曾达"真执行水平"(full_exec 双条件)——只影响 defer 日志措辞(C1)，不改判定。
+     * 已在队列则只刷新 item(取最新 harvestId/timeLast)、gasLikely 只升不降；不覆盖 sentAt(退避时钟不重置)。
+     * 全 try/catch：任何异常静默跳过，绝不影响调用它的业务路径。
+     */
+    function _stopBackoffEnroll(item, gasLikely) {
+        try {
+            const kamiId = item?.kamiId;
+            if (!kamiId) return;
+            const now = Date.now();
+            const cur = __stopPendingVerify.get(kamiId);
+            if (cur) {
+                if (item) cur.item = item;
+                if (gasLikely) cur.gasLikely = true;
+                return;
+            }
+            __stopPendingVerify.set(kamiId, {
+                item, sentAt: now, attempts: 0,
+                nextAt: now + STOP_BACKOFF_TABLE_MS[0],
+                gasLikely: !!gasLikely, enrolledAt: now
+            });
+        } catch (e) {}
+    }
+
+    /** 🔻SYNC→内部版[1.1.22 退避复读] 从退避队列移除（终态清理，供成功/拉黑/兜底调用）。全 try/catch。 */
+    function _stopBackoffRemove(kamiId) {
+        try { if (kamiId) __stopPendingVerify.delete(kamiId); } catch (e) {}
+    }
+
+    /**
+     * 🔻SYNC→内部版[1.1.22 退避复读] C3 卡链计数门禁：判定一只"疑似卡链"的 kami 现在是否够格真记失败。
+     * 返回 'count'（退避表已走完仍坏 → 真 _stopCreditFail，I2 保留拉黑通路）
+     *   或 'defer'（未够退避时长/证据 → 入队退避复读，本次不计失败）。
+     * 判据：该 kami 在 __stopPendingVerify 中 attempts≥全表长(6) 且 (now-sentAt)≥300s。
+     *   两条件同时满足才 count——前者要求调度器确实做过 ≥6 次复读(读数证据)，后者要求跨度足够(时间证据)，
+     *   任一不足（如页面被节流导致复读不足）都保守 defer，绝不凭单一维度提前拉黑。
+     * 注意：gasLikely 只影响措辞不豁免 count——gas 曾像执行但走完 5min(≫索引 max21s)仍 HARVESTING
+     *   说明 gas 谎报(v1.1.25 教训"gas≠真值")，此时必须允许最终记失败，否则 I2 被 gasLikely 永久架空。
+     */
+    function _componentMassLagSuspect() {
+        // B1a：退避队列里 ≥3 只卡在 90s+ 档(attempts≥4)仍未确认 → 判"群体组件同步滞后"。
+        //   用"规模"区分病灶：CZ 滞后是群体现象(0710实测41只)，真卡链是孤例(1~2只)不会触发冻结。
+        try {
+            let n = 0;
+            for (const [, e] of __stopPendingVerify) {
+                if (e.attempts >= 4) { n++; if (n >= STOP_BACKOFF_MASSLAG_MIN) return true; }
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    async function _stopBackoffGate(item) {
+        try {
+            const kamiId = item?.kamiId;
+            if (!kamiId) return 'defer';
+            const now = Date.now();
+            const e = __stopPendingVerify.get(kamiId);
+            if (!e) { _stopBackoffEnroll(item, false); return 'defer'; }   // 首次遇见：入队起退避时钟，本次 defer
+            // B1a 群体滞后冻结：组件同步群体性落后时，任何 count 都不可信 → 全体 defer 等索引追平
+            if (_componentMassLagSuspect()) {
+                if (!__stopMassLagLogged) {
+                    __stopMassLagLogged = true;
+                    try { log(`   🧊 [停采诊断/退避] 群体组件滞后(≥${STOP_BACKOFF_MASSLAG_MIN}只卡90s+档未确认)→本轮冻结全部卡链计数，只defer`); } catch (_) {}
+                }
+                return 'defer';
+            }
+            // B1b gasLikely 长证据窗：gas 曾达真执行水平的，count 需跨度≥30min；其余维持300s(真卡链主路不受影响)
+            const fullMs = e.gasLikely ? STOP_BACKOFF_GASLIKELY_FULL_MS : STOP_BACKOFF_FULL_MS;
+            if (!(e.attempts >= STOP_BACKOFF_TABLE_MS.length && (now - e.sentAt) >= fullMs)) return 'defer';
+            // N1 终审：落笔前最后一次新鲜复读——关 count/success TOCTOU 竞态，也是最后一道滞后保险
+            try {
+                const res = await window.network.explorer.kamis.getByIndex(item.dbIndex, { harvest: true });
+                const st = (res?.state || '').toUpperCase();
+                if (st && st !== 'HARVESTING') {
+                    __stopPendingVerify.delete(kamiId);
+                    if (st !== 'DEAD') { try { _stopCreditSuccess(item, '终审复读确认已停'); } catch (_) {} }
+                    return 'defer';
+                }
+                if (!st) return 'defer';
+            } catch (err) { return 'defer'; }
+            return 'count';
+        } catch (e) { return 'defer'; }   // 出错保守 defer（漏停代价 > 少拉黑一次）
+    }
+
+    /**
+     * 🔻SYNC→内部版[1.1.22 退避复读] C2 退避复读调度器：15s 轻量扫描 __stopPendingVerify，
+     * 到 nextAt 的条目做一次零 gas 的链上 state 复读（getByIndex harvest:true）。
+     *   - state≠HARVESTING → I3 唯一成功出口：_stopCreditSuccess 并移除（dead 只移除不记成功）；
+     *   - 仍 HARVESTING → attempts++ 并按表推进 nextAt（相对 sentAt，已过点取下一档，全过则按扫描周期续读）；
+     *   - 查询失败 → 不推进 attempts（保守），稍后重试；
+     *   - I4 兜底：enrolledAt 起 ≥30min 仍未确认 → 移除 + 告警（防泄漏）。
+     * 背压：单轮最多复读 STOP_BACKOFF_SCAN_MAX(20) 只，其余下轮。
+     * 全函数 try/catch：调度器任何异常都不得影响主循环（本函数由独立 setInterval 触发，只做零 gas 读）。
+     */
+    async function _stopBackoffSchedulerTick() {
+        if (__stopBackoffTickRunning) return;   // 重入保护：若上一轮 getByIndex 慢于扫描周期，跳过本轮防并发迭代
+        __stopBackoffTickRunning = true;
+        try {
+            if (__stopPendingVerify.size === 0) return;
+            const now = Date.now();
+            // B2 调度公平(grok审查)：先收集全部到期条目，按 nextAt 升序取最早的 SCAN_MAX 只——
+            //   处理过的条目 nextAt 后移、自然轮转，290 只风暴下队尾不再被队头垄断饿死。
+            const __due = [];
+            for (const [kamiId, e] of __stopPendingVerify) {
+                if (now - e.enrolledAt >= STOP_BACKOFF_STALE_MS) {
+                    __stopPendingVerify.delete(kamiId);
+                    try { log(`   ⚠️ [停采诊断/退避] #${e.item?.dbIndex} 退避复读 ${Math.round((now - e.enrolledAt) / 60000)} 分钟仍未确认已停，兜底移除(防Map泄漏)，交下轮常规流程重新对账`); } catch (_) {}
+                    continue;
+                }
+                if (now >= e.nextAt) __due.push([kamiId, e]);
+            }
+            __due.sort((a, b) => a[1].nextAt - b[1].nextAt);
+            for (const [kamiId, e] of __due.slice(0, STOP_BACKOFF_SCAN_MAX)) {
+                try {
+                    const res = await window.network.explorer.kamis.getByIndex(e.item.dbIndex, { harvest: true });
+                    const state = (res?.state || '').toUpperCase();
+                    if (!state) {
+                        // 读到空 state：查询无效，不推进 attempts（保守），稍后重试
+                        e.nextAt = now + STOP_BACKOFF_SCAN_INTERVAL_MS;
+                        continue;
+                    }
+                    if (state !== 'HARVESTING') {
+                        const elapsedS = Math.round((now - e.sentAt) / 1000);
+                        __stopPendingVerify.delete(kamiId);
+                        if (state === 'DEAD') {
+                            try { log(`   ⚰️ [停采诊断/退避] #${e.item.dbIndex} 复读到已死亡(state=${state})，移出退避队列（不记成功）`); } catch (_) {}
+                        } else {
+                            try { _stopCreditSuccess(e.item, '退避复读确认已停'); } catch (_) {}
+                            // C4：让日志能画出确认时间分布
+                            try { log(`   📈 [停采诊断/退避] #${e.item.dbIndex} 第${e.attempts + 1}档(t+${elapsedS}s)确认已停(state=${state})`); } catch (_) {}
+                        }
+                        continue;
+                    }
+                    // 仍 HARVESTING：推进退避档位
+                    e.attempts++;
+                    let nx = 0;
+                    for (let i = 0; i < STOP_BACKOFF_TABLE_MS.length; i++) {
+                        const t = e.sentAt + STOP_BACKOFF_TABLE_MS[i];
+                        if (t > now) { nx = t; break; }
+                    }
+                    e.nextAt = nx > 0 ? nx : (now + STOP_BACKOFF_SCAN_INTERVAL_MS);   // 全表过点后按扫描周期持续复读，直到确认或兜底移除
+                } catch (err) {
+                    // 单只查询失败：不推进 attempts（保守），稍后重试；不影响其余条目
+                    try { e.nextAt = Date.now() + STOP_BACKOFF_SCAN_INTERVAL_MS; } catch (_) {}
+                }
+            }
+        } catch (e) {
+            // 调度器整体异常：静默吞掉，绝不影响主循环
+        } finally {
+            __stopBackoffTickRunning = false;
+        }
+    }
+
     /**
      * 停采失败记账：同一次 emergencyStopHarvest 调用内，同一 kamiId 最多 +1。
      * reasonTag 仅影响日志措辞，不影响计数/拉黑逻辑（沿用 STOP_BLOCK_THRESHOLD）。
@@ -2363,6 +2555,7 @@
         if (count >= STOP_BLOCK_THRESHOLD) {
             __stopBlockedKamis.add(kamiId);
             __stopBlockedTime.set(kamiId, Date.now());
+            _stopBackoffRemove(kamiId);   // 🔻SYNC→内部版[1.1.22 退避复读] I4：已拉黑属终态（黑名单有自己的30min到期复查），移出退避复读队列
             log(`   🚫 [停采诊断] #${item.dbIndex} 连续 ${count} 次${reasonTag}，加入停采黑名单`);
         } else {
             log(`   ⚠️ [停采诊断] #${item.dbIndex} ${reasonTag}(${count}/${STOP_BLOCK_THRESHOLD})，暂不拉黑（本次调用记账1次）`);
@@ -2381,6 +2574,7 @@
     function _stopCreditSuccess(item, reasonTag = '停采成功') {
         const kamiId = item?.kamiId;
         if (!kamiId) return;
+        _stopBackoffRemove(kamiId);   // 🔻SYNC→内部版[1.1.22 退避复读] I4：确认停成属终态，移出退避复读队列（防泄漏）
         __stopFailCount.delete(kamiId);
         __stopFailCreditedInvocation.delete(kamiId);
         if (__stopBlockedKamis.has(kamiId)) {
@@ -2807,6 +3001,7 @@
         __stopBlockedKamis.clear();
         __stopBlockedTime.clear();
         __stopFailCount.clear();
+        __stopPendingVerify.clear();   // 🔻SYNC→内部版[1.1.22 退避复读] I4：清黑名单时一并清退避复读队列（给这些 kami 干净重来）
         log(`✅ 已清除黑名单: 部署${deployCount}个, 停采${stopCount}个`);
         return { deploy: deployCount, stop: stopCount };
     };
@@ -2817,6 +3012,7 @@
         __stopBlockedKamis.clear();
         __stopBlockedTime.clear();
         __stopFailCount.clear();
+        __stopPendingVerify.clear();   // 🔻SYNC→内部版[1.1.22 退避复读] I4：清停采黑名单时一并清退避复读队列
         log(`✅ 已清除停采黑名单 ${count} 个（失败计数已重置）`);
         return count;
     };
@@ -3780,6 +3976,9 @@
         __stopCooldownDeferredThisInvocation.clear();
         __pendingVerifyBatchCount = 0;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用 pendingVerify 批数清零
         __stopChanFallbackCount = 0;     // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：本次调用 mud→raw 跌落计数清零
+        __stopTxConfirmMsList = [];      // 🔻SYNC→内部版[1.1.22 退避复读] C4：本次调用 tx 确认耗时样本清空（__stopPendingVerify 跨调用存续，此处不清）
+        __stopIndexLagMsList = [];       // 🔻SYNC→内部版[1.1.22 退避复读] C4：本次调用索引器滞后样本清空
+        __stopRevertReasonSeen.clear(); __stopMassLagLogged = false;  // 🔻SYNC→内部版[1.1.22 revert原因观测] C6：本次调用 revert 原因去重集清空
 
         // 标记是否设置了紧急锁（用于finally中判断是否需要释放）
         let emergencyLockSet = false;
@@ -4231,7 +4430,7 @@
                                 log(`   🕓 #${item.dbIndex} 单独 api.stop 重试...`);
                                 const ok = await _allowFailureStop([item.harvestId], `#${item.dbIndex}(cooldown定时补停单停)`);
                                 // BEFORE(Bug B前): _allowFailureStop 的 gas full_exec true 会直接 _stopCreditSuccess；false 会记失败。
-                                if (ok === true) _stopCreditSuccess(item, 'cooldown定时补停state复读确认'); else if (ok === false) _stopCreditFail(item);
+                                if (ok === true) _stopCreditSuccess(item, 'cooldown定时补停state复读确认'); else if (ok === false) _stopCreditFail(item); else _stopBackoffEnroll(item, true);   // 🔻SYNC→内部版[1.1.22 退避复读] C1/C2：null=pendingVerify(单只gas曾观察)，入退避复读队列交调度器复读定夺
                             } catch (e) {
                                 log(`   ❌ #${item.dbIndex} 单独 api.stop 异常: ${e?.message || e}`);
                             }
@@ -4334,7 +4533,7 @@
                                 log(`   🕓 #${item.dbIndex} 单独 api.stop 重试...`);
                                 const ok = await _allowFailureStop([item.harvestId], `#${item.dbIndex}(cooldown单停)`);
                                 // BEFORE(Bug B前): _allowFailureStop 的 gas full_exec true 会直接 _stopCreditSuccess；false 会记失败。
-                                if (ok === true) _stopCreditSuccess(item, 'cooldown重试state复读确认'); else if (ok === false) _stopCreditFail(item);
+                                if (ok === true) _stopCreditSuccess(item, 'cooldown重试state复读确认'); else if (ok === false) _stopCreditFail(item); else _stopBackoffEnroll(item, true);   // 🔻SYNC→内部版[1.1.22 退避复读] C1/C2：null=pendingVerify，入退避复读队列
                             } catch (e) {
                                 log(`   ❌ #${item.dbIndex} 单独 api.stop 异常: ${e?.message || e}`);
                             }
@@ -4377,6 +4576,16 @@
             // tx确认耗时中位/索引器确认只数因现场无累计变量暂不取，保守不为凑指标改流程；已确认停成只数取自本次调用去重集）
             // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：小结追加当前通道与本次 mud→raw 跌落次数（纯统计）
             log(`📊 [停采诊断/收敛小结] 本次 pendingVerify批=${__pendingVerifyBatchCount} 已确认停成=${__stopConfirmedThisInvocation.size}只 通道=${_getStopTxChannel()} 跌落raw=${__stopChanFallbackCount}次（gas 不作停成凭据，成功以下轮 state≠HARVESTING 复读为准）`);
+
+            // 🔻SYNC→内部版[1.1.22 退避复读] C4：时延小结——tx确认/索引反映的中位与最慢，供日后画确认时间分布、标定退避表。纯日志。
+            try {
+                const _median = (arr) => { if (!arr.length) return null; const s = arr.slice().sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
+                const _s = (ms) => ms == null ? 'NA' : (ms / 1000).toFixed(1) + 's';
+                const _txMed = _median(__stopTxConfirmMsList);
+                const _txMax = __stopTxConfirmMsList.length ? Math.max(...__stopTxConfirmMsList) : null;
+                const _lagMed = _median(__stopIndexLagMsList);
+                log(`📊 [停采诊断/时延] tx确认中位=${_s(_txMed)}(最慢${_s(_txMax)}) 索引反映中位=${_s(_lagMed)} 残留进退避=${__stopPendingVerify.size}只`);
+            } catch (_) {}
 
         } finally {
             // 只有设置了紧急锁才需要释放
@@ -4674,6 +4883,16 @@
             } else {
                 blockedItems.push(item);
                 blockLogs.push(`#${item.dbIndex}(${check.reason || 'revert'})`);
+                // 🔻SYNC→内部版[1.1.22 revert原因观测] C6：提取并打一次本 kami 的 estimateGas revert 原因串（纯观测，不改判定）。
+                //   意图：下一夜日志确认"已停导致的 revert"是否带可辨识原因（参考部署 revert 带明文"kami not RESTING"）——
+                //   若有，下版可升级为"已停实锤"的链上实时判据，完全绕开索引器滞后。同 invocation 相同原因串只打一次防刷屏。
+                try {
+                    const _rd = check.detail || check.reason || '';
+                    if (_rd && !__stopRevertReasonSeen.has(_rd)) {
+                        __stopRevertReasonSeen.add(_rd);
+                        log(`   🔬 [停采诊断/revert原因] #${item.dbIndex}: ${_rd}`);
+                    }
+                } catch (_) {}
             }
         }
         const fmt = (arr) => arr.length > 8 ? `${arr.length}只(样例: ${arr.slice(0, 5).join(', ')}...)` : arr.join(', ');
@@ -4721,10 +4940,12 @@
         const stuck = [];
         const cooldown = [];
         const unknown = []; // 🔻SYNC→内部版[1.1.14 停采闭环边角:full_exec双条件+classify查询失败保守+cooldown收尾剔成功集] 修复2新增：查询失败保守保留，不归入任何credit类
+        const deferBackoff = []; // 🔻SYNC→内部版[1.1.22 退避复读] C1+C3：疑似卡链但退避表未走完 → 入退避复读队列，本次不计失败（gasLikely 只改措辞）
         const stoppedLogs = [];
         const stuckLogs = [];
         const cooldownLogs = [];
         const unknownLogs = [];
+        const deferLogs = [];
         for (const item of items) {
             if (item.kamiId && __stopStuckThisInvocation.has(item.kamiId)) {
                 stuck.push(item);
@@ -4756,9 +4977,24 @@
                         unknownLogs.push(`#${item.dbIndex}(frontendFrozen)`);
                         continue;
                     }
-                    stuck.push(item);
-                    if (item.kamiId) __stopStuckThisInvocation.add(item.kamiId);
-                    stuckLogs.push(`#${item.dbIndex}`);
+                    // 🔻SYNC→内部版[1.1.22 退避复读] C1+C3：estimateGas revert + 仍HARVESTING + 冷却已过期 = "疑似卡链"，
+                    //   但不再当场记失败。先过退避门禁：走完全表且过证据窗(普通300s/gasLikely 30min)、群体滞后未冻结、终审复读仍HARVESTING 才真判 stuck；
+                    //   否则入退避复读队列 defer，本次不计失败（真卡链最早 ~15min 后经拉黑通路落网，I2 保留）。
+                    const decision = await _stopBackoffGate(item);
+                    if (decision === 'count') {
+                        stuck.push(item);
+                        if (item.kamiId) __stopStuckThisInvocation.add(item.kamiId);
+                        stuckLogs.push(`#${item.dbIndex}`);
+                    } else {
+                        // C1：gas 曾达真执行水平的（gasLikely）判"疑似已停(索引滞后)"，反转措辞；其余为"退避表未走完"
+                        const _e = item.kamiId ? __stopPendingVerify.get(item.kamiId) : null;
+                        deferBackoff.push(item);
+                        if (_e && _e.gasLikely) {
+                            deferLogs.push(`#${item.dbIndex}(本批gas曾达真执行水平→疑似已停/索引滞后)`);
+                        } else {
+                            deferLogs.push(`#${item.dbIndex}(退避表未走完t+${_e ? Math.round((Date.now() - _e.sentAt) / 1000) : 0}s/第${_e ? _e.attempts : 0}档)`);
+                        }
+                    }
                 }
             } catch (_) {
                 // 🔻SYNC→内部版[1.1.14 停采闭环边角:full_exec双条件+classify查询失败保守+cooldown收尾剔成功集]
@@ -4776,15 +5012,17 @@
         const fmt = (arr) => arr.length > 8 ? `${arr.length}只(样例: ${arr.slice(0, 5).join(', ')}...)` : arr.join(', ');
         if (stoppedLogs.length > 0) log(`   ✅ [停采诊断/${tag}] 已停实锤(estimateGas revert + 链上非HARVESTING，索引器滞后) → 清计数不拉黑: ${fmt(stoppedLogs)}`);
         if (cooldownLogs.length > 0) log(`   🧊 [停采诊断/${tag}/classify冷却分支] estimateGas revert + 仍HARVESTING + 仍在180s操作冷却(remain>0) → 不计失败不拉黑，转入cooldown待补停: ${fmt(cooldownLogs)}`);
-        if (stuckLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] 疑似卡链(estimateGas revert + 链上仍HARVESTING + 冷却已过期) → 记一次可疑计数，本次调用内不再对其发tx: ${fmt(stuckLogs)}`);
+        if (stuckLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] 疑似卡链(退避表走完≥6档/≥300s仍HARVESTING+estimateGas revert) → 记一次可疑计数，本次调用内不再对其发tx: ${fmt(stuckLogs)}`);
+        if (deferLogs.length > 0) log(`   ⏸️ [停采诊断/${tag}] estimateGas revert 但退避复读未走完/本批gas曾达真执行水平 → 判"疑似已停(索引滞后)"，defer 交退避复读(不计失败): ${fmt(deferLogs)}`);
         if (unknownLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] estimateGas+状态查询双失败或前端疑似失真 → 保守保留(不入成功集/不拉黑/不判卡链)，交下轮重试: ${fmt(unknownLogs)}`);
-        return { stopped, stuck, cooldown, unknown };
+        return { stopped, stuck, cooldown, unknown, deferBackoff };
     }
 
-    /** 把 estimateGas 判定为"未通过"的 blockedItems 分类记账（stopped→成功清计数，stuck→失败计数，cooldown→汇入待补停队列不计失败/不拉黑，unknown→查询双失败不记账不剔remaining交下轮重试）的便捷封装。 */
+    /** 把 estimateGas 判定为"未通过"的 blockedItems 分类记账（stopped→成功清计数，stuck→失败计数，cooldown→汇入待补停队列不计失败/不拉黑，unknown→查询双失败不记账不剔remaining交下轮重试，deferBackoff→已入退避复读队列由15s调度器复读定夺不当场记失败）的便捷封装。 */
     async function _emergencyCreditBlocked(blockedItems, tag) {
         if (!blockedItems || blockedItems.length === 0) return;
         const { stopped, stuck, cooldown } = await _emergencyClassifyEstimateBlocked(blockedItems, tag);
+        // 注：deferBackoff 已在 classify 内 _stopBackoffGate → _stopBackoffEnroll 入队，此处无需再记账（不计失败=交退避复读）。
         for (const item of stopped) _stopCreditSuccess(item, `estimateGas裁决已停实锤/${tag}`);
         for (const item of stuck) _stopCreditFail(item, '疑似卡链(estimateGas revert+state仍HARVESTING)');
         if (cooldown.length > 0) {
@@ -4817,8 +5055,9 @@
                         if (state === 'HARVESTING') {
                             stillLagging.push(item);
                         } else {
-                            const lagSec = ((Date.now() - start) / 1000).toFixed(1);
-                            log(`   📈 [停采诊断] ${tag} #${item.dbIndex} 索引器滞后 ${lagSec}s 才反映停采`);
+                            const lagMs = Date.now() - start;
+                            try { __stopIndexLagMsList.push(lagMs); } catch (_) {}   // 🔻SYNC→内部版[1.1.22 退避复读] C4：收集索引器滞后供完成小结算中位
+                            log(`   📈 [停采诊断] ${tag} #${item.dbIndex} 索引器滞后 ${(lagMs / 1000).toFixed(1)}s 才反映停采`);
                         }
                     } catch (_) {
                         stillLagging.push(item);
@@ -4976,6 +5215,7 @@
             //   统一经 _awaitStopReceipt 归一；raw 分支 sent.tx 带 wait，走 wait() 语义/行为逐字节等价。
             const { receipt, hash: rawHash, shape } = await _awaitStopReceipt(sent.tx);
             const confirmMs = Date.now() - waitStart;
+            try { __stopTxConfirmMsList.push(confirmMs); } catch (_) {}   // 🔻SYNC→内部版[1.1.22 退避复读] C4：收集本批 tx 确认耗时供完成小结算中位/最慢
             const hash = rawHash ? String(rawHash).slice(0, 10) + '...' : 'N/A';
 
             // 🔻SYNC→内部版[1.1.21 停采回执适配] I2 最高红线：形状未知，或回执缺 gasUsed（gasUsed==null，
@@ -4986,6 +5226,7 @@
                 __stopConsecutiveRevertBatches = 0;
                 __pendingVerifyBatchCount++;
                 log(`⚠️ [停采诊断/确认适配] 回执形状未知/缺gas，转 state 复读裁决（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）tx:${hash} shape=${shape}`);
+                for (const it of items) _stopBackoffEnroll(it, false);   // 🔻SYNC→内部版[1.1.22 退避复读] C2：pendingVerify(缺gas)批入退避复读队列，由15s调度器复读确认（gasLikely=false，无gas凭据）
                 _emergencyDiagIndexLag(items, `tx:${hash}`);
                 return {
                     success: true, txHash: rawHash || '', elapsed: confirmMs,
@@ -5024,6 +5265,9 @@
                 __stopConsecutiveRevertBatches = 0;
                 __pendingVerifyBatchCount++;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：pendingVerify 批数 +1（纯统计）
                 log(`🟡 [停采诊断/gas] 每只≈${Math.round(perKami)} 像执行了，但 gas 不作停成凭据 → pendingVerify（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）`);
+                // 🔻SYNC→内部版[1.1.22 退避复读] C1+C2：full_exec 批入退避复读队列并打 gasLikely（gas 曾达真执行水平）。
+                //   下次调用若该 kami 因索引器滞后 estimateGas revert，classify 会据此 defer 判"疑似已停(索引滞后)"而非当场记失败。
+                for (const it of items) { try { it._gasLikelyExecuted = true; } catch (_) {} _stopBackoffEnroll(it, true); }
                 _emergencyDiagIndexLag(items, `tx:${hash}`);
                 return {
                     success: true, txHash: rawHash || '', elapsed: confirmMs,
@@ -5163,7 +5407,7 @@
             log(`   🔴 #${item.dbIndex} (Δ=${deltaFmt}%) 单独重试...`);
             const ok = await _allowFailureStop([item.harvestId], `#${item.dbIndex}`);
             // BEFORE(Bug B前): _allowFailureStop 的 gas full_exec true 会直接 _stopCreditSuccess；false 会记失败。
-            if (ok === true) _stopCreditSuccess(item, '单独重试state复读确认'); else if (ok === false) _stopCreditFail(item);
+            if (ok === true) _stopCreditSuccess(item, '单独重试state复读确认'); else if (ok === false) _stopCreditFail(item); else _stopBackoffEnroll(item, true);   // 🔻SYNC→内部版[1.1.22 退避复读] C1/C2：null=pendingVerify，入退避复读队列
             await delay(300);
         }
     }
@@ -7130,6 +7374,14 @@
                     await delay(3500);
                     await runAutomation();
                     setInterval(runAutomation, checkInterval);
+                    // 🔻SYNC→内部版[1.1.22 退避复读] C2：启动退避复读调度器（15s 轻量、只做零 gas state 复读，全 try/catch 不影响主循环）
+                    try {
+                        if (!window.__stopBackoffSchedulerStarted) {
+                            window.__stopBackoffSchedulerStarted = true;
+                            setInterval(() => { _stopBackoffSchedulerTick(); }, STOP_BACKOFF_SCAN_INTERVAL_MS);
+                            log(`⏳ [停采诊断/退避] 退避复读调度器已启动（每 ${STOP_BACKOFF_SCAN_INTERVAL_MS / 1000}s 扫描一次，仅零 gas 复读 state；表 ${STOP_BACKOFF_TABLE_MS.map(x => x / 1000 + 's').join('/')}）`);
+                        }
+                    } catch (_) {}
                     break;
                 } else {
                     log('%c⚠️ [启动] waitForEyeHalf 失败，已触发刷新，终止当前启动流程。', 'color: red; font-weight: bold;');
@@ -7623,8 +7875,15 @@
 
         } catch (e) {
             const reason = e.code || e.reason || 'UNKNOWN';
-            dlog('api', `[预检/${type}] 失败: ${reason}`);
-            return { ok: false, reason };
+            // 🔻SYNC→内部版[1.1.22 revert原因观测] C6：多字段提取更完整的 revert 原因串，供停采 estimateGas 裁决处打观测日志（判定逻辑不变，仍以 reason 为准）。
+            //   依次尝试 e.reason / e.shortMessage / e.info?.error?.message / e.data / e.message，取首个非空截 120 字。
+            let detail = '';
+            try {
+                detail = e.reason || e.shortMessage || (e.info && e.info.error && e.info.error.message) || e.data || e.message || '';
+                detail = (typeof detail === 'string' ? detail : String(detail)).slice(0, 120);
+            } catch (_) {}
+            dlog('api', `[预检/${type}] 失败: ${reason}${detail ? ' | ' + detail : ''}`);
+            return { ok: false, reason, detail };
         }
     }
 
@@ -10807,6 +11066,124 @@
         idleLoop();
         log('🌀 [防断连] 已启动 idle 模拟机制');
     }
+
+    // ============================================================
+    // 🔻SYNC→内部版[1.1.22 活动保活] 【板块：人化活动模拟保活（对照实验·真人让路）】
+    // ------------------------------------------------------------
+    // ▍背景：0710 CZ 组件同步滞后风暴时 hidden=false/WS 正常/区块流正常——嫌疑集中在
+    //   app 级"无操作降速"。本模块模拟真人活动做对照实验：风暴消失=坐实并保留，无效=下轮撤。
+    // ▍行为（用户 0710 实测定稿）：
+    //   1) 真人让路：监听 isTrusted 的 mousedown/keydown/wheel/mousemove/pointerdown，
+    //      3 分钟内有真人操作 → 本轮扫掠/合成事件全部跳过（不打扰玩家，也不污染实验）；
+    //   2) 每 ~75s：合成 mousemove（随机坐标，isTrusted=false）；
+    //   3) 每 ~5 分钟：人化全程扫掠——先点一次卡片"非按钮"空白区（用户实测无副作用），
+    //      再小步(250~420px)随机停顿(300~700ms)偶尔驻足(12%概率1.5s)滚到底→回顶→回原位，约 20s；
+    //      紧急锁持有期间顺延；上一轮扫掠未结束不重入。
+    // ▍开关：localStorage 'kami_keepalive'==='off' 禁用；window.setKeepAlive('on'|'off')。默认 on。
+    // ▍日志：启动一条说明；每小时一条汇总。全 try/catch，异常静默跳过，绝不影响业务，零 tx。
+    // ============================================================
+    (function initHumanlikeKeepAlive() {
+        try {
+            const REAL_IDLE_MS = 3 * 60 * 1000;      // 真人3分钟内活动过 → 让路
+            const MOVE_BASE_MS = 75000;              // 合成 mousemove 周期 ~75s
+            const SWEEP_BASE_MS = 5 * 60 * 1000;     // 全程扫掠周期 ~5min
+            let __lastRealActivity = 0;
+            let __sweepRunning = false;
+            let __statMove = 0, __statSweep = 0, __statYield = 0, __lastReport = Date.now();
+
+            const _kaOn = () => { try { return localStorage.getItem('kami_keepalive') !== 'off'; } catch (e) { return true; } };
+            window.setKeepAlive = function (v) {
+                if (v !== 'on' && v !== 'off') { console.log("用法: setKeepAlive('on'|'off') 当前=" + (_kaOn() ? 'on' : 'off')); return; }
+                try { localStorage.setItem('kami_keepalive', v); } catch (e) {}
+                console.log(`✅ 活动保活已切为 ${v}`);
+            };
+            // 真人活动监听（capture+passive，isTrusted 才算）
+            for (const ev of ['mousedown', 'keydown', 'wheel', 'mousemove', 'pointerdown', 'touchstart']) {
+                try { window.addEventListener(ev, e => { if (e.isTrusted) __lastRealActivity = Date.now(); }, { capture: true, passive: true }); } catch (e) {}
+            }
+            const _humanActive = () => (Date.now() - __lastRealActivity) < REAL_IDLE_MS;
+            const rnd = (a, b) => a + Math.random() * (b - a);
+            const pause = ms => new Promise(r => setTimeout(r, ms));
+            function _findScroller() {
+                const cards = document.querySelectorAll('div#party>div>div:nth-of-type(3)>div:nth-of-type(2)>div:nth-of-type(2)>div');
+                if (!cards.length) return { sc: null, cards };
+                let el = cards[0];
+                while (el && el !== document.body) {
+                    if (el.scrollHeight > el.clientHeight + 10) return { sc: el, cards };
+                    el = el.parentElement;
+                }
+                return { sc: null, cards };
+            }
+            function _safeClick(cards) {
+                try {
+                    const card = cards[Math.floor(Math.random() * cards.length)];
+                    const safe = [...card.querySelectorAll('div,span')].filter(n =>
+                        !n.closest('button,a,[role=button]') && !n.querySelector('button,a,img,[role=button]') &&
+                        n.offsetWidth > 5 && n.offsetHeight > 5);
+                    const t = safe.length ? safe[Math.floor(Math.random() * safe.length)] : null;
+                    if (!t) return;
+                    const r = t.getBoundingClientRect();
+                    const opt = { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+                    t.dispatchEvent(new MouseEvent('mousedown', opt));
+                    t.dispatchEvent(new MouseEvent('mouseup', opt));
+                    t.dispatchEvent(new MouseEvent('click', opt));
+                } catch (e) {}
+            }
+            async function _sweep() {
+                if (__sweepRunning) return;
+                __sweepRunning = true;
+                try {
+                    const { sc, cards } = _findScroller();
+                    if (!sc) return;
+                    _safeClick(cards);
+                    const origin = sc.scrollTop;
+                    const maxTop = () => sc.scrollHeight - sc.clientHeight;
+                    let guard = 0;
+                    while (sc.scrollTop < maxTop() - 5 && guard++ < 120) {
+                        sc.scrollTop = Math.min(sc.scrollTop + rnd(250, 420), maxTop());
+                        await pause(rnd(300, 700));
+                        if (Math.random() < 0.12) await pause(1500);
+                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; return; }   // 扫掠中真人来了→立即还原让路
+                    }
+                    await pause(rnd(800, 1500));
+                    guard = 0;
+                    while (sc.scrollTop > 5 && guard++ < 120) {
+                        sc.scrollTop = Math.max(sc.scrollTop - rnd(250, 420), 0);
+                        await pause(rnd(300, 700));
+                        if (Math.random() < 0.12) await pause(1500);
+                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; return; }
+                    }
+                    sc.scrollTop = origin;
+                    __statSweep++;
+                } catch (e) {} finally { __sweepRunning = false; }
+            }
+            function _tickMove() {
+                try {
+                    if (_kaOn() && !_humanActive()) {
+                        document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 100 + Math.random() * 600, clientY: 100 + Math.random() * 400 }));
+                        __statMove++;
+                    } else if (_kaOn()) { __statYield++; }
+                    if (Date.now() - __lastReport >= 3600000) {
+                        __lastReport = Date.now();
+                        log(`🖱️ [保活] 近1小时: mousemove=${__statMove} 全程扫掠=${__statSweep} 真人让路=${__statYield}`);
+                        __statMove = 0; __statSweep = 0; __statYield = 0;
+                    }
+                } catch (e) {}
+                setTimeout(_tickMove, MOVE_BASE_MS + Math.random() * 15000);
+            }
+            function _tickSweep() {
+                try {
+                    const lockHeld = (typeof window.__txEmergencyLock !== 'undefined' && window.__txEmergencyLock);
+                    if (_kaOn() && !_humanActive() && !lockHeld) { _sweep(); }
+                    else if (_kaOn()) { __statYield++; }
+                } catch (e) {}
+                setTimeout(_tickSweep, SWEEP_BASE_MS + Math.random() * 60000);
+            }
+            setTimeout(_tickMove, 45000);
+            setTimeout(_tickSweep, 90000);
+            log(`🖱️ [保活] 人化活动模拟已启动（75s合成mousemove + 5min人化全程扫掠；真人操作3分钟内自动让路；关闭: setKeepAlive('off')）`);
+        } catch (e) {}
+    })();
 
     // ============================================================
     // 【板块：页面加载状态检测（启动前自检 + 自动刷新兜底）】
