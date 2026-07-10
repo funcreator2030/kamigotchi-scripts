@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.18
+// @version      1.1.19
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 09:22:44
+// @x-release-date 2026/7/10 10:37:43
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.18                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.19                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1263,7 +1263,8 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('✅ Kamigotchi核心脚本-公开版 v1.1.18 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('✅ Kamigotchi核心脚本-公开版 v1.1.19 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log(`📡 [停采通道] 当前=${_getStopTxChannel()}(MUD队列统一nonce)｜回退命令 setStopTxChannel('raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
     log(`%c   Mac: 系统设置 → 能耗 → 「显示器关闭时防止自动进入睡眠」打开`,
@@ -1275,7 +1276,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.18';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.19';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1386,7 +1387,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.18 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.19 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -1451,6 +1452,9 @@
         console.log('');
         console.log('// 查看当前 TX 锁状态（紧急锁 / 普通锁）');
         console.log('getTxLockStatus()');
+        console.log('');
+        console.log('// 切换停采发送通道：mud=MUD队列(默认,统一nonce) / raw=原始签名器(回退)；不填参数查当前');
+        console.log("setStopTxChannel('mud'|'raw')");
         console.log('');
         console.log('───────── 💰 mETH 消耗追踪 ─────────');
         console.log('// 查看所有账户最近 20 条记录 + 累计折算（最常用，不带参数）');
@@ -2271,6 +2275,7 @@
     const __stopConfirmedThisInvocation = new Set();          // Change B：本次调用内已强证据确认停成的 kamiId
     const __stopCooldownDeferredThisInvocation = new Map();   // Change D：dbIndex -> item，classify 发现的冷却项汇入
     let __pendingVerifyBatchCount = 0;                        // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用内产生 pendingVerify 的批数（纯统计，invocation 开头清零）
+    let __stopChanFallbackCount = 0;                          // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：本次调用内 mud→raw 跌落次数（纯统计，invocation 开头清零）
 
     /**
      * 停采失败记账：同一次 emergencyStopHarvest 调用内，同一 kamiId 最多 +1。
@@ -3710,6 +3715,7 @@
         __stopConfirmedThisInvocation.clear();
         __stopCooldownDeferredThisInvocation.clear();
         __pendingVerifyBatchCount = 0;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：本次调用 pendingVerify 批数清零
+        __stopChanFallbackCount = 0;     // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：本次调用 mud→raw 跌落计数清零
 
         // 标记是否设置了紧急锁（用于finally中判断是否需要释放）
         let emergencyLockSet = false;
@@ -4298,7 +4304,8 @@
 
             // 🔻SYNC→内部版[1.1.17 可观测性批次] C4：停采收敛小结（纯日志/统计；简化版=只报本次 pendingVerify 批数，
             // tx确认耗时中位/索引器确认只数因现场无累计变量暂不取，保守不为凑指标改流程；已确认停成只数取自本次调用去重集）
-            log(`📊 [停采诊断/收敛小结] 本次 pendingVerify批=${__pendingVerifyBatchCount} 已确认停成=${__stopConfirmedThisInvocation.size}只（gas 不作停成凭据，成功以下轮 state≠HARVESTING 复读为准）`);
+            // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：小结追加当前通道与本次 mud→raw 跌落次数（纯统计）
+            log(`📊 [停采诊断/收敛小结] 本次 pendingVerify批=${__pendingVerifyBatchCount} 已确认停成=${__stopConfirmedThisInvocation.size}只 通道=${_getStopTxChannel()} 跌落raw=${__stopChanFallbackCount}次（gas 不作停成凭据，成功以下轮 state≠HARVESTING 复读为准）`);
 
         } finally {
             // 只有设置了紧急锁才需要释放
@@ -4525,6 +4532,20 @@
         } catch (_) { /* 读不到不影响主流程，静默忽略 */ }
         return null;
     }
+
+    // ============ [停采发送通道 v1.1.19] MUD 队列(默认) / 原始签名器(回退) ============
+    // 🔻SYNC→内部版[1.1.19 停采通道统一]
+    // 背景：0710 取证——停采原走 signer.sendTransaction 原始签名器，与 MUD TXQueue 双 nonce 账本分叉，
+    //   每夜 ~46 次 sequence mismatch（自愈但浪费）。队列包装对象上 executeBatchedAllowFailure 直接可调
+    //  （与 api 同通道，nonce 统一，容错语义不变），故默认切 MUD 通道；原始通道保留作一键回退。
+    function _getStopTxChannel() {
+        try { return localStorage.getItem('kami_stop_tx_channel') === 'raw' ? 'raw' : 'mud'; } catch (e) { return 'mud'; }
+    }
+    window.setStopTxChannel = function (ch) {
+        if (ch !== 'mud' && ch !== 'raw') { console.log("用法: setStopTxChannel('mud'|'raw')  当前=" + _getStopTxChannel()); return; }
+        try { localStorage.setItem('kami_stop_tx_channel', ch); } catch (e) {}
+        console.log(`✅ 停采发送通道已切为 ${ch}（mud=MUD队列统一nonce/raw=原始签名器旧路），即刻生效`);
+    };
 
     /**
      * estimateGas 门禁：重试/单发前先探一次会不会成功，通过才放行。
@@ -4758,6 +4779,32 @@
         }
 
         try {
+            // 🔻SYNC→内部版[1.1.19 停采通道统一]
+            // 发送通道：默认走 MUD txQueue（system 即 txQueue.systems["system.harvest.stop"]，
+            //   与 api 同一 nonce 账本，消除 signer.sendTransaction 造成的双账本 sequence mismatch）；
+            //   队列入口缺失时打 ⚠️ 并自动跌落到下方原始签名器路径（逐字节保留）。返回对象形状
+            //   与原路完全一致（含可 .wait() 的 tx），下游 _emergencyConfirmBatch 零改动消费。
+            if (_getStopTxChannel() === 'mud') {
+                if (typeof system.executeBatchedAllowFailure !== 'function') {
+                    __stopChanFallbackCount++;   // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：跌落 raw 计数
+                    log(`⚠️ [停采诊断/通道] MUD 队列停采入口不可用，本批自动回退原始签名器`);
+                    /* 跌落到下方原始签名器分支 */
+                } else {
+                    log(`📤 [停采诊断/发送] ${ids.length} 个（MUD队列/nonce统一）...`);
+                    // 🔻SYNC→内部版[1.1.19 停采通道统一·背靠背修正]
+                    // 不 await：MUD 队列 promise 可能要等上链才 resolve（链上 RPC 为
+                    // eth_sendRawTransactionSync），await 会把多批"背靠背广播"退化成
+                    // "串行等上链"（每批+2~6s）。这里只入队拿 promise，正确性不再依赖
+                    // resolve 语义；立即附 noop catch 防悬空期 unhandled rejection（真正的
+                    // 错误处理在确认阶段 await txPromise 时做）。raw 分支照旧返回 tx。
+                    const txPromise = system.executeBatchedAllowFailure(ids);
+                    txPromise.catch(() => {});
+                    // 🔻SYNC→内部版[1.1.19 停采通道统一] D1：发送段耗时（sentAt 即入口 t0，证明发送段快、背靠背成立）
+                    log(`📡 [停采诊断/通道] 本批经 MUD 队列已入队(nonce统一，tx 交确认阶段解析) 耗时${Date.now()-sentAt}ms`);
+                    return { items, sentAt, tx: null, txPromise, error: null, useFallback: false, nonce: null };
+                }
+            }
+            // ---- 原始签名器通道（回退，逐字节保留）----
             const nonceInfo = await _tryReadNonce(signer);
             log(`📤 [停采诊断/发送] ${ids.length} 个${nonceInfo != null ? ` nonce=${nonceInfo}` : ''}...`);
             const bigIntIds = ids.map(id => BigInt(id));
@@ -4791,8 +4838,9 @@
         if (sent.useFallback) {
             return _apiStopBatchFallback(items);
         }
-        if (!sent.tx) {
+        if (!sent.tx && !sent.txPromise) {
             // 发送阶段就出错了（未上链）：按错误特征分类打日志，语义与旧版一致
+            // （mud 分支成功入队时 tx 为 null 但带 txPromise，不落此路，交下方 try 内解析）
             const errMsg = sent.error || '未知错误';
             const isTimeout = errMsg.includes('timeout') || errMsg.includes('not mined');
             const isNonceError = errMsg.toLowerCase().includes('nonce') || errMsg.includes('sequence mismatch');
@@ -4810,8 +4858,19 @@
             return { success: false, error: errMsg, isTimeout, items };
         }
 
-        const tx = sent.tx;
         try {
+            // 🔻SYNC→内部版[1.1.19 停采通道统一·背靠背修正]
+            // mud 分支发送阶段只入队拿 txPromise（未 await），在此解析成 tx；await
+            // 抛错则落入下方 catch，与 raw 分支 tx 发送失败的错误路径语义对齐，对 items
+            // 的记账不变。raw 分支 sent.tx 已就绪，此行短路跳过。
+            // 🔻SYNC→内部版[1.1.19 停采通道统一] D2：关键计时器——队列 promise resolve 于"拿hash"还是"等上链"，用首夜实盘标定（await 本身不变，仅两侧计时）
+            if (!sent.tx && sent.txPromise) {
+                const __ptStart = Date.now();
+                sent.tx = await sent.txPromise;
+                const __ptMs = Date.now() - __ptStart;
+                log(`📡 [停采诊断/mud队列] txPromise解析耗时=${__ptMs}ms（参考:≤300ms≈拿hash即返;≥2000ms≈等上链后返）`);
+            }
+            const tx = sent.tx;
             const waitStart = Date.now();
             const receipt = await tx.wait();
             const confirmMs = Date.now() - waitStart;
@@ -6399,10 +6458,30 @@
         log(`🧾 [AllowFailure停采] ${harvestIds.length} 个 → ${fmtListForLog}`);
         dlog('api', '[AllowFailure STOP ids]', harvestIds);
         try {
-            // 合约入参为 uint256[]，先把 harvestId 统一转成 BigInt 再做 ABI 编码
-            const bigIntIds = harvestIds.map(id => BigInt(id));
-            const data = system.interface.encodeFunctionData('executeBatchedAllowFailure', [bigIntIds]);
-            const tx = await signer.sendTransaction({ to: system.target, data });
+            // 🔻SYNC→内部版[1.1.19 停采通道统一]
+            // 发送通道：默认走 MUD txQueue（system 即 txQueue.systems["system.harvest.stop"]，
+            //   与 api 同一 nonce 账本，消除 signer.sendTransaction 造成的双账本 sequence mismatch）；
+            //   队列入口缺失时打 ⚠️ 并自动跌落到原始签名器路径（逐字节保留）。tx 由本函数内部
+            //   照旧 .wait()+按 gas 判级消费，返回值(true/false/null)语义与形状不变，下游零改动。
+            let tx;
+            if (_getStopTxChannel() === 'mud' && typeof system.executeBatchedAllowFailure === 'function') {
+                // MUD 队列通道：同一 executeBatchedAllowFailure 入口、同一 harvestIds 实参（不重新编码 calldata），容错语义一致
+                // 🔻SYNC→内部版[1.1.19 停采通道统一] D4：mud enqueue+resolve 计时（与 D2 同一队列 resolve 语义问题，此路单批 await）
+                const __afStart = Date.now();
+                tx = await system.executeBatchedAllowFailure(harvestIds);
+                const __afMs = Date.now() - __afStart;
+                if (tx) log(`📡 [AllowFailure停采/通道] 本批经 MUD 队列发送(nonce统一) tx=${(tx?.hash || '').slice(0, 10)}… mud enqueue+resolve=${__afMs}ms`);
+            } else {
+                if (_getStopTxChannel() === 'mud') {
+                    __stopChanFallbackCount++;   // 🔻SYNC→内部版[1.1.19 停采通道统一] D3：跌落 raw 计数
+                    log(`⚠️ [AllowFailure停采/通道] MUD 队列停采入口不可用，本批自动回退原始签名器`);
+                }
+                // ---- 原始签名器通道（回退，逐字节保留）----
+                // 合约入参为 uint256[]，先把 harvestId 统一转成 BigInt 再做 ABI 编码
+                const bigIntIds = harvestIds.map(id => BigInt(id));
+                const data = system.interface.encodeFunctionData('executeBatchedAllowFailure', [bigIntIds]);
+                tx = await signer.sendTransaction({ to: system.target, data });
+            }
             if (!tx) {
                 log(`⚠️ [AllowFailure停采/返回空Tx] → ${fmtListForLog}`);
                 return false;
