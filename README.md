@@ -170,6 +170,27 @@
 - ✅ **杀手 Kami 自动跳过**（在杀手监控脚本配置过、或已进 `window.MY_KILLER_KAMIS` 的不会被重置）；
 - ⚠️ 如果你有**采集 Kami 想保留自己的技能加点**、不想被重置 —— 需要自己改脚本（见下）。
 
+### 「标准 build」具体是哪些技能（18 个，编号+名字）
+
+作者面向「少被清算、采集更久」目标的加点方案——**生存（Guardian 树）12 个 + 收益（Harvester 树）6 个**。Kamigotchi 点了**这 18 个之外**的技能就会被判非标准、触发重置：
+
+| 系别 | 编号 · 技能名 |
+|---|---|
+| **生存 Guardian · T1** | 311 Defensiveness · 312 Toughness · 313 Patience |
+| **生存 Guardian · T2** | 321 Meticulous · 322 Vigor · 323 Armor |
+| **生存 Guardian · T3** | 331 Anxiety（单点）|
+| **生存 Guardian · T4** | 341 Flawless · 343 Shielding（不含 342）|
+| **生存 Guardian · T5** | 352 Hefty · 353 Fortress（不含 351）|
+| **生存 Guardian · T6** | 361 Neurosis（单点）|
+| **收益 Harvester · T1** | 411 Acquisitiveness · 412 Mogging · 413 Greed |
+| **收益 Harvester · T2** | 421 Wide Portfolio · 422 Side Hustles |
+| **收益 Harvester · T3** | 431 Technical Analysis（单点）|
+
+**自动加点顺序**（`SKILL_ORDER`，生存优先）：
+`311 → 312 → 321 → 323 → 331 → 322 → 343 → 341 → 313 → 353 → 352 → 361 → 411 → 412 → 421 → 431 → 413 → 422`
+
+> 这套 build 是作者的个人策略，不是唯一解。想换自己的方案：fork 后同步改 `STANDARD_SKILLS` / `SKILL_ORDER` / `SKILL_CAP` 三处（不同步会陷入"刚点完就被判非标准又重置"的循环）。
+
 ### 不想被重置怎么改（要 fork 自己一份）
 
 脚本是**从本仓库自动更新**的，你直接改本地装的那份，**下次自动更新会把改动覆盖掉**。所以要让改动生效并保住，得 fork 自己一份、从你自己的 fork 安装：
