@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.22
+// @version      1.1.23
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 17:37:21
+// @x-release-date 2026/7/10 18:26:20
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.22                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.23                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1270,7 +1270,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.22 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.23 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1283,7 +1283,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.22';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.23';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1458,7 +1458,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.22 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.23 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -3949,8 +3949,10 @@
     // ============================================================
     /**
      * 紧急停采主函数 - 预检过滤 + 凑批决策 + 多轮批量停采 + 动态等待
+     * @param {{trimTo?: number}} [opts] 可选；仅硬触发路径传 {trimTo:25} 在 stopList 构建后修剪到目标数。
+     *   其它调用方（杀手监控/危险HP/手动）不传参 → 行为逐字节不变（无修剪）。
      */
-    async function emergencyStopHarvest() {
+    async function emergencyStopHarvest(opts) {
         if (window.__emergencyStopRunning) {
             log('⚠️ [紧急停采] 已在运行中，跳过');
             return;
@@ -3958,6 +3960,9 @@
         window.__emergencyStopRunning = true;
         try { if (window.__evalFrontendFrozen) window.__evalFrontendFrozen(); } catch (e) {}   // [②v1.1.25] 刷新前端冻结信号，供 frozen 门闩读
         window.__kamiOperationInProgress = true;
+
+        // 可选修剪目标：仅 STOP_TRIGGER 硬触发路径传入；默认 null = 不修剪
+        const trimTo = (opts && typeof opts.trimTo === 'number') ? opts.trimTo : null;
 
         const startTime = Date.now();
         log(`%c🚨 [紧急停采] 开始...`, 'color: red; font-weight: bold; font-size: 14px;');
@@ -4013,6 +4018,29 @@
                 }
             }
 
+            // 凑批门槛 / 危险判定线（修剪与凑批决策共用）
+            const TARGET_BATCH_MIN = 6;
+            const EMERGENCY_DANGER_DELTA = -1;
+
+            // 可选修剪（仅硬触发路径 opts.trimTo）：扫描完成后、凑批决策前。
+            // 挑选优先级：① STARVING ② 危险(delta≤EMERGENCY_DANGER_DELTA) ③ 其余 delta 升序；
+            // 安全兜底：STARVING+危险数量 > 超额时全部照停（允许停后剩余 < trimTo）。
+            if (trimTo != null && stopList.length > trimTo) {
+                const nCand = stopList.length;
+                const excess = nCand - trimTo; // 理想停数（修剪到 trimTo）
+                const mustStop = stopList.filter(x => x.isStarving || x.delta <= EMERGENCY_DANGER_DELTA);
+                const normals = stopList.filter(x => !x.isStarving && x.delta > EMERGENCY_DANGER_DELTA);
+                normals.sort((a, b) => a.delta - b.delta); // 离停采线最近（越负越危）先停
+                const mustCount = mustStop.length;
+                const stopTarget = Math.max(excess, mustCount); // 保命优先于修剪目标
+                const normalStop = normals.slice(0, Math.max(0, stopTarget - mustCount));
+                stopList = mustStop.concat(normalStop);
+                const aStarving = mustStop.filter(x => x.isStarving).length;
+                const bDanger = mustStop.filter(x => !x.isStarving).length;
+                const cUrgent = normalStop.length;
+                log(`✂️ [批量修剪] 候选${nCand}只→停最危险${stopList.length}只(STARVING=${aStarving} 危险=${bDanger} urgent=${cUrgent})，保留${trimTo}只继续采`);
+            }
+
             // 凑批决策："等"模式——不够凑批门槛且无危险就跳过本轮。
             // 不拓宽 delta 把中危 kami 拉下水凑数：那样会过度停采，
             // 让本可继续采集的健康 kami 白白损失采集时长。
@@ -4028,8 +4056,6 @@
             //   1. hasDangerous = 任一 isStarving 或 delta ≤ -1（EMERGENCY_DANGER_DELTA，当前 -1）
             //   2. if (hasDangerous || stopList.length ≥ TARGET_BATCH_MIN) → 进 batch 流程
             //      else → 跳过本轮等下一轮积累（N=1~5 统一走此"等"逻辑）
-            const TARGET_BATCH_MIN = 6;
-            const EMERGENCY_DANGER_DELTA = -1;
 
             if (stopList.length > 0) {
                 const hasDangerous = stopList.some(x => x.isStarving || x.delta <= EMERGENCY_DANGER_DELTA);
@@ -5012,7 +5038,7 @@
         const fmt = (arr) => arr.length > 8 ? `${arr.length}只(样例: ${arr.slice(0, 5).join(', ')}...)` : arr.join(', ');
         if (stoppedLogs.length > 0) log(`   ✅ [停采诊断/${tag}] 已停实锤(estimateGas revert + 链上非HARVESTING，索引器滞后) → 清计数不拉黑: ${fmt(stoppedLogs)}`);
         if (cooldownLogs.length > 0) log(`   🧊 [停采诊断/${tag}/classify冷却分支] estimateGas revert + 仍HARVESTING + 仍在180s操作冷却(remain>0) → 不计失败不拉黑，转入cooldown待补停: ${fmt(cooldownLogs)}`);
-        if (stuckLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] 疑似卡链(退避表走完≥6档/≥300s仍HARVESTING+estimateGas revert) → 记一次可疑计数，本次调用内不再对其发tx: ${fmt(stuckLogs)}`);
+        if (stuckLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] 疑似卡链(退避表走完走完全表+证据窗(300s/gasLikely 30min)+终审仍HARVESTING+estimateGas revert) → 记一次可疑计数，本次调用内不再对其发tx: ${fmt(stuckLogs)}`);
         if (deferLogs.length > 0) log(`   ⏸️ [停采诊断/${tag}] estimateGas revert 但退避复读未走完/本批gas曾达真执行水平 → 判"疑似已停(索引滞后)"，defer 交退避复读(不计失败): ${fmt(deferLogs)}`);
         if (unknownLogs.length > 0) log(`   ⚠️ [停采诊断/${tag}] estimateGas+状态查询双失败或前端疑似失真 → 保守保留(不入成功集/不拉黑/不判卡链)，交下轮重试: ${fmt(unknownLogs)}`);
         return { stopped, stuck, cooldown, unknown, deferBackoff };
@@ -8830,35 +8856,48 @@
         // ▍功能：单轮停采候选异常多，大概率是杀手在批量攻击，普通分批
         //   停采的节奏抗不住，立即升级为紧急停采流程接管。
         // ▍触发条件（两路任一满足，且当前没有紧急锁）：
-        //   1) 当前模式停采线扫出的候选总数（API+DOM）> STOP_TRIGGER_HARD
-        //   2) "普通模式停采线"独立计数 > STOP_TRIGGER_HARD —— 第二路专治
+        //   1) 当前模式停采线扫出的候选总数（API+DOM）≥ STOP_TRIGGER_ACT
+        //   2) "普通模式停采线"独立计数 ≥ STOP_TRIGGER_ACT —— 第二路专治
         //      盲区：贪婪模式 + 无杀手时实际停采线仅 5%，按当前模式几乎
         //      扫不出大批候选，第一路等于失效；用普通线（LT+3% / 65%~80%）
         //      独立扫，就能在杀手批量攻击的早期识别险情
-        // ▍核心流程：后台启动 emergencyStopHarvest()（不 await，让它自己
-        //   拿紧急锁运行）；主流程继续向下，在"锁协调"处向紧急锁让路。
+        //   候选 ∈ (HARD, ACT) 即 26~30：只打观察预警，不硬触发，交普通停采凑批
+        // ▍核心流程：后台启动 emergencyStopHarvest({trimTo:HARD})（不 await，
+        //   让它自己拿紧急锁运行；扫描后只停最危险的超额部分，修剪到 HARD 只继续采）；
+        //   主流程继续向下，在"锁协调"处向紧急锁让路。
         // ▍边界与保护：
         //   - 已有紧急锁时不重复触发
         //   - 启动时的同步/异步异常都被捕获，只记日志，不中断主流程
         // ▍可调参数：
-        //   STOP_TRIGGER_HARD = 25 — 硬触发阈值；调小更容易进紧急流程
-        //     （误报变多、普通轮次被打断），调大对批量攻击的反应更慢
+        //   STOP_TRIGGER_HARD = 25 — 修剪目标/预警线（>此值可观察预警；硬触发后修剪保留数）
+        //   STOP_TRIGGER_ACT = HARD + TARGET_BATCH_MIN = 31 — 动手线（超额≥6 才硬触发）
         // ============================================================
-        const STOP_TRIGGER_HARD = 25;
+        const STOP_TRIGGER_HARD = 25; // 修剪目标/预警线
+        const STOP_TRIGGER_ACT = STOP_TRIGGER_HARD + 6; // =31 = HARD + TARGET_BATCH_MIN；超额≥6 才硬触发
         const __totalStopCount = apiList.length + domList.length;
-        const __triggerByCurrent = __totalStopCount > STOP_TRIGGER_HARD;
-        const __triggerByNormalLine = __normalLineStopCount > STOP_TRIGGER_HARD;
+        const __triggerByCurrent = __totalStopCount >= STOP_TRIGGER_ACT;
+        const __triggerByNormalLine = __normalLineStopCount >= STOP_TRIGGER_ACT;
         if ((__triggerByCurrent || __triggerByNormalLine) && !hasEmergencyLock()) {
             const reason = __triggerByCurrent
-                ? `当前模式停采线候选 ${__totalStopCount} > ${STOP_TRIGGER_HARD}`
-                : `普通模式停采线候选 ${__normalLineStopCount} > ${STOP_TRIGGER_HARD}（当前模式仅扫到 ${__totalStopCount}，但按 LT+${LT_STOP_MARGIN}% 已危险）`;
-            log(`%c🚨 [紧急触发] ${reason}，升级为紧急停采流程接管`,
+                ? `当前模式停采线候选 ${__totalStopCount} ≥ ${STOP_TRIGGER_ACT}`
+                : `普通模式停采线候选 ${__normalLineStopCount} ≥ ${STOP_TRIGGER_ACT}（当前模式仅扫到 ${__totalStopCount}，但按 LT+${LT_STOP_MARGIN}% 已危险）`;
+            log(`%c🚨 [紧急触发] ${reason}，升级为紧急停采流程接管（修剪到 ${STOP_TRIGGER_HARD}）`,
                 'color: red; font-weight: bold; font-size: 13px;');
             // 后台启动紧急停采（不 await），主流程下方会在最多300秒的等待中被紧急锁接管
+            // 仅本硬触发路径带 trimTo；杀手监控等其它调用方不传参、无修剪
             try {
-                emergencyStopHarvest().catch(e => log(`[紧急触发] 紧急停采异常: ${e?.message || e}`));
+                emergencyStopHarvest({ trimTo: STOP_TRIGGER_HARD }).catch(e => log(`[紧急触发] 紧急停采异常: ${e?.message || e}`));
             } catch (e) {
                 log(`[紧急触发] 紧急停采启动失败: ${e?.message || e}`);
+            }
+        } else if (!hasEmergencyLock()) {
+            // 候选 > HARD 但 < ACT：观察预警（每轮本分支最多一条），交普通停采流程凑批
+            const __warnN = (__totalStopCount > STOP_TRIGGER_HARD && __totalStopCount < STOP_TRIGGER_ACT)
+                ? __totalStopCount
+                : ((__normalLineStopCount > STOP_TRIGGER_HARD && __normalLineStopCount < STOP_TRIGGER_ACT)
+                    ? __normalLineStopCount : 0);
+            if (__warnN > 0) {
+                log(`ℹ️ [批量预警] 停采线候选${__warnN}只(>${STOP_TRIGGER_HARD})但超额<6，暂不硬触发，交普通停采流程凑批`);
             }
         }
 
@@ -11023,8 +11062,9 @@
         let lastMouseActivity = Date.now();
 
         // 真实鼠标活动 → 刷新时间戳（供 idle 判定）
-        window.addEventListener('mousemove', () => { lastMouseActivity = Date.now(); });
-        window.addEventListener('click', () => { lastMouseActivity = Date.now(); });
+        // isTrusted 守卫：忽略 C7/本模块合成事件，两套保活各自独立判"真人"
+        window.addEventListener('mousemove', (e) => { if (!e.isTrusted) return; lastMouseActivity = Date.now(); });
+        window.addEventListener('click', (e) => { if (!e.isTrusted) return; lastMouseActivity = Date.now(); });
 
         let __idleSimCount = 0;  // 日志限流计数：累计模拟次数
         function simulateIdleMouseAction() {
