@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.14
+// @version      1.1.15
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 11:10:34
+// @x-release-date 2026/7/10 12:22:48
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -16,7 +16,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                 Kamigotchi 轻量杀手监控 · 公开版 v1.1.14                        ║
+// ║                 Kamigotchi 轻量杀手监控 · 公开版 v1.1.15                        ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本持续监控一份你自己维护的"杀手 kami 名单"（KILLER_KAMI_INDEXES），        ║
 // ║  纯 API 轮询、不依赖 DOM，开销极小。当杀手出现在你的采集地块（房间）或          ║
@@ -314,13 +314,13 @@
         }
     }
 
-    log('%c✅ 轻量杀手监控-公开版 v1.1.14 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
+    log('%c✅ 轻量杀手监控-公开版 v1.1.15 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.1.14';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.15';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -353,7 +353,19 @@
                     log(`ℹ️ [版本检查] 本机 ${SELF_NAME} v${SELF_VERSION} 比 GitHub(v${remoteVer}) 更新（本地开发版）`);
                 }
             } catch (e) {
-                log(`ℹ️ [版本检查] 获取 GitHub 最新版本失败（${e && e.message || e}），跳过`);
+                // 🔻SYNC→内部版[1.1.15 版本检查降噪]（游戏 SPA 运行时注入 CSP meta 的 connect-src 白名单，raw 外联在游戏页永久失败）
+                // fetch 失败绝大多数是游戏页 CSP 拒绝外联 GitHub（属正常，不影响篡改猴自动更新），旧版每次页面加载都打一行=刷屏。
+                // 改为 24h 内只提示一次：命中节流窗口则静默；否则打一条并刷新时间戳。
+                try {
+                    const noteKey = 'kami_vercheck_csp_note_' + SELF_NAME;
+                    const last = Number(localStorage.getItem(noteKey) || 0);
+                    if (Date.now() - last >= 86400000) {
+                        localStorage.setItem(noteKey, String(Date.now()));
+                        log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                    }
+                } catch (e2) {
+                    log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                }
             }
         }, 8000);   // 延迟 8s，避开启动拥挤；raw 带 CORS *，页面上下文可直接 fetch
     })();
@@ -1271,7 +1283,7 @@
     // ▍触发时机：脚本加载立即输出（早于 150 秒的延迟自动启动）。
     // ============================================================
     console.log('═══════════════════════════════');
-    console.log('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.1.14 已加载', 'color: green; font-weight: bold;');
+    console.log('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.1.15 已加载', 'color: green; font-weight: bold;');
     console.log('');
     console.log('【杀手监控优化】');
     console.log('  启动时建立 kami→player 映射，每次检测只查 player 位置');

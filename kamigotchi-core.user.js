@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.20
+// @version      1.1.21
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 11:10:34
+// @x-release-date 2026/7/10 12:22:48
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.20                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.21                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1263,8 +1263,8 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.20 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
-    log(`📡 [停采通道] 当前=${_getStopTxChannel()}(MUD队列统一nonce)｜回退命令 setStopTxChannel('raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.21 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
     log(`%c   Mac: 系统设置 → 能耗 → 「显示器关闭时防止自动进入睡眠」打开`,
@@ -1276,7 +1276,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.20';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.21';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1309,9 +1309,73 @@
                     log(`ℹ️ [版本检查] 本机 ${SELF_NAME} v${SELF_VERSION} 比 GitHub(v${remoteVer}) 更新（本地开发版）`);
                 }
             } catch (e) {
-                log(`ℹ️ [版本检查] 获取 GitHub 最新版本失败（${e && e.message || e}），跳过`);
+                // 🔻SYNC→内部版[1.1.21 版本检查降噪]（游戏 SPA 运行时注入 CSP meta 的 connect-src 白名单，raw 外联在游戏页永久失败）
+                // fetch 失败绝大多数是游戏页 CSP 拒绝外联 GitHub（属正常，不影响篡改猴自动更新），旧版每次页面加载都打一行=刷屏。
+                // 改为 24h 内只提示一次：命中节流窗口则静默；否则打一条并刷新时间戳。
+                try {
+                    const noteKey = 'kami_vercheck_csp_note_' + SELF_NAME;
+                    const last = Number(localStorage.getItem(noteKey) || 0);
+                    if (Date.now() - last >= 86400000) {
+                        localStorage.setItem(noteKey, String(Date.now()));
+                        log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                    }
+                } catch (e2) {
+                    log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                }
             }
         }, 8000);   // 延迟 8s，避开启动拥挤；raw 带 CORS *，页面上下文可直接 fetch
+    })();
+
+    // ============ [环境指纹 v1.1.21] 启动后自动 dump 一次诊断快照 ============
+    // 🔻SYNC→内部版[1.1.21 环境指纹]
+    // 目的：用户只需提供日志、无需再手贴控制台探针——把历次排障要问的
+    //   环境事实（MUD 运行时形状/停采合约入口/CSP 注入/传感器/通道配置）
+    //   开机自动写进日志。纯只读纯日志，全 try/catch，任何异常不影响业务。
+    (function envFingerprint() {
+        let tries = 0;
+        function run() {
+            tries++;
+            const n = window.network;
+            if (!n || !n.explorer || !n.txQueue) {
+                if (tries < 4) { setTimeout(run, 30000); return; }
+                try { log('🧬 [环境指纹] window.network 多次重试仍未就绪，本次跳过'); } catch (e) {}
+                return;
+            }
+            try {
+                const nn = n.network || {};
+                let bnDesc = '缺失';
+                try {
+                    const bn$ = nn.blockNumber$;
+                    if (bn$ && typeof bn$.subscribe === 'function') {
+                        const v = (typeof bn$.getValue === 'function') ? bn$.getValue() : bn$.value;
+                        bnDesc = `可订阅(当前块=${v != null ? v : '?'})`;
+                    } else if (bn$ != null) bnDesc = `不可订阅(type=${typeof bn$})`;
+                } catch (e) { bnDesc = '读取异常'; }
+                let connDesc = '缺失';
+                try {
+                    const c = nn.connected;
+                    if (typeof c === 'boolean') connDesc = `boolean=${c}`;
+                    else if (c && typeof c.getValue === 'function') connDesc = `subject=${c.getValue()}`;
+                    else if (c && typeof c === 'object' && 'value' in c) connDesc = `obj.value=${c.value}`;
+                    else if (c != null) connDesc = `type=${typeof c}`;
+                } catch (e) { connDesc = '读取异常'; }
+                let sys = null, apiStopSrc = '';
+                try { sys = n.txQueue && n.txQueue.systems && n.txQueue.systems['system.harvest.stop']; } catch (e) {}
+                try { apiStopSrc = String((n.api && n.api.player && n.api.player.pet && n.api.player.pet.harvest && n.api.player.pet.harvest.stop) || '').slice(0, 80); } catch (e) {}
+                let cspDesc = '无';
+                try {
+                    const m = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+                    if (m) cspDesc = '有(动态注入): ' + String(m.content || '').slice(0, 120).replace(/\n/g, ' ');
+                } catch (e) {}
+                let chan = '?'; try { chan = _getStopTxChannel(); } catch (e) {}
+                let mode = '?'; try { mode = localStorage.getItem('kami_mode') || 'greedy'; } catch (e) {}
+                log(`🧬 [环境指纹] 通道=${chan} 模式=${mode} | explorer=${!!n.explorer} txQueue=${!!n.txQueue} api=${!!n.api} clock=${!!nn.clock} LoadingState=${!!(n.components && n.components.LoadingState)}`);
+                log(`🧬 [环境指纹] blockNumber$=${bnDesc} | connected=${connDesc} | frozen=${window.__frontendFrozen === true}`);
+                log(`🧬 [环境指纹] 停采system: batched=${typeof (sys && sys.executeBatched)} allowFailure=${typeof (sys && sys.executeBatchedAllowFailure)} | api.stop封装=${apiStopSrc}`);
+                log(`🧬 [环境指纹] CSP(meta)=${cspDesc}`);
+            } catch (e) { try { log(`🧬 [环境指纹] 生成异常(${e && e.message})，跳过`); } catch (e2) {} }
+        }
+        setTimeout(run, 60000);   // 60s 后跑（等 MUD 就绪），未就绪再重试 3 次×30s
     })();
 
     // ============================================================
@@ -1387,7 +1451,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.20 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.21 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -4022,6 +4086,9 @@
                 // 已确认停采的记入操作账（供统计/展示使用）
                 for (const item of alreadyStopped) {
                     recordAction(item.imgNumber, 'stopHarvest');
+                    // 🔻SYNC→内部版[1.1.21 轮末已停实锤记账]（grok P0.5）state 复读确认非HARVESTING 的成功也清失败计数/入成功集，
+                    //   避免真已停的 kami 因残留失败计数被误拉黑；_resolvedState==='unknown'（查询抛错）不算确认，绝不据此清计数。
+                    if (item._resolvedState && item._resolvedState !== 'unknown') _stopCreditSuccess(item, 'state复读已停');
                 }
 
                 log(`📊 [紧急停采] 第${round}轮结果: 已停=${alreadyStopped.length}, 仍在采(索引器读数)=${stillHarvesting.length}`);
@@ -4178,6 +4245,8 @@
                     remaining = _stopFilterConfirmed(waitFinalCheck.stillHarvesting, 'cooldown定时补停后复核');
                     for (const item of waitFinalCheck.alreadyStopped) {
                         recordAction(item.imgNumber, 'stopHarvest');
+                        // 🔻SYNC→内部版[1.1.21 轮末已停实锤记账]（grok P0.5）同上：state 复读确认已停清失败计数，unknown 不算确认
+                        if (item._resolvedState && item._resolvedState !== 'unknown') _stopCreditSuccess(item, 'state复读已停(cooldown定时补停后)');
                     }
                 }
 
@@ -4281,6 +4350,8 @@
                     remaining = _stopFilterConfirmed(finalCheck.stillHarvesting, 'cooldown重试后复核');
                     for (const item of finalCheck.alreadyStopped) {
                         recordAction(item.imgNumber, 'stopHarvest');
+                        // 🔻SYNC→内部版[1.1.21 轮末已停实锤记账]（grok P0.5）同上：state 复读确认已停清失败计数，unknown 不算确认
+                        if (item._resolvedState && item._resolvedState !== 'unknown') _stopCreditSuccess(item, 'state复读已停(cooldown重试后)');
                     }
                 }
             }
@@ -4537,15 +4608,45 @@
     // 🔻SYNC→内部版[1.1.19 停采通道统一]
     // 背景：0710 取证——停采原走 signer.sendTransaction 原始签名器，与 MUD TXQueue 双 nonce 账本分叉，
     //   每夜 ~46 次 sequence mismatch（自愈但浪费）。队列包装对象上 executeBatchedAllowFailure 直接可调
-    //  （与 api 同通道，nonce 统一，容错语义不变），故默认切 MUD 通道；原始通道保留作一键回退。
+    //  （与 api 同通道，nonce 统一，容错语义不变），1.1.19 曾默认切 MUD 通道。
+    // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
+    //   会诊共识（0710 停采事故）：MUD 队列 resolve 出的对象形状（tx 带 wait / 直接 receipt）未经实盘验证，
+    //   在确认适配 shim（v1.1.21 新增 _awaitStopReceipt）没跑过一夜前，默认值保守回退到经过验证的 raw 原始签名器；
+    //   待 v1.1.21 实盘验证 mud 通道一次干净的紧急停采（回执形状确认无误）后，下版默认再切回 mud。
+    //   显式 localStorage 设 'mud' 仍尊重（供实盘验证用），不影响一键切换。
     function _getStopTxChannel() {
-        try { return localStorage.getItem('kami_stop_tx_channel') === 'raw' ? 'raw' : 'mud'; } catch (e) { return 'mud'; }
+        try { return localStorage.getItem('kami_stop_tx_channel') === 'mud' ? 'mud' : 'raw'; } catch (e) { return 'raw'; }
     }
     window.setStopTxChannel = function (ch) {
         if (ch !== 'mud' && ch !== 'raw') { console.log("用法: setStopTxChannel('mud'|'raw')  当前=" + _getStopTxChannel()); return; }
         try { localStorage.setItem('kami_stop_tx_channel', ch); } catch (e) {}
         console.log(`✅ 停采发送通道已切为 ${ch}（mud=MUD队列统一nonce/raw=原始签名器旧路），即刻生效`);
     };
+
+    // ============ [停采回执适配 v1.1.21] MUD 队列 resolve 的可能是 tx(带wait) 也可能直接是 receipt ============
+    // 🔻SYNC→内部版[1.1.21 停采回执适配]
+    // 背景：0710 停采事故——MUD 队列 promise 等上链才 resolve（实测 9528ms），resolve 出的对象没有 .wait
+    //   （大概率直接是 receipt 形，确切字段未 dump 过）。旧确认码写死 tx.wait()，形状假设错→假失败。
+    //   本 helper 把两种形状归一：带 wait 的 tx 走 wait()（raw 分支行为逐字节等价）；已是 receipt 的直接用。
+    let __stopShapeDumped = false;   // 未知形状只 dump 一次
+    async function _awaitStopReceipt(x) {
+        // 返回 { receipt, hash, shape }：shape='tx'|'receipt'|'unknown'|'null'
+        if (!x) return { receipt: null, hash: null, shape: 'null' };
+        try {
+            if (typeof x.wait === 'function') {
+                const r = await x.wait();
+                return { receipt: r, hash: x.hash || (r && (r.transactionHash || r.hash)) || null, shape: 'tx' };
+            }
+            if (x.gasUsed !== undefined || x.status !== undefined || x.transactionHash !== undefined) {
+                return { receipt: x, hash: x.transactionHash || x.hash || null, shape: 'receipt' };
+            }
+        } catch (e) { throw e; }   // wait() 真实失败(revert等)按原语义抛给调用方 catch
+        if (!__stopShapeDumped) {
+            __stopShapeDumped = true;
+            try { log(`🔬 [停采诊断/形状观测] 队列 resolve 未知形状 keys=${JSON.stringify(Object.keys(x)).slice(0,200)}`); } catch (e) {}
+        }
+        return { receipt: null, hash: (x && x.hash) || null, shape: 'unknown' };
+    }
 
     /**
      * estimateGas 门禁：重试/单发前先探一次会不会成功，通过才放行。
@@ -4870,17 +4971,37 @@
                 const __ptMs = Date.now() - __ptStart;
                 log(`📡 [停采诊断/mud队列] txPromise解析耗时=${__ptMs}ms（参考:≤300ms≈拿hash即返;≥2000ms≈等上链后返）`);
             }
-            const tx = sent.tx;
             const waitStart = Date.now();
-            const receipt = await tx.wait();
+            // 🔻SYNC→内部版[1.1.21 停采回执适配] 队列 resolve 出的可能是 tx(带wait) 也可能直接是 receipt，
+            //   统一经 _awaitStopReceipt 归一；raw 分支 sent.tx 带 wait，走 wait() 语义/行为逐字节等价。
+            const { receipt, hash: rawHash, shape } = await _awaitStopReceipt(sent.tx);
             const confirmMs = Date.now() - waitStart;
-            const hash = tx.hash ? String(tx.hash).slice(0, 10) + '...' : 'N/A';
-            const gasUsedNum = receipt.gasUsed != null ? Number(receipt.gasUsed.toString()) : 0;
+            const hash = rawHash ? String(rawHash).slice(0, 10) + '...' : 'N/A';
+
+            // 🔻SYNC→内部版[1.1.21 停采回执适配] I2 最高红线：形状未知，或回执缺 gasUsed（gasUsed==null，
+            //   拿不到 gas 就无法做 gas 判级）——一律收敛到 pendingVerify+state 复读：本批不计成功/不计失败、
+            //   不重发、绝不当 full_revert。旧码 `gasUsed != null ? Number(...) : 0` 的 :0 分支会把缺 gas
+            //   误判成全 revert（0≤阈值），是事故式假失败根因之一，此处彻底消灭。
+            if (shape === 'unknown' || !receipt || receipt.gasUsed == null) {
+                __stopConsecutiveRevertBatches = 0;
+                __pendingVerifyBatchCount++;
+                log(`⚠️ [停采诊断/确认适配] 回执形状未知/缺gas，转 state 复读裁决（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）tx:${hash} shape=${shape}`);
+                _emergencyDiagIndexLag(items, `tx:${hash}`);
+                return {
+                    success: true, txHash: rawHash || '', elapsed: confirmMs,
+                    okCount: 0, failCount: 0,
+                    cooldownList: [], realFailList: [],
+                    gasLevel: 'unknown', pendingVerify: true, items
+                };
+            }
+
+            const gasUsedNum = Number(receipt.gasUsed.toString());
             const perKami = items.length > 0 ? gasUsedNum / items.length : 0;
 
             log(`⏱️ [停采诊断] tx确认耗时=${confirmMs}ms tx:${hash} gasUsed=${gasUsedNum} 每只均摊=${Math.round(perKami)}`);
 
-            if (receipt.status !== 1) {
+            // status 缺失（== null）不当失败：只有明确读到非 1 才判交易执行失败（raw 回执 status 恒为 0/1，行为等价）
+            if (receipt.status != null && Number(receipt.status) !== 1) {
                 log(`❌ [紧急停采/AllowFailure] 交易上链但执行失败 tx:${hash} (全部 ${items.length} 个未停采)`);
                 return { success: false, error: '交易执行失败', elapsed: confirmMs, items };
             }
@@ -4905,7 +5026,7 @@
                 log(`🟡 [停采诊断/gas] 每只≈${Math.round(perKami)} 像执行了，但 gas 不作停成凭据 → pendingVerify（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）`);
                 _emergencyDiagIndexLag(items, `tx:${hash}`);
                 return {
-                    success: true, txHash: tx.hash || '', elapsed: confirmMs,
+                    success: true, txHash: rawHash || '', elapsed: confirmMs,
                     okCount: 0, failCount: 0,
                     cooldownList: [], realFailList: [],
                     gasLevel: 'full_exec', pendingVerify: true, items
@@ -4955,25 +5076,19 @@
             }
 
             return {
-                success: true, txHash: tx.hash || '', elapsed: confirmMs,
+                success: true, txHash: rawHash || '', elapsed: confirmMs,
                 okCount: items.length - stillStoppable.length, failCount: realFailList.length,
                 cooldownList, realFailList, gasLevel: level, items
             };
         } catch (e) {
             const errMsg = e?.message || String(e);
             const isTimeout = errMsg.includes('timeout') || errMsg.includes('not mined');
-            const isNonceError = errMsg.toLowerCase().includes('nonce') || errMsg.includes('sequence mismatch');
-            const isRpcError = errMsg.includes('RPC') || errMsg.includes('network');
             const batchIndexes = items.map(x => `#${x.dbIndex}`).join(', ');
-            if (isTimeout) {
-                log(`⏱️ [紧急停采/AllowFailure] 超时，交易可能已发出 (本批 ${items.length} 个: ${batchIndexes})`);
-            } else if (isNonceError) {
-                log(`⚠️ [紧急停采/AllowFailure] Nonce冲突，交易未发出，全部 ${items.length} 个未停采 (${batchIndexes})`);
-            } else if (isRpcError) {
-                log(`❌ [紧急停采/AllowFailure] 网络错误，交易未发出，全部 ${items.length} 个未停采 (${batchIndexes})`);
-            } else {
-                log(`❌ [紧急停采/AllowFailure] 发送失败，全部 ${items.length} 个未停采 (${batchIndexes}): ${errMsg.slice(0, 80)}`);
-            }
+            // 🔻SYNC→内部版[1.1.21 确认异常文案区分]（codex Q5#5）
+            //   本 catch 位于确认阶段——send 错误已在上方 `if (!sent.tx && !sent.txPromise)` 提前返回，
+            //   落到这里的一律是"tx 已入队但确认(txPromise 解析/回执归一)阶段抛错"，不得再写"发送失败/未发出/未停采"
+            //   （tx 其实已入队），改为交 state 复读裁决的中性文案；本批不 _stopCreditFail，成员留待轮末 state 复读定夺。
+            log(`❌ [紧急停采/确认异常] tx 已入队但确认阶段出错(${errMsg.slice(0, 80)})，成员状态交 state 复读裁决 (本批 ${items.length} 个: ${batchIndexes})`);
             return { success: false, error: errMsg, isTimeout, items };
         }
     }
@@ -5098,7 +5213,9 @@
             if (r.state === 'harvesting') {
                 stillHarvesting.push(r.item);
             } else {
-                alreadyStopped.push(r.item);
+                // 🔻SYNC→内部版[1.1.21 轮末已停实锤记账] 把归一后的链上态挂到 item 上，供调用方区分"确实读到非HARVESTING(resting/dead/stopped)"
+                //   与"查询抛错的 unknown"——只有前者才可据以 _stopCreditSuccess 清失败计数，绝不据 unknown（读取失败）假记成功。
+                alreadyStopped.push({ ...r.item, _resolvedState: r.state });
             }
         }
         return { stillHarvesting, alreadyStopped };
@@ -6457,6 +6574,7 @@
         }
         log(`🧾 [AllowFailure停采] ${harvestIds.length} 个 → ${fmtListForLog}`);
         dlog('api', '[AllowFailure STOP ids]', harvestIds);
+        let reachedConfirm = false;   // 🔻SYNC→内部版[1.1.21 确认异常文案区分] tx 已入队进入确认段后置 true，供 catch 区分"发送失败" vs "确认异常"
         try {
             // 🔻SYNC→内部版[1.1.19 停采通道统一]
             // 发送通道：默认走 MUD txQueue（system 即 txQueue.systems["system.harvest.stop"]，
@@ -6486,10 +6604,21 @@
                 log(`⚠️ [AllowFailure停采/返回空Tx] → ${fmtListForLog}`);
                 return false;
             }
-            // 等待上链回执：status === 1 才算交易本身没有 revert（上链 ≠ 每个成员都真执行）
-            const receipt = await tx.wait();
-            const hash = tx.hash ? String(tx.hash).slice(0, 10) + '…' : 'N/A';
-            const txOk = receipt.status === 1;
+            reachedConfirm = true;   // tx 已入队，往后任何抛错都属"确认阶段"，非"发送失败"
+            // 🔻SYNC→内部版[1.1.21 停采回执适配] 队列 resolve 出的可能是 tx(带wait) 也可能直接是 receipt，
+            //   统一经 _awaitStopReceipt 归一；raw 分支 tx 带 wait，走 wait() 语义/行为逐字节等价。
+            const { receipt, hash: rawHash, shape } = await _awaitStopReceipt(tx);
+            const hash = rawHash ? String(rawHash).slice(0, 10) + '…' : 'N/A';
+            // I2 最高红线：形状未知 / 回执缺 gasUsed（gasUsed==null）→ 无法做 gas 判级，一律转 state 复读裁决
+            //   （return null=pendingVerify，本批不计成功/不计失败），绝不当 revert（return false 会记失败）。
+            //   旧码 `gasUsed != null ? Number(...) : 0` 的 :0 分支会把缺 gas 误判成 revert 级 → 记失败，此处消灭。
+            if (shape === 'unknown' || !receipt || receipt.gasUsed == null) {
+                __pendingVerifyBatchCount++;
+                log(`⚠️ [AllowFailure停采/确认适配] 回执形状未知/缺gas，转 state 复读裁决（本批不计成功/不计失败，成功交由下轮复读 state≠HARVESTING 判定）tx:${hash} shape=${shape} → ${fmtListForLog}`);
+                return null;
+            }
+            // 交易本身是否 revert：status 缺失（== null）不当失败，只有明确读到非 1 才判执行失败（raw 回执 status 恒 0/1，行为等价）
+            const txOk = receipt.status == null || Number(receipt.status) === 1;
             if (!txOk) {
                 log(`❌ [AllowFailure停采/交易上链但执行失败] tx:${hash} → 全部 ${harvestIds.length} 个未停采`);
                 return false;
@@ -6510,7 +6639,7 @@
             // 单只真停(实测≈1.54M/只)估算执行1≥1→full_exec 正确；单只revert
             // (实测≈261k/只)估算执行0<1，天然落不到 full_exec，走下面 revert
             // 分支，结果不变。
-            const gasUsedNum = receipt.gasUsed != null ? Number(receipt.gasUsed.toString()) : 0;
+            const gasUsedNum = Number(receipt.gasUsed.toString());   // 上方门闩已保证 gasUsed 非空（缺 gas 已在 pendingVerify 分支 return null），不再有 :0 假 revert 分支
             const perKami = harvestIds.length > 0 ? gasUsedNum / harvestIds.length : 0;
             const estimatedExecuted = Math.max(0, Math.round((gasUsedNum - EMERGENCY_CONFIG.GAS_REVERT_BASE) / EMERGENCY_CONFIG.GAS_PER_KAMI_ESTIMATE));
             if (perKami >= EMERGENCY_CONFIG.GAS_FULL_EXEC_PER_KAMI && estimatedExecuted >= harvestIds.length) {
@@ -6527,6 +6656,14 @@
             return false;
         } catch (e) {
             const errMsg = e?.message || String(e);
+            // 🔻SYNC→内部版[1.1.21 确认异常文案区分]（codex Q5#5）
+            //   reachedConfirm=true 表示 tx 已入队、错误发生在确认(回执归一)阶段：不得写"发送失败/未停采"（tx 已入队），
+            //   改为交 state 复读裁决，且 return null（pendingVerify，不记失败）——与 I2 一致，避免确认期偶发抛错被误记失败拉黑。
+            //   reachedConfirm=false 才是真正发送阶段失败，保留原文案并 return false（记失败，语义不变）。
+            if (reachedConfirm) {
+                log(`❌ [紧急停采/确认异常] tx 已入队但确认阶段出错(${errMsg.slice(0, 80)})，成员状态交 state 复读裁决 → ${fmtListForLog}`);
+                return null;
+            }
             log(`❌ [AllowFailure停采/发送失败] 全部 ${harvestIds.length} 个未停采: ${errMsg.slice(0, 80)}`);
             return false;
         }

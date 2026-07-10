@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi精简数据库-公开版 (database)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.12
+// @version      1.1.13
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 11:10:34
+// @x-release-date 2026/7/10 12:22:48
 // @description  Kamigotchi精简数据库公开版：扫描账户全部kami构建17字段本地数据库(含清算线LT)，构建前自动备份
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -14,7 +14,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.1.12                      ║
+// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.1.13                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本为整个脚本套件构建"精简数据库"——扫描当前账户的全部 kami，               ║
 // ║  把每只 kami 的关键数据压缩成 17 个字段，存入 localStorage.kami_core_db        ║
@@ -97,13 +97,13 @@
 
     // 脚本启动提示。⚠️ 顺序约束：log() 引用上方的 __TZ_OFFSET_MS（const 不提升，存在
     //   暂时性死区），首次调用必须晚于时区常量定义——曾因放在其前导致脚本启动即崩（v1.1.9 修复）。
-    log('%c✅ Kamigotchi精简数据库-公开版 v1.1.12 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
+    log('%c✅ Kamigotchi精简数据库-公开版 v1.1.13 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.11 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '精简数据库';
-        const SELF_VERSION = '1.1.12';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.13';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -136,7 +136,19 @@
                     log(`ℹ️ [版本检查] 本机 ${SELF_NAME} v${SELF_VERSION} 比 GitHub(v${remoteVer}) 更新（本地开发版）`);
                 }
             } catch (e) {
-                log(`ℹ️ [版本检查] 获取 GitHub 最新版本失败（${e && e.message || e}），跳过`);
+                // 🔻SYNC→内部版[1.1.13 版本检查降噪]（游戏 SPA 运行时注入 CSP meta 的 connect-src 白名单，raw 外联在游戏页永久失败）
+                // fetch 失败绝大多数是游戏页 CSP 拒绝外联 GitHub（属正常，不影响篡改猴自动更新），旧版每次页面加载都打一行=刷屏。
+                // 改为 24h 内只提示一次：命中节流窗口则静默；否则打一条并刷新时间戳。
+                try {
+                    const noteKey = 'kami_vercheck_csp_note_' + SELF_NAME;
+                    const last = Number(localStorage.getItem(noteKey) || 0);
+                    if (Date.now() - last >= 86400000) {
+                        localStorage.setItem(noteKey, String(Date.now()));
+                        log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                    }
+                } catch (e2) {
+                    log(`ℹ️ [版本检查] 游戏页 CSP 限制外联 GitHub，无法在线比对版本（属正常，不影响篡改猴自动更新；手动检查：篡改猴图标→实用工具→检查用户脚本的更新）`);
+                }
             }
         }, 8000);   // 延迟 8s，避开启动拥挤；raw 带 CORS *，页面上下文可直接 fetch
     })();
