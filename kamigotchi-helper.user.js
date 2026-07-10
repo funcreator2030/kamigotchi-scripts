@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.22
+// @version      1.1.23
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 09:43:54
+// @x-release-date 2026/7/10 11:10:34
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每周全网最强杀手扫描)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.1.22                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.1.23                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('✅Kamigotchi辅助脚本-公开版 v1.1.22 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.1.23 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.1.22';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.1.23';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -2254,7 +2254,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.1.22 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.1.23 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -4063,7 +4063,8 @@
     { lvl: '🔴', label: '合成熔断（可能已扣gas）', re: /可能已上链 revert 扣 gas/ },
     { lvl: '🔴', label: '批量tx上链但整批失败',    re: /交易上链但执行失败/ },
     { lvl: '🔴', label: 'kami 疑似卡链上',         re: /疑似卡链上/ },
-    { lvl: '🔴', label: '紧急停采触发',            re: /\[紧急触发\]/ },
+    // 🔻SYNC→内部版[1.1.23 看板去业务事件二] '紧急停采触发'移出事件层——触发紧急停采=代码正确响应(业务事件)非故障(用户0710拍板:看板只管"代码没跑对")；
+    //   真正的故障已由闭环层『紧急停采闭环』(开始后10分钟无终态才报)与『警报→停采联动』覆盖,均保留未动。
     { lvl: '🔴', label: '停采后仍有残留',          re: /个未能停采|两轮重试后仍有/ },
     // 🔻SYNC→内部版[1.1.22 看板去业务事件] '杀手同房间警报'已移出事件层——杀手在场是业务/环境事件非代码故障（用户0710拍板：
     //   看板只管"代码没跑对"）。真正的代码检查由闭环层『警报→停采联动』(5分钟内未跟上停采才报红)承担,该规则保留未动。

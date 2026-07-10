@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.19
+// @version      1.1.20
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 10:37:43
+// @x-release-date 2026/7/10 11:10:34
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.19                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.1.20                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1263,7 +1263,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('✅ Kamigotchi核心脚本-公开版 v1.1.19 已成功启动，等待网页加载完成…');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.1.20 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}(MUD队列统一nonce)｜回退命令 setStopTxChannel('raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1276,7 +1276,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.1.19';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.20';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1387,7 +1387,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.19 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.1.20 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');

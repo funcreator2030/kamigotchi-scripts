@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.13
+// @version      1.1.14
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/10 09:22:44
+// @x-release-date 2026/7/10 11:10:34
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -16,7 +16,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                 Kamigotchi 轻量杀手监控 · 公开版 v1.1.13                        ║
+// ║                 Kamigotchi 轻量杀手监控 · 公开版 v1.1.14                        ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本持续监控一份你自己维护的"杀手 kami 名单"（KILLER_KAMI_INDEXES），        ║
 // ║  纯 API 轮询、不依赖 DOM，开销极小。当杀手出现在你的采集地块（房间）或          ║
@@ -314,13 +314,13 @@
         }
     }
 
-    log('✅ 轻量杀手监控-公开版 v1.1.13 已加载，等待启动...');
+    log('%c✅ 轻量杀手监控-公开版 v1.1.14 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.1.13';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.1.14';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1271,7 +1271,7 @@
     // ▍触发时机：脚本加载立即输出（早于 150 秒的延迟自动启动）。
     // ============================================================
     console.log('═══════════════════════════════');
-    console.log('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.1.13 已加载', 'color: green; font-weight: bold;');
+    console.log('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.1.14 已加载', 'color: green; font-weight: bold;');
     console.log('');
     console.log('【杀手监控优化】');
     console.log('  启动时建立 kami→player 映射，每次检测只查 player 位置');
