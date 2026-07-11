@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.2.1
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/11 09:45:08
+// @x-release-date 2026/7/11 19:42:52
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.0                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.1                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -398,6 +398,16 @@
                 if (frozen !== _prevFrozen) {
                     log(`%c🧊 [前端传感器] 冻死判定翻转 → frozen=${frozen} | blockStalled=${blockStalled}(块=${_lastBlock},停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s,已订阅=${_subscribed}) connDown=${connectionDown} timerDrift=${timerDrift} canaryNull=${canaryNull} hidden=${hidden}`,
                         frozen ? 'color:#c0392b;font-weight:bold' : 'color:#27ae60;font-weight:bold');
+                    // 🔻SYNC→内部版[1.2.1 停采空转闭环] C3：进入冻结瞬间 dump 深快照——抓 CZ 根因（区块流正常但组件仓单独滞后=已知盲区；connected翻false=WS问题）。纯观测全 try/catch。
+                    if (frozen) {
+                        try {
+                            const _nn = (window.network && window.network.network) || {};
+                            let _conn = 'NA';
+                            try { const _c = _nn.connected; _conn = (_c && typeof _c.getValue === 'function') ? _c.getValue() : (_c && typeof _c === 'object' && 'value' in _c ? _c.value : _c); } catch (_) { _conn = 'NA'; }
+                            let _pv = 'NA'; try { _pv = __stopPendingVerify.size; } catch (_) {}
+                            log(`%c🧊 [前端传感器/冻结快照] blockNumber$当前=${_lastBlock} 停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s | connected=${_conn} | explorer.kamis就绪=${!!(window.network && window.network.explorer && window.network.explorer.kamis)} txQueue就绪=${!!(window.network && window.network.txQueue)} | 退避队列=${_pv}只 | document.hidden=${document.hidden} visibilityState=${document.visibilityState}`, 'color:#c0392b');
+                        } catch (_) {}
+                    }
                     _prevFrozen = frozen;
                 }
 
@@ -1270,7 +1280,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.0 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.1 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1283,7 +1293,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.0';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.1';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1458,7 +1468,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.0 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.1 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -2465,14 +2475,14 @@
     }
 
     /**
-     * 🔻SYNC→内部版[1.1.22 退避复读] C2 退避复读调度器：15s 轻量扫描 __stopPendingVerify，
+     * 🔻SYNC→内部版[1.1.22 退避复读] C2 退避复读调度器：15s 轻量扫描 __stopPendingVerify（含 90s 后 estimateGas 真没停→释放重发裁决），
      * 到 nextAt 的条目做一次零 gas 的链上 state 复读（getByIndex harvest:true）。
      *   - state≠HARVESTING → I3 唯一成功出口：_stopCreditSuccess 并移除（dead 只移除不记成功）；
      *   - 仍 HARVESTING → attempts++ 并按表推进 nextAt（相对 sentAt，已过点取下一档，全过则按扫描周期续读）；
      *   - 查询失败 → 不推进 attempts（保守），稍后重试；
      *   - I4 兜底：enrolledAt 起 ≥30min 仍未确认 → 移除 + 告警（防泄漏）。
      * 背压：单轮最多复读 STOP_BACKOFF_SCAN_MAX(20) 只，其余下轮。
-     * 全函数 try/catch：调度器任何异常都不得影响主循环（本函数由独立 setInterval 触发，只做零 gas 读）。
+     * 全函数 try/catch：调度器任何异常都不得影响主循环（本函数由独立 setInterval 触发，只做零 gas 读 + 90s后一次 estimateGas 重发裁决）。
      */
     async function _stopBackoffSchedulerTick() {
         if (__stopBackoffTickRunning) return;   // 重入保护：若上一轮 getByIndex 慢于扫描周期，跳过本轮防并发迭代
@@ -2512,6 +2522,21 @@
                             try { log(`   📈 [停采诊断/退避] #${e.item.dbIndex} 第${e.attempts + 1}档(t+${elapsedS}s)确认已停(state=${state})`); } catch (_) {}
                         }
                         continue;
+                    }
+                    // 🔻SYNC→内部版[1.2.1 停采空转闭环] C2：仍 HARVESTING 且已过 90s（首停 tx 已上链，p95=16s，90s 覆盖绝大多数拥堵长尾）
+                    //   → 加一道 estimateGas 链上真值裁决。**只信一个方向**：estimateGas 成功=无歧义"还能停=真没停"。
+                    //   （异源审查铁律：estimateGas revert 有已停/冷却/卡链/网络毛刺四种成因，不能反推"已停"——那半边已砍，宁可让已停的
+                    //    kami 在 Map 里安静等组件同步/30min兜底：C1 保证它不被重发，零 gas 浪费、零死亡风险，不拿保命赌 30min 优化。）
+                    if ((now - e.sentAt) >= 90000 && e.item && e.item.harvestId) {
+                        let _chk = null;
+                        try { _chk = await _preCheckStop([e.item.harvestId]); } catch (_) { _chk = null; }
+                        if (_chk && _chk.ok === true) {
+                            // estimateGas 成功（确实可停，且必不在冷却期——冷却会 revert）= 首停 tx 真没生效 → 释放回候选，下轮重新发送（配合 C1）。
+                            __stopPendingVerify.delete(kamiId);
+                            try { log(`   🔁 [停采诊断/重发] #${e.item.dbIndex} estimateGas可停 + 仍HARVESTING(≥90s) ⇒ 首停未生效，释放回候选待下轮重发`); } catch (_) {}
+                            continue;
+                        }
+                        // estimateGas revert/异常 → 不作任何判定（可能已停滞后/冷却/卡链/毛刺），继续走退避档位等待，交 state 复读或 30min 兜底
                     }
                     // 仍 HARVESTING：推进退避档位
                     e.attempts++;
@@ -4017,6 +4042,21 @@
                     return;
                 }
             }
+
+            // 🔻SYNC→内部版[1.2.1 停采空转闭环] C1：剔除已在退避确认队列的成员——它们已发过停采、正在等索引追平，
+            //   重发必然对已停 kami revert 白烧 gas（0711 实测 24 批浪费全源于此）。真没停的会被 C2 estimateGas 裁决快速释放回候选。
+            try {
+                const _skipIdx = [];
+                stopList = stopList.filter(x => {
+                    const inPV = x.kamiId && __stopPendingVerify.has(x.kamiId);
+                    if (inPV) _skipIdx.push('#' + x.dbIndex);
+                    return !inPV;
+                });
+                if (_skipIdx.length > 0) {
+                    log(`   ⏭️ [停采诊断] ${_skipIdx.length} 只已在退避确认队列(发过停采待索引追平)，本轮跳过不重发：${_skipIdx.slice(0, 12).join(',')}${_skipIdx.length > 12 ? '…' : ''}（省重发gas）`);
+                }
+                if (stopList.length === 0) { log('✅ [紧急停采] 候选全部在退避确认队列中，本轮无需重发'); return; }
+            } catch (_) {}
 
             // 凑批门槛 / 危险判定线（凑批与cooldown补停用；1.1.24起修剪不再用危险线）
             const TARGET_BATCH_MIN = 6;

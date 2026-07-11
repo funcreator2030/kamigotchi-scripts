@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi精简数据库-公开版 (database)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.2.1
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/11 09:45:08
+// @x-release-date 2026/7/11 19:42:52
 // @description  Kamigotchi精简数据库公开版：扫描账户全部kami构建17字段本地数据库(含清算线LT)，构建前自动备份
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -14,7 +14,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.2.0                      ║
+// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.2.1                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本为整个脚本套件构建"精简数据库"——扫描当前账户的全部 kami，               ║
 // ║  把每只 kami 的关键数据压缩成 17 个字段，存入 localStorage.kami_core_db        ║
@@ -97,13 +97,13 @@
 
     // 脚本启动提示。⚠️ 顺序约束：log() 引用上方的 __TZ_OFFSET_MS（const 不提升，存在
     //   暂时性死区），首次调用必须晚于时区常量定义——曾因放在其前导致脚本启动即崩（v1.1.9 修复）。
-    log('%c✅ Kamigotchi精简数据库-公开版 v1.2.0 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
+    log('%c✅ Kamigotchi精简数据库-公开版 v1.2.1 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.11 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '精简数据库';
-        const SELF_VERSION = '1.2.0';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.1';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
