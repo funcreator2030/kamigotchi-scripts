@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.1
+// @version      1.2.2
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/11 19:42:52
+// @x-release-date 2026/7/12 00:28:49
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.1                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.2                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1280,7 +1280,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.1 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.2 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1293,7 +1293,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.1';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.2';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1468,7 +1468,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.1 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.2 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -2661,7 +2661,8 @@
     //   - window.kami_core_db — 本地 kami 数据库，按 imgNumber 或
     //     index 补查 kamiId；
     //   - window.network.explorer.kamis.getByIndex — 链上按编号查
-    //     kami（补 kamiId；带 { harvest: true } 时取 harvest.time.last）；
+    //     kami（补 kamiId；带 { harvest: true } 取 harvest.time.last；
+    //     另有每次调用至多 1 次的 { stats: true } 观测查询，见 S2 纯观测）；
     //   - _preCheckStop — 停采预检函数（其他板块定义），能通过说明
     //     该 kami 实时 HP > 0；
     //   - window.network.api.player.pet.item.use / .cast — 喂食 tx 入口；
@@ -2675,17 +2676,25 @@
     //      b. 卡链检测（保护1）：harvest.time.last（链上最后一次 tx
     //         时间）距今超过 24 小时，说明该 kami 链上长期无 tx、
     //         已经卡死，喂食也救不回来，跳过以免浪费食物和 gas；
-    //      c. 重复喂食兜底（保护2）：查 __starvingFedRecord，喂过
+    //      c. S2 纯观测（无拦截）：每次调用至多 1 次独立查询 dump
+    //         stats.health.sync/total 供标定。⚠️ sync=上次链上 tx 时刻
+    //         的检查点值、非实时（KB §18.12 同族铁律）——真饿死的 kami
+    //         sync 系统性偏高(≈部署时血量)，任何"链上HP>阈值⇒DOM误判"
+    //         闸门都会精准误拦最需要喂的（发布前已砍除该闸门，勿复活）；
+    //      d. 重复喂食兜底（保护2）：查 __starvingFedRecord，喂过
     //         2 次仍 STARVING 且在 30 分钟冷却期内的跳过；
-    //      d. 停采预检：有 harvestId 的先试 _preCheckStop，能停说明
+    //      e. 停采预检：有 harvestId 的先试 _preCheckStop，能停说明
     //         实时 HP > 0（DOM 显示的 0% 只是取整误差），无需喂食；
-    //   3) 【Step 3】按顺序 fire-and-forget 喂食：每只从库存里选 HP
-    //      最小的可用食物（食物表按 HP 升序，优先消耗小食物省资源）；
+    //   3) 【Step 3】按顺序 fire-and-forget 喂食：每只从库存里按 HP
+    //      降序取第一个有库存的食物（优先最大、一次到位省 gas；
+    //      小食物为兜底；表本身顺序不动，选食时 sort 降序）；
     //      await apiFn() 只等钱包分配 nonce 就发下一只，不等 tx.wait()
     //      上链确认；每笔间隔 300ms 让 nonce 排队稳定。
     // ▍边界与保护：
     //   - 库存查询失败：直接返回 0，本轮放弃救援（不抛异常）；
     //   - 全部食物余额为 0：红色告警列出所有候选编号，要求手动处理；
+    //   - S2 纯观测（无任何拦截）：dump 链上检查点 HP 供标定；DOM 误标
+    //     的真解=喂食时新鲜 DOM 重解析（下轮实现），链上 sync 不可作判据；
     //   - 保护1（卡链跳过）：STARVING_STUCK_TIME_MS = 24 小时；
     //   - 保护2（重复喂食熔断）：喂满 STARVING_STUCK_THRESHOLD(2) 次
     //     仍 STARVING → 判定卡链跳过；STARVING_STUCK_COOLDOWN_MS
@@ -2701,10 +2710,11 @@
     //     不中断整批。
     // ▍可调参数：
     //   - STARVING_FOOD_LIST — 救援食物表，每项 { index: 链上物品
-    //     编号, name: 名称, hp: 恢复量 }。必须保持按 hp 升序排列
-    //     （选食物时从头取第一个有库存的，即优先用小的）；全部为
-    //     非复活类 HP 恢复食物，复活类道具留给死亡复活模块使用。
-    //     增删条目即可调整可用食物范围。
+    //     编号, name: 名称, hp: 恢复量 }。表内可按 hp 升序存放
+    //     （便于阅读）；选食时按 hp 降序取第一个有库存的（优先
+    //     最大、一次到位省 gas，小食物兜底）。全部为非复活类 HP
+    //     恢复食物，复活类道具留给死亡复活模块使用。增删条目即可
+    //     调整可用食物范围。
     //   - STARVING_STUCK_TIME_MS = 24*60*60*1000 — 卡链判定时长。
     //     调小会更激进地放弃疑似卡死的 kami。
     //   - STARVING_STUCK_THRESHOLD = 2 — 重复喂食熔断次数。
@@ -2719,7 +2729,8 @@
     //     "黑名单与失败记录管理命令"板块）
     // ============================================================
 
-    // 饿死救援食物列表（按 HP 升序排列，优先用小的节省资源；全部为非复活类HP恢复食物）
+    // 饿死救援食物列表（表内按 HP 升序便于阅读；选食时降序优先最大一次到位省gas，小食物兜底；全部为非复活类HP恢复食物）
+    // 🔻SYNC[1.2.2 救援喂大食物]
     const STARVING_FOOD_LIST = [
         { index: 11314, name: 'Blue Pansy',        hp: 25 },
         { index: 11301, name: 'Ghost Gum',         hp: 25 },
@@ -2795,11 +2806,12 @@
         const foodSummary = available.map(f => `${f.name}(+${f.hp})×${balMap.get(f.index)}`).join(', ');
         log(`🍔 [${logPrefix}] 可用食物: ${foodSummary}`);
 
-        // 【Step 2】并发预查每个 kami：kamiId / harvest.time.last 24h 卡链 / 停采预检
+        // 【Step 2】并发预查每个 kami：kamiId / harvest.time.last 24h 卡链 / S2纯观测dump / 停采预检
         // CONC 路 worker 共享 nextI 指针"抢号"处理，结果按原顺序写入 enriched
         const CONC = 8;
         const enriched = new Array(kamiList.length);
         let nextI = 0;
+        let hpKeysDumped = false;  // S2：stats.health keys dump 去重防刷屏
         async function workerLoop() {
             while (true) {
                 const i = nextI++;
@@ -2841,7 +2853,27 @@
                                 continue;
                             }
                         }
+
                     } catch (_) {}  // 查询失败不阻断，继续后续检查
+
+                    // 🔻SYNC→内部版[1.2.2 救援喂前S2·纯观测] ⚠️ 链上HP闸门已在发布前砍除（异源审REJECT，B1致死级）：
+                    //   stats.health.sync = **上次链上tx时刻的检查点值，非实时**（同 KB §18.12 stamina.sync 铁律）——
+                    //   采集期间 HP 流失不产生 tx，链上不更新：部署时100→流干到0，sync 仍读100。
+                    //   真饿死的 kami sync 系统性偏高 → 任何"链上HP>阈值⇒DOM误判"闸门都会精准误拦最需要喂的，静默致死。
+                    //   本轮仅留纯观测 dump 标定（勿把 sync 当实时 HP 判据）；DOM 误标的真解=喂食时新鲜 DOM 重解析（下轮）。
+                    //   N1：观测独立 try，stats 水合异常不拖累主链路 timeLast。
+                    try {
+                        if (!hpKeysDumped) {
+                            hpKeysDumped = true;   // N1v2：尝试即置位——stats 不可用时不得每只每轮空发 RPC 且静默
+                            const chainStats = await window.network.explorer.kamis.getByIndex(kami.dbIndex, { stats: true });
+                            const hs = chainStats?.stats?.health;
+                            if (hs && typeof hs === 'object') {
+                                log(`🔎 [${logPrefix}] S2观测(标定用,非判据): #${kami.dbIndex} 链上检查点HP sync=${hs.sync ?? 'NA'} total=${hs.total ?? 'NA'} keys=[${Object.keys(hs).join(',')}] time.last=${out.timeLast ?? 'NA'}（DOM判STARVING;链上值为上次tx快照,预期偏高属正常）`);
+                            } else {
+                                log(`🔎 [${logPrefix}] S2观测: #${kami.dbIndex} stats.health 不可读 statsKeys=[${chainStats?.stats && typeof chainStats.stats === 'object' ? Object.keys(chainStats.stats).join(',') : '(无stats)'}]（仅标定，不拦截）`);
+                            }
+                        }
+                    } catch (_) {}
 
                     // BEFORE(Bug B前): 已确认喂食路径未读取停采黑名单；保持解耦，喂食只受自身熔断与冷却保护影响。
                     // 保护2: 喂过仍 STARVING 的兜底熔断（次数达阈值且在冷却期内则跳过）
@@ -2909,9 +2941,10 @@
                 continue;
             }
 
-            // 选食物：取列表中第一个有库存的（列表按 HP 升序，即优先用小的省资源）
+            // 选食物：按 HP 降序取第一个有库存（优先最大、一次到位省 gas；小食物兜底）
+            // 🔻SYNC[1.2.2 救援喂大食物]：表本身与 balMap 不动，仅此处 sort 降序
             let chosen = null;
-            for (const food of STARVING_FOOD_LIST) {
+            for (const food of [...STARVING_FOOD_LIST].sort((a, b) => b.hp - a.hp)) {
                 const bal = balMap.get(food.index) || 0;
                 if (bal > 0) { chosen = food; break; }
             }
