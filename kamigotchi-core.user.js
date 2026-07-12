@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.3
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 00:28:49
+// @x-release-date 2026/7/12 10:49:21
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.2                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.3                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1280,7 +1280,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.2 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.3 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1293,7 +1293,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.2';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.3';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1468,7 +1468,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.2 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.3 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -1537,7 +1537,7 @@
         console.log('// 切换停采发送通道：mud=MUD队列(默认,统一nonce) / raw=原始签名器(回退)；不填参数查当前');
         console.log("setStopTxChannel('mud'|'raw')");
         console.log('');
-        console.log('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点卡片非按钮区;真人操作自动让路)；默认on');
+        console.log('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点HP文本/状态图标(白名单锚定,非随机);真人操作自动让路)；默认on');
         console.log("setKeepAlive('on'|'off')");
         console.log('');
         console.log('───────── 💰 mETH 消耗追踪 ─────────');
@@ -11189,7 +11189,7 @@
     //   1) 真人让路：监听 isTrusted 的 mousedown/keydown/wheel/mousemove/pointerdown，
     //      3 分钟内有真人操作 → 本轮扫掠/合成事件全部跳过（不打扰玩家，也不污染实验）；
     //   2) 每 ~75s：合成 mousemove（随机坐标，isTrusted=false）；
-    //   3) 每 ~5 分钟：人化全程扫掠——先点一次卡片"非按钮"空白区（用户实测无副作用），
+    //   3) 每 ~5 分钟：人化全程扫掠——先点一次白名单锚点(HP文本/状态图标,非随机)（用户实测无副作用），
     //      再小步(250~420px)随机停顿(300~700ms)偶尔驻足(12%概率1.5s)滚到底→回顶→回原位，约 20s；
     //      紧急锁持有期间顺延；上一轮扫掠未结束不重入。
     // ▍开关：localStorage 'kami_keepalive'==='off' 禁用；window.setKeepAlive('on'|'off')。默认 on。
@@ -11203,6 +11203,7 @@
             let __lastRealActivity = 0;
             let __sweepRunning = false;
             let __statMove = 0, __statSweep = 0, __statYield = 0, __lastReport = Date.now();
+            let __keepaliveNoTarget = 0;   // 保活点击 fail-closed(两锚点都没认到)次数,供小时汇报排障
 
             const _kaOn = () => { try { return localStorage.getItem('kami_keepalive') !== 'off'; } catch (e) { return true; } };
             window.setKeepAlive = function (v) {
@@ -11227,14 +11228,37 @@
                 }
                 return { sc: null, cards };
             }
+            // 🔻SYNC→内部版[1.2.3 保活点击锚定安全元素] ⚠️ 真钱教训：游戏是像素风 styled-component UI，
+            //   feed/停采等操作按钮都是**纯 div**（无 button/a/role），旧版"排除 button/a 后随机点 div"会把
+            //   真按钮当"安全"点中→点开喂食菜单→下轮再随机点中食物项→误喂 Half Heart/Cleaning Fluid 等（真钱损失）。
+            //   改为**白名单式锚定**，只点用户确认的两处纯展示元素（都在 HP 那一行内，非操作区）：
+            //     主锚点：HP 文本叶子节点（形如 "156/230 (68%)"，整段全等，纯文本 display）；
+            //     备用：状态图标 img[src*="/assets/kami_"]（纯展示图，其后紧跟 HP 文本；优先采集中的 kami_harvesting）。
+            //   两者都认不到 → fail-closed 本轮不点。⚠️ dispatchEvent bubbles:true 会冒泡，closest 只挡语义祖先、
+            //   挡不住 React 根委托——但这两处的祖先是卡片行(选中级,无 tx),不含 feed 按钮,误喂链已断(grok 审确认)。
+            const _HP_RE = /^\s*\d+\s*\/\s*\d+\s*\(\s*\d+\s*%\s*\)\s*$/;   // 整段全等，防含此格式子串的别的元素误入
+            function _pickKeepaliveTargets(cards) {
+                const hp = [], icon = [];
+                for (const card of cards) {
+                    // 主：HP 文本叶子（纯文本节点，整段就是 HP）
+                    for (const n of card.querySelectorAll('div,span')) {
+                        if (n.children.length === 0 && _HP_RE.test((n.textContent || '').trim())
+                            && n.offsetWidth > 5 && n.offsetHeight > 5) hp.push(n);
+                    }
+                    // 备用：状态图标 img（优先采集中）
+                    const img = card.querySelector('img[src*="/assets/kami_harvesting"]')
+                              || card.querySelector('img[src*="/assets/kami_"]');
+                    if (img && img.offsetWidth > 3 && img.offsetHeight > 3) icon.push(img);
+                }
+                return { hp, icon };
+            }
             function _safeClick(cards) {
                 try {
-                    const card = cards[Math.floor(Math.random() * cards.length)];
-                    const safe = [...card.querySelectorAll('div,span')].filter(n =>
-                        !n.closest('button,a,[role=button]') && !n.querySelector('button,a,img,[role=button]') &&
-                        n.offsetWidth > 5 && n.offsetHeight > 5);
-                    const t = safe.length ? safe[Math.floor(Math.random() * safe.length)] : null;
-                    if (!t) return;
+                    const { hp, icon } = _pickKeepaliveTargets(cards);
+                    const pool = hp.length ? hp : icon;      // 主锚点优先；主认不到才用备用状态图标
+                    if (pool.length === 0) { __keepaliveNoTarget++; return; }   // fail-closed：两处都没有，本轮不点
+                    const t = pool[Math.floor(Math.random() * pool.length)];
+                    if (t.closest('button,a,[role=button],[onclick]')) return;   // 语义按钮兜底（挡不住 React 委托，见块注释）
                     const r = t.getBoundingClientRect();
                     const opt = { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
                     t.dispatchEvent(new MouseEvent('mousedown', opt));
@@ -11278,8 +11302,8 @@
                     } else if (_kaOn()) { __statYield++; }
                     if (Date.now() - __lastReport >= 3600000) {
                         __lastReport = Date.now();
-                        log(`🖱️ [保活] 近1小时: mousemove=${__statMove} 全程扫掠=${__statSweep} 真人让路=${__statYield}`);
-                        __statMove = 0; __statSweep = 0; __statYield = 0;
+                        log(`🖱️ [保活] 近1小时: mousemove=${__statMove} 全程扫掠=${__statSweep} 真人让路=${__statYield} 点击无锚点=${__keepaliveNoTarget}`);
+                        __statMove = 0; __statSweep = 0; __statYield = 0; __keepaliveNoTarget = 0;
                     }
                 } catch (e) {}
                 setTimeout(_tickMove, MOVE_BASE_MS + Math.random() * 15000);
