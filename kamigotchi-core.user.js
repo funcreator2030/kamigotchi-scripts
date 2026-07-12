@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.5
+// @version      1.2.6
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 20:01:13
+// @x-release-date 2026/7/12 20:22:46
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.5                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.6                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -348,6 +348,33 @@
                 return c == null ? 'NA' : ('type=' + typeof c);
             } catch (_) { return 'NA'; }
         }
+        // 🔻SYNC→内部版[1.2.6 RPC网速诊断] 到链上 RPC 的往返延迟/失败率——tx 快慢的真因是这条链路,不是本机宽带。
+        //   纯诊断(用户0712定案):只打日志,不据此自动调行为(等标定)。每小时心跳踢一次(发射后不管,存结果供下次心跳打印)。
+        //   测法:连做 RPC_PROBE_N 次 getBlockNumber 计时,取 p50/p90+失败数。全 try/catch,零 tx 零 gas。
+        const RPC_PROBE_N = 4;
+        let _rpcProbe = { p50: 'NA', p90: 'NA', fails: 0, n: 0, at: 0 };
+        let _rpcProbeRunning = false;
+        async function _probeRpcLatency() {
+            if (_rpcProbeRunning) return;
+            _rpcProbeRunning = true;
+            try {
+                const prov = (window.network && window.network.network &&
+                    (window.network.network.provider || (window.network.network.signer && window.network.network.signer.provider)));
+                if (!prov || typeof prov.getBlockNumber !== 'function') { _rpcProbe = { p50:'NA', p90:'NA', fails:0, n:0, at:Date.now(), note:'无provider' }; return; }
+                const lat = []; let fails = 0;
+                for (let i = 0; i < RPC_PROBE_N; i++) {
+                    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                    try { await prov.getBlockNumber(); lat.push(Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0)); }
+                    catch (_) { fails++; }
+                    await new Promise(r => setTimeout(r, 300));   // 间隔 300ms 避免连打
+                }
+                lat.sort((a, b) => a - b);
+                const pct = (arr, q) => arr.length ? arr[Math.min(arr.length - 1, Math.ceil(arr.length * q) - 1)] : 'NA';
+                _rpcProbe = { p50: pct(lat, 0.5), p90: pct(lat, 0.9), fails, n: lat.length, at: Date.now() };
+            } catch (_) { /* 探测异常不影响任何业务 */ }
+            finally { _rpcProbeRunning = false; }
+        }
+        try { setTimeout(() => { try { _probeRpcLatency(); } catch (_) {} }, 30000); } catch (_) {}   // 启动 30s 后先测一次,让首个心跳有数
         let _fallbackAnnounced = false;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C1：fallback 首次成功读值只播报一次（防刷屏）
         let _lastHeartbeatAt = 0;         // 🔻SYNC→内部版[1.1.17 可观测性批次] C2：0=启动后首个 eval 即允许打首条心跳
         window.__frontendFrozen = window.__frontendFrozen || false;
@@ -465,7 +492,9 @@
                     } catch (_) {}
                     // 🔻SYNC→内部版[1.2.5 渲染循环观测] 心跳加 rAF渲染帧率/WS连接/可见性(正交于区块同步的第二条健康线)
                     const _rafWin = _readRafWindow(now - (_lastRafReadAt || (now - 3600000))); _lastRafReadAt = now;
-                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden} componentLag=${_componentLag}(退避未确认${(() => { try { return __stopPendingVerify.size; } catch (_) { return '?'; } })()}只) | rAF渲染=${_rafWin.fps}fps(最大帧隔${_rafWin.maxGapMs}ms,冻结=${_rafWin.renderFrozen}) WS=${_wsConnectedDesc()} visibility=${(typeof document!=='undefined'?document.visibilityState:'NA')}`, 'color:#7f8c8d');
+                    try { _probeRpcLatency(); } catch (_) {}   // 踢一次RPC探测(发射后不管,结果供下次心跳)
+                    const _rpcAge = _rpcProbe.at ? Math.round((now - _rpcProbe.at) / 60000) + 'min前' : '未测';
+                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden} componentLag=${_componentLag}(退避未确认${(() => { try { return __stopPendingVerify.size; } catch (_) { return '?'; } })()}只) | rAF渲染=${_rafWin.fps}fps(最大帧隔${_rafWin.maxGapMs}ms,冻结=${_rafWin.renderFrozen}) WS=${_wsConnectedDesc()} visibility=${(typeof document!=='undefined'?document.visibilityState:'NA')} | RPC延迟p50=${_rpcProbe.p50}ms/p90=${_rpcProbe.p90}ms 失败${_rpcProbe.fails}/${_rpcProbe.n}(${_rpcAge})`, 'color:#7f8c8d');
                 }
                 return frozen;
             } catch (e) {
@@ -1323,7 +1352,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.5 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.6 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1336,7 +1365,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1511,7 +1540,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.5 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.6 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
