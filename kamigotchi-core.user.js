@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.3
+// @version      1.2.4
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 10:49:21
+// @x-release-date 2026/7/12 15:00:29
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.3                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.4                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1280,7 +1280,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.3 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.4 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1293,7 +1293,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.3';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.4';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1468,7 +1468,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.3 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.4 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -2165,9 +2165,9 @@
     //   紧急停采按 delta =（实时HP% - 停采线）对 kami 分级排序处理：
     //   delta <= CRITICAL_DELTA(-20) 极度危险（HP 已低于停采线 20 个
     //   点以上，最优先）→ HIGH_RISK_DELTA(-10) 高危 →
-    //   DANGER_DELTA(0) 刚触线。确认等待时间 = BASE_WAIT_MS +
-    //   批次数 × PER_BATCH_WAIT_MS，随批次数动态放宽，避免固定短
-    //   超时误判失败而重发（重发是双倍 gas）。
+    //   DANGER_DELTA(0) 刚触线。确认等待时间 = _adaptiveStopWaitMs()
+    //   （滚动p90自适应基础，D4v2）+ 批次数 × PER_BATCH_WAIT_MS，随
+    //   批次数与实测时延动态放宽，避免固定短超时误判失败而重发（重发是双倍 gas）。
     // ▍边界与保护：
     //   - 重试熔断：最多 MAX_ROUNDS(3) 轮，轮间隔 ROUND_INTERVAL_MS(3s)；
     //   - 批间隔 BATCH_INTERVAL_MS(500ms)：让钱包 nonce 排队稳定；
@@ -2183,9 +2183,11 @@
     //   - DANGER_DELTA = 0 — 危险阈值（HP 刚触及停采线）。
     //   - CONFIRM_CONCURRENCY = 8 — 预检/状态查询并发数。调大查询
     //     更快，但 RPC 压力增大、可能被限流。
-    //   - BASE_WAIT_MS = 5000 / PER_BATCH_WAIT_MS = 1500 — 动态确认
-    //     等待：基础 5 秒 + 每批加 1.5 秒。调小确认更快，但误判
-    //     失败而重发的风险升高。
+    //   - BASE_WAIT_MS = 9000 / PER_BATCH_WAIT_MS = 1500 — 确认等待。
+    //     v1.2.4 D4v2：基础等待改由 _adaptiveStopWaitMs() 按最近30笔停采
+    //     tx确认耗时的滚动 p90 自适应（+3s索引余量，clamp 8~30s），
+    //     BASE_WAIT_MS 仅作样本<5笔冷启动/异常回退默认；总等待 =
+    //     自适应基础 + 批次数 × 1.5 秒。
     //   - MAX_ROUNDS = 3 — 最大重试轮数（熔断）。
     //   - ROUND_INTERVAL_MS = 3000 — 重试轮次之间的间隔。
     //   - BATCH_INTERVAL_MS = 500 — 批次之间的发送间隔。
@@ -2207,7 +2209,7 @@
         CONFIRM_CONCURRENCY: 8,      // 预检/状态查询并发数（调大更快但 RPC 压力大）
 
         // 动态等待配置 — 确认等待 = 基础等待 + 批次数 × 每批增量，随批次数放宽避免误判重发
-        BASE_WAIT_MS: 5000,          // 基础等待5秒
+        BASE_WAIT_MS: 9000,          // 冷启动默认等待9秒（🔻SYNC→内部版[1.2.4 部署防重发门禁] D4v2：基础等待已改由 _adaptiveStopWaitMs() 按最近30笔停采tx确认耗时的滚动p90自适应，本常量仅在样本<5笔冷启动或计算异常回退时用；9秒=0712实测tx确认p50≈5.8s+索引≈3.1s。PER_BATCH_WAIT_MS 1500不动）
         PER_BATCH_WAIT_MS: 1500,     // 每批额外1.5秒
 
         MAX_ROUNDS: 3,               // 最大重试轮数（熔断，防止无限重试烧 gas）
@@ -2388,6 +2390,51 @@
     let __stopTxConfirmMsList = [];               // C4：本 invocation 各批 tx 确认耗时(ms)，完成小结算中位/最慢（invocation 开头清空）
     let __stopIndexLagMsList = [];                // C4：本 invocation 各 kami 索引器滞后(ms)，完成小结算中位（invocation 开头清空）
     const __stopRevertReasonSeen = new Set();     // C6：本 invocation 已打过的 revert 原因串（去重防刷屏，invocation 开头清空）
+
+    // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D4v2：停采确认等待改为「最近30笔停采tx确认耗时」的滚动 p90 自适应。
+    //   __txConfirmHist 跨会话/刷新持久化到 localStorage('kami_tx_confirm_hist')；数据源=停采确认耗时收集点（本文件 ~5314 处，
+    //   在 push __stopTxConfirmMsList 的同时调 _recordTxConfirmMs(confirmMs)）。目的：用真实确认时延 p90 动态设定紧急停采基础等待，
+    //   替代静态 BASE_WAIT_MS，避免「确认慢→误判失败→重发白烧gas」。**纯等待时长调整，不改任何判定/重发逻辑**。全 try/catch，异常回退 9000。
+    const __TX_CONFIRM_HIST_KEY = 'kami_tx_confirm_hist';
+    const __TX_CONFIRM_HIST_MAX = 30;
+    let __txConfirmHist = (() => {
+        try {
+            const raw = localStorage.getItem(__TX_CONFIRM_HIST_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr.filter(n => Number.isFinite(n) && n > 0).slice(-__TX_CONFIRM_HIST_MAX) : [];
+        } catch (_) { return []; }   // 读取失败（无localStorage/坏JSON）→ 空数组冷启动
+    })();
+    // 记录一笔停采 tx 确认耗时：入窗、截尾保留最近30、持久化。任何异常静默吞掉，绝不影响停采主流程。
+    function _recordTxConfirmMs(ms) {
+        try {
+            if (!Number.isFinite(ms) || ms <= 0) return;
+            __txConfirmHist.push(ms);
+            if (__txConfirmHist.length > __TX_CONFIRM_HIST_MAX) __txConfirmHist = __txConfirmHist.slice(-__TX_CONFIRM_HIST_MAX);
+            try { localStorage.setItem(__TX_CONFIRM_HIST_KEY, JSON.stringify(__txConfirmHist)); } catch (_) {}   // 持久化失败不致命，内存窗口仍生效
+        } catch (_) {}
+    }
+    // 自适应停采基础等待(ms)：样本<5笔 → 冷启动默认 BASE_WAIT_MS(9000)；否则 p90（升序 idx=ceil(n*0.9)-1）+3000ms 索引余量，
+    //   clamp 到 [8000,30000]。上限30s封顶防极端长尾（如376s）拖垮等待——长尾交给多轮重试+退避复读机器，不靠单次等待硬扛。
+    function _adaptiveStopWaitMs() {
+        try {
+            const hist = __txConfirmHist;
+            if (!Array.isArray(hist) || hist.length < 5) return EMERGENCY_CONFIG.BASE_WAIT_MS;
+            const sorted = hist.slice().sort((a, b) => a - b);
+            const idx = Math.max(0, Math.min(Math.ceil(sorted.length * 0.9) - 1, sorted.length - 1));
+            const p90 = sorted[idx];
+            return Math.max(8000, Math.min(30000, p90 + 3000));
+        } catch (_) {
+            return EMERGENCY_CONFIG.BASE_WAIT_MS;   // 计算异常一律回退冷启动默认
+        }
+    }
+    // 纯观测：返回当前自适应读数 { ms, n, secs } 供日志验证自适应在工作。
+    function _adaptiveStopWaitInfo() {
+        try {
+            const n = Array.isArray(__txConfirmHist) ? __txConfirmHist.length : 0;
+            const ms = _adaptiveStopWaitMs();
+            return { ms, n, secs: (ms / 1000).toFixed(1) };
+        } catch (_) { return { ms: EMERGENCY_CONFIG.BASE_WAIT_MS, n: 0, secs: '9.0' }; }
+    }
 
     /**
      * 🔻SYNC→内部版[1.1.22 退避复读] C2：把一只 kami 纳入退避复读队列。
@@ -4373,9 +4420,12 @@
                     }
                 }
 
-                // 动态等待时间 = 基础 + 批次数 × 每批时间
-                const dynamicWait = EMERGENCY_CONFIG.BASE_WAIT_MS + batches.length * EMERGENCY_CONFIG.PER_BATCH_WAIT_MS;
-                log(`⏳ [紧急停采] 动态等待 ${dynamicWait}ms (${batches.length}批)...`);
+                // 动态等待时间 = 自适应基础(D4v2 滚动p90) + 批次数 × 每批时间
+                // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D4v2：基础等待由 _adaptiveStopWaitMs()（最近30笔停采tx确认耗时的滚动p90+3s索引余量,clamp 8~30s）
+                //   替代静态 EMERGENCY_CONFIG.BASE_WAIT_MS；样本<5笔或异常回退到常量(9000)。纯等待时长调整，不改任何判定/重发逻辑。
+                const _adaptInfo = _adaptiveStopWaitInfo();
+                const dynamicWait = _adaptInfo.ms + batches.length * EMERGENCY_CONFIG.PER_BATCH_WAIT_MS;
+                log(`⏳ [紧急停采] 动态等待 ${dynamicWait}ms (${batches.length}批, 自适应p90=${_adaptInfo.secs}s,样本n=${_adaptInfo.n})...`);
                 await delay(dynamicWait);
 
                 // 查询真实状态
@@ -5315,6 +5365,7 @@
             const { receipt, hash: rawHash, shape } = await _awaitStopReceipt(sent.tx);
             const confirmMs = Date.now() - waitStart;
             try { __stopTxConfirmMsList.push(confirmMs); } catch (_) {}   // 🔻SYNC→内部版[1.1.22 退避复读] C4：收集本批 tx 确认耗时供完成小结算中位/最慢
+            try { _recordTxConfirmMs(confirmMs); } catch (_) {}           // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D4v2：同一确认耗时入滚动p90自适应窗口（跨会话持久化，供 _adaptiveStopWaitMs 用）
             const hash = rawHash ? String(rawHash).slice(0, 10) + '...' : 'N/A';
 
             // 🔻SYNC→内部版[1.1.21 停采回执适配] I2 最高红线：形状未知，或回执缺 gasUsed（gasUsed==null，
@@ -8290,6 +8341,47 @@
                     }
                 }
 
+                // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D3：25s 索引复核假失败源头掐断。
+                // ★语义辨析（务必读懂再复制到别处）：本分支只在【本批 result.ok（executeBatched 原子批 status===1）之后】运行。
+                //   system.harvest.start 无 executeBatchedAllowFailure（探针 undefined）→维持原子批，status===1 指向已发送子集(deployedIds)部署成功；★B1修后：D3计成功已收窄到 deployedIds ∩ estimateGas revert，不再用整个 live；
+                //   此处对"UI_SETTLE 后 getByIndex 仍报非 HARVESTING"的逐只再跑一次部署 estimateGas：
+                //   genuine revert（CALL_EXCEPTION / execution reverted，且必须排除网络错）= 链上无法再次部署 = 已部署（索引器滞后谎报未起采）。
+                //   ★双重证据（I3）：唯有【status===1 原子批】+【estimateGas revert】两重都指向已部署才计成功；单一 revert 绝不在别处当"已部署"用——
+                //     停采场景 revert 有已停/冷却/卡链/网络毛刺四成因（见2524），此处能反推"已部署"仅因本上下文有 status===1 背书，禁止跨上下文复制该结论。
+                //   ★冷却边界（0712用户补充）：若某 kami 在这 25s 窗内恰被紧急停采，start 会因【操作冷却】而非【已部署】revert → 本处也计"部署成功"。
+                //     这记账是对的：该 kami 本批确实成功部署过（status===1），随后被紧急停采停下、进入冷却，链上历经"已部署→已停采"两态；计成功不回队正确，
+                //     绝不能因它此刻非 HARVESTING 就回队重发（会撞冷却 revert 白烧 gas）。
+                //   只信方向：ok===true=真没部署→照旧回队；网络错/预检异常=读不到结果→保守回队（下轮主循环 estimateGas 门禁 8027 兜底，不烧 gas）。
+                // 🔻SYNC→内部版[1.2.4 部署防重发门禁] B1修(grok审)：D3计成功必须 ∩ result.deployedIds（本次真正上过链的子集）。
+                //   _apiDeployOnce 整批预检可能剔掉几只只发子集，result.ok 只覆盖已发送的；一只从没被发送(预检就fail)的 kami
+                //   若在此又 revert（非"已部署"原因，如 tile满/其他合约条件）会被误计成功→漏部署。故双重证据的第一重(status=1)
+                //   必须精确到 deployedIds，不能用整个 live。不在 deployedIds 的 → 落幸存者回队（DOM兜底 D1 三层门禁保 gas 不烧）。
+                const _deployedSet = new Set(result.deployedIds || []);
+                const _d3GasConfirmed = [];
+                if (stillNotHarvesting.length > 0) {
+                    const _d3Survivors = [];
+                    for (const x of stillNotHarvesting) {
+                        // B1：仅对"本批确实发送并 status=1"的 kami 才允许用 revert 反推已部署
+                        if (!_deployedSet.has(x.kamiId)) { _d3Survivors.push(x); continue; }
+                        let _d3chk = null;
+                        try { _d3chk = await _preCheckDeploy([x.kamiId], tile); } catch (_) { _d3chk = null; }
+                        // genuine revert 判定：复用本文件既有 CALL_EXCEPTION/revert 检测口径（见 _apiDeployOnce catch 8122）。网络错(NETWORK/TIMEOUT/SERVER)不算 revert→落幸存者回队。
+                        const _d3IsRevert = !!(_d3chk && _d3chk.ok === false &&
+                            (_d3chk.reason === 'CALL_EXCEPTION' ||
+                             /call_exception|revert/i.test(String(_d3chk.reason || '') + ' ' + String(_d3chk.detail || ''))));
+                        if (_d3IsRevert) _d3GasConfirmed.push(x);
+                        else _d3Survivors.push(x);   // ok===true(真没部署) / 网络错 / 预检异常 → 保守回队
+                    }
+                    if (_d3GasConfirmed.length > 0) {
+                        for (const x of _d3GasConfirmed) __kamiDeployFailCount.delete(x.kamiId);   // 清失败计数（同 8117 成功路径）
+                        succeeded.push(..._d3GasConfirmed);
+                        log(`✅ [批量部署/D3复核纠偏] ${_d3GasConfirmed.length}只 estimateGas确认已部署(索引滞后/已部署后被停采)，计成功不回队: ${_fmtStartList(_d3GasConfirmed)}`);
+                    }
+                    // 用 estimateGas 幸存者（真没部署/读不到结果）替换，下面只对这些回队（const 数组：原地清空后回填）
+                    stillNotHarvesting.length = 0;
+                    for (const x of _d3Survivors) stillNotHarvesting.push(x);
+                }
+
                 if (stillNotHarvesting.length > 0) {
                     const fmtStill = _fmtStartList(stillNotHarvesting);
                     node.failStreak = (node.failStreak || 0) + 1;
@@ -8309,7 +8401,9 @@
                     log(`🎉 [批量部署/最终确认成功] 共 ${ids.length} 个 → ${fmt}`);
                     // 🔻SYNC→内部版[1.1.12 停采确认解耦+gas判级+estimateGas裁决]
                     // 唯一的"最终确认成功"分支：显式累加进 succeeded，供上层直接使用
-                    succeeded.push(...live);
+                    // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D3：可能已把部分 live 作为 estimateGas 确认 push 进 succeeded，此处过滤避免重复计入
+                    const _d3Counted = new Set(_d3GasConfirmed.map(k => k.kamiId));
+                    succeeded.push(...live.filter(k => !_d3Counted.has(k.kamiId)));
                 }
             } else {
                 // 超时时查询链上状态，避免重复部署已成功的kami
@@ -9512,9 +9606,40 @@
                         }
                         for (const it of (hasEmergencyLock() ? [] : uniqDomStart)) {
                             try {
+                                // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D2：DOM 兜底遵守 API 黑名单。
+                                //   deployWithBackoff 内部对 estimateGas 连败的 kami 拉黑（__blockedKamiIds，30min 自动解除见 8199-8208），
+                                //   但被拉黑者经 droppedPending→pending→still 流回本兜底；旧码不查黑名单会逐只重发→revert 白烧 gas。
+                                //   此处过滤即可（黑名单自愈，不会永久搁置：下轮 deployWithBackoff 预检超时会自动解除）。
+                                if (__blockedKamiIds?.has?.(it.kamiId)) {
+                                    log(`⏭️ [DOM兜底] #${it.dbIndex} 在API黑名单内(30min自动解除)，跳过点击省gas`);
+                                    continue;
+                                }
                                 const res = await window.network.explorer.kamis.getByIndex(it.dbIndex, { harvest:true });
                                 const stateAPI = String(res?.state || '').toUpperCase();
                                 if (stateAPI === 'HARVESTING' || _isCardHarvestingByImg(it.imgNumber)) continue;
+                                // 🔻SYNC→内部版[1.2.4 部署防重发门禁] D1v2：DOM 兜底部署【三层门禁】（冷却公式排第一，零RPC）。
+                                // 【第一道·冷却公式预筛，零额外RPC】复用现成 _cooldownRemainSec()（180s 操作冷却，269只样本零错配，见2261-2273）。
+                                //   time.last 顺手取自上面同一次 getByIndex 的 res.harvest.time.last，零额外查询。冷却中(remain>0)→部署 tx 必败，
+                                //   连 estimateGas 都不用跑，直接 skip 省一次注定失败的 gas。time.last 读不到时 _cooldownRemainSec 返回0→自动落到第二道（保守）。
+                                let _cdRemain = 0;
+                                try { _cdRemain = _cooldownRemainSec(res?.harvest?.time?.last); } catch (_) { _cdRemain = 0; }
+                                if (_cdRemain > 0) {
+                                    log(`⏭️ [DOM兜底] #${it.dbIndex} 冷却中剩${_cdRemain}s,跳过(tx必败省gas)`);
+                                    continue;
+                                }
+                                // 【第二道·estimateGas 门禁】冷却已过才跑。复用 _preCheckDeploy([id],tile)——即 _apiDeployOnce 8027/8037 用的同一预检入口
+                                //   （内部 _preCheckTx('deploy') 走 signer.estimateGas，eth_call 模拟、零 gas、零新增 tx，见 I1）。单只调用：_preCheckDeploy([it.kamiId], tile)。
+                                //   **只信 ok===true 方向**（同停采 C2 纪律 2529）：唯有 estimateGas 成功且返回 gasEstimate=链上确认"还能部署=尚未部署"才点击（第三道）。
+                                //   因第一道已排除冷却，这里的 revert 归因已干净（基本=已部署）；ok===true但无gasEstimate(signer/system不可用=读不到结果) 或预检抛异常 → 保守 skip 不点击。
+                                //   动机：DOM 兜底会把 API 层刚 estimateGas 实锤"已部署"的 kami 逐只重发白烧 gas（aaron 实测 18 笔 revert）。漏点一轮代价小——
+                                //   该 kami 仍在 pending，下轮主循环 API 门禁(8027)重扫再试(I2)，绝不永久搁置；烧 gas 才是真损失（真钱路径宁严勿松）。
+                                let _d1chk = null;
+                                try { _d1chk = await _preCheckDeploy([it.kamiId], tile); } catch (_) { _d1chk = null; }
+                                if (!(_d1chk && _d1chk.ok === true && _d1chk.gasEstimate)) {
+                                    log(`⏭️ [DOM兜底] #${it.dbIndex} estimateGas未通过(冷却已排除⇒疑似已部署/读不到结果)，跳过省gas`);
+                                    continue;
+                                }
+                                // 【第三道】estimateGas ok===true 且有 gasEstimate → 照原逻辑点击部署
                                 const card = Array.from(kamiList).find(div => getimgNumber(div) === String(it.imgNumber));
                                 const mainButtonDom = card?.querySelector('img[src*="/assets/harvest-"], img[src*="/assets/stop-"]')?.closest('button');
                                 if (!mainButtonDom) { log(`⚠️ DOM 部署找不到主按钮：img=${it.imgNumber}`); continue; }
