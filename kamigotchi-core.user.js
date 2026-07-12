@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 15:00:29
+// @x-release-date 2026/7/12 20:01:13
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.4                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.5                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -307,6 +307,47 @@
         let _lastBlockAdvanceAt = 0;           // 0 = 尚未建立基线（不判 stalled，避免启动即误判）
         let _lastTickAt = 0, _driftSinceAt = 0;
         let _prevFrozen = false;
+        // 🔻SYNC→内部版[1.2.5 渲染循环观测] rAF 监视器：测"前端渲染/计算循环"是否被节流冻结——
+        //   与 blockNumber$(WS/链同步)正交:关显示器/切后台/长时间无交互时,浏览器节流 requestAnimationFrame,
+        //   游戏据此推算的实时 HP/采集量会停更(用户0712实测:晃鼠标后HP突然跳一次=节流恢复的补偿跳变)。
+        //   纯观测:空 rAF 回调只计数、不阻止节流(正好如实测量);全 try/catch。
+        let _rafCount = 0, _rafLastAt = 0, _rafMaxGapMs = 0, _rafStarted = false;
+        function _startRafMonitor() {
+            if (_rafStarted) return; _rafStarted = true;
+            try {
+                _rafLastAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                const _tick = () => {
+                    try {
+                        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                        const gap = t - _rafLastAt; if (gap > _rafMaxGapMs) _rafMaxGapMs = gap;
+                        _rafLastAt = t; _rafCount++;
+                        requestAnimationFrame(_tick);
+                    } catch (_) {}
+                };
+                requestAnimationFrame(_tick);
+            } catch (_) {}
+        }
+        try { _startRafMonitor(); } catch (_) {}
+        // 读并重置 rAF 窗口统计,返回 {fps,maxGapMs,frozen}(帧率极低=渲染冻结,读DOM要当心是旧值)
+        function _readRafWindow(windowMs) {
+            let fps = 'NA', maxGap = Math.round(_rafMaxGapMs), rf = false;
+            try {
+                if (windowMs > 0) fps = +(_rafCount / (windowMs / 1000)).toFixed(1);
+                rf = (typeof fps === 'number' && fps < 1) || maxGap > 5000;   // <1fps 或 单帧间隔>5s = 渲染疑似冻结
+            } catch (_) {}
+            _rafCount = 0; _rafMaxGapMs = 0;
+            return { fps, maxGapMs: maxGap, renderFrozen: rf };
+        }
+        let _lastRafReadAt = 0;
+        function _wsConnectedDesc() {
+            try {
+                const c = window.network && window.network.network && window.network.network.connected;
+                if (typeof c === 'boolean') return String(c);
+                if (c && typeof c.getValue === 'function') return String(c.getValue());
+                if (c && typeof c === 'object' && 'value' in c) return String(c.value);
+                return c == null ? 'NA' : ('type=' + typeof c);
+            } catch (_) { return 'NA'; }
+        }
         let _fallbackAnnounced = false;   // 🔻SYNC→内部版[1.1.17 可观测性批次] C1：fallback 首次成功读值只播报一次（防刷屏）
         let _lastHeartbeatAt = 0;         // 🔻SYNC→内部版[1.1.17 可观测性批次] C2：0=启动后首个 eval 即允许打首条心跳
         window.__frontendFrozen = window.__frontendFrozen || false;
@@ -405,7 +446,7 @@
                             let _conn = 'NA';
                             try { const _c = _nn.connected; _conn = (_c && typeof _c.getValue === 'function') ? _c.getValue() : (_c && typeof _c === 'object' && 'value' in _c ? _c.value : _c); } catch (_) { _conn = 'NA'; }
                             let _pv = 'NA'; try { _pv = __stopPendingVerify.size; } catch (_) {}
-                            log(`%c🧊 [前端传感器/冻结快照] blockNumber$当前=${_lastBlock} 停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s | connected=${_conn} | explorer.kamis就绪=${!!(window.network && window.network.explorer && window.network.explorer.kamis)} txQueue就绪=${!!(window.network && window.network.txQueue)} | 退避队列=${_pv}只 | document.hidden=${document.hidden} visibilityState=${document.visibilityState}`, 'color:#c0392b');
+                            log(`%c🧊 [前端传感器/冻结快照] blockNumber$当前=${_lastBlock} 停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s | connected=${_conn} | explorer.kamis就绪=${!!(window.network && window.network.explorer && window.network.explorer.kamis)} txQueue就绪=${!!(window.network && window.network.txQueue)} | 退避队列=${_pv}只 | document.hidden=${document.hidden} visibilityState=${document.visibilityState} | rAF近窗最大帧隔=${Math.round(_rafMaxGapMs)}ms WS=${_wsConnectedDesc()}`, 'color:#c0392b');
                         } catch (_) {}
                     }
                     _prevFrozen = frozen;
@@ -422,7 +463,9 @@
                     try {
                         for (const e of __stopPendingVerify.values()) { if (e.attempts >= 4) { _componentLag = '疑似'; break; } }
                     } catch (_) {}
-                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden} componentLag=${_componentLag}(退避未确认${(() => { try { return __stopPendingVerify.size; } catch (_) { return '?'; } })()}只)`, 'color:#7f8c8d');
+                    // 🔻SYNC→内部版[1.2.5 渲染循环观测] 心跳加 rAF渲染帧率/WS连接/可见性(正交于区块同步的第二条健康线)
+                    const _rafWin = _readRafWindow(now - (_lastRafReadAt || (now - 3600000))); _lastRafReadAt = now;
+                    log(`%c🧊 [前端传感器/心跳] frozen=${frozen} | 已订阅=${_subscribed} 当前块=${_lastBlock} 停滞${_hbStall}s connDown=${connectionDown} timerDrift=${timerDrift} hidden=${hidden} componentLag=${_componentLag}(退避未确认${(() => { try { return __stopPendingVerify.size; } catch (_) { return '?'; } })()}只) | rAF渲染=${_rafWin.fps}fps(最大帧隔${_rafWin.maxGapMs}ms,冻结=${_rafWin.renderFrozen}) WS=${_wsConnectedDesc()} visibility=${(typeof document!=='undefined'?document.visibilityState:'NA')}`, 'color:#7f8c8d');
                 }
                 return frozen;
             } catch (e) {
@@ -1280,7 +1323,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.4 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.5 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1293,7 +1336,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.4';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1468,7 +1511,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.4 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.5 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
