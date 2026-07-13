@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.6
+// @version      1.2.7
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 20:22:46
+// @x-release-date 2026/7/13 19:42:39
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.6                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.7                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -210,10 +210,7 @@
 //
 // ── Gas 统计 ──
 // showGasRules()           - 查看Gas消耗规则
-// showGasUsage(acc?, n=20) - 查看mETH消耗历史（不带参数显示所有账户最近20条+累计/折算）
-// showGasStats(acc?)       - mETH消耗完整统计报告（充值识别、停机分析、24h折算、耗尽预估）
-// showEpochGasStats()      - 按Initia VIP epoch（每14天）切分的gas消耗统计
-// clearGasUsage(acc?)      - 清除mETH消耗记录（不带参数清所有账户）
+// showGasReport()          - 链上真值 gas 账本报告（按动作分类 + 24h/3d/7d/30d + 日均 + revert白烧 + 余额续航）
 // ============================================================
 (async function () {
     'use strict';
@@ -271,8 +268,8 @@
     // 【时区设置】（v1.1.3 起）所有日志/时间显示使用的时区
     //   'auto' = 自动跟随浏览器本地时区（推荐，装上即是你的当地时间）；
     //   也可写死数字（单位小时，可带小数）：8=UTC+8、-5=UTC-5、5.5=UTC+5:30
-    //   注意：gas 消耗历史的时间戳按本设置写入/解析，中途更改时区会让
-    //   旧记录的时间解读整体平移（金额不受影响），改动后建议 clearGasUsage()
+    //   注意：本设置只影响日志/时间显示；gas 账本按 epoch 毫秒时间戳存储，
+    //   与时区无关，中途更改时区不影响 gas 账本统计
     // ============================================================
     const TZ_OFFSET_HOURS = 'auto';
     const __TZ_OFFSET_MS = (TZ_OFFSET_HOURS === 'auto')
@@ -280,6 +277,42 @@
         : Number(TZ_OFFSET_HOURS) * 60 * 60 * 1000;
     // 显示标签，如 "UTC+8" / "UTC-5" / "UTC+5.5"
     const __TZ_LABEL = 'UTC' + (__TZ_OFFSET_MS >= 0 ? '+' : '') + (__TZ_OFFSET_MS / 3600000);
+
+    // 🔻SYNC→内部版[1.2.7 gas真值账本] B1修(grok审):Epoch结束提醒被误随余额差统计删除,此处恢复(仅提醒,不含旧gas报告 showEpochGasStats)。
+    const __EPOCH_30_START_UTC_MS = Date.UTC(2026, 5, 4, 8, 0, 0);  // 月份 0-indexed: 5=Jun
+    const __EPOCH_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
+    function _epochAt(utcMs) { return 30 + Math.floor((utcMs - __EPOCH_30_START_UTC_MS) / __EPOCH_LENGTH_MS); }
+    function _epochRange(n) {
+        return {
+            start: __EPOCH_30_START_UTC_MS + (n - 30) * __EPOCH_LENGTH_MS,
+            end:   __EPOCH_30_START_UTC_MS + (n - 29) * __EPOCH_LENGTH_MS
+        };
+    }
+    function _fmtBJFromUtcMs(utcMs) {
+        const d = new Date(utcMs + __TZ_OFFSET_MS);
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    }
+    const __EPOCH_REMIND_DAYS = 3;
+    function _epochEndReminder() {
+        try {
+            const now = Date.now();
+            const n = _epochAt(now);
+            const { end } = _epochRange(n);
+            const msLeft = end - now;
+            if (msLeft <= 0) return;
+            const daysLeft = Math.ceil(msLeft / (24 * 3600 * 1000));
+            if (daysLeft > __EPOCH_REMIND_DAYS) return;
+            const hoursLeft = Math.floor(msLeft / 3600000);
+            log(`%c⏰ ═══════ Epoch ${n} 即将结束（已是最后 ${daysLeft} 天）═══════\n` +
+                `   结束时间：${__TZ_LABEL} ${_fmtBJFromUtcMs(end)}（剩余约 ${hoursLeft} 小时）\n` +
+                `   请及时：① 销毁 VIP 点数（vipp）；② 如需投票，投给 kamigotchi\n` +
+                `   投票入口：https://app.initia.xyz/vip/gauge-vote`,
+                'color: red; font-weight: bold; font-size: 13px;');
+        } catch (e) {}
+    }
+    setTimeout(_epochEndReminder, 30 * 1000);
+    setInterval(_epochEndReminder, 6 * 60 * 60 * 1000);
     // ISO 偏移后缀，如 "+08:00" / "-05:00"（gas 时间戳解析用，与写入互逆）
     const __TZ_ISO_SUFFIX = (() => {
         const total = Math.round(Math.abs(__TZ_OFFSET_MS) / 60000);
@@ -581,56 +614,22 @@
     }
 
     // ============================================================
-    // 【板块：mETH Gas 消耗统计】
+    // 【板块：低余额告警】   🔻SYNC[1.2.7 gas真值账本]
     // ------------------------------------------------------------
-    // ▍功能：统计脚本运行期间账户的 mETH（gas）消耗。每个脚本会话在
-    //   "启动时"和"页面刷新前"各抓一次页面上的余额，配对求差得到本轮
-    //   消耗，写入历史；顺带识别充值、折算 24h 消耗速率、低余额高亮提醒。
+    // ▍功能：会话启动时与页面刷新前各读一次账户当前余额，低于警戒线时
+    //   高亮提醒充值。
+    // ▍历史：原"mETH 余额差 gas 统计"（recordGasStart/recordGasEnd/
+    //   showGasUsage/clearGasUsage/showGasStats/showEpochGasStats，靠
+    //   刷新前后余额求差）因混入充值/买道具/充能而不准，已于 1.2.7 整体
+    //   删除，改用链上真值 gas 账本（showGasReport，见后续板块）。本板块
+    //   仅保留独立于余额差、仍有价值的"低余额告警"。
     // ▍触发时机：
-    //   - recordGasStart(账户名)：主循环每轮都会路过，但每个会话只真正
-    //     记录第一次（__kamiGasSessionRecorded 标记去重）；
-    //   - recordGasEnd(账户名)：页面定时刷新（reload）前调用；
-    //   - showGasUsage / clearGasUsage：用户控制台手敲。
-    // ▍依赖：
-    //   - DOM：#tx-logs 元素（余额文本与它同父容器，见 getAccountBalance；
-    //     选 #tx-logs 做锚点是因为其 id 稳定，不依赖会变的 sc-* hash class）；
-    //   - localStorage：
-    //     * kami_gas_pending —— 未配对的启动记录，结构 {账户名: {startAt,
-    //       startRaw, startMeth}}，刷新前配对成功即删除；
-    //     * kami_gas_history —— 消耗历史，结构 {账户名: [record...]}；
-    //     两者均按账户名分桶，多账户互不干扰，且不因页面刷新而丢失。
-    // ▍核心流程：
-    //   1) 启动时抓余额、解析成 mETH 数值，写入 pending；
-    //   2) 刷新前再抓一次，与 pending 配对：差额 deltaMeth、时长 durationMs、
-    //      24h 折算 perDay，连同起止余额拼成一条 record；
-    //   3) record 追加进 history，随后双层裁剪：先删 30 天前的旧记录，
-    //      再把超过 3000 条的最旧部分截掉；
-    //   4) 删除该账户的 pending，等待下一会话重新配对。
-    // ▍边界与保护：
-    //   - 余额抓取失败（DOM 未就绪返回 null）或单位解析失败：跳过本轮，
-    //     只打日志不抛错，不产生脏数据；
-    //   - recordGasEnd 找不到配对的启动记录：直接跳过本轮；
-    //   - 差额为大幅负值（余额不降反升 ≥ 5 mETH）→ 判定"会话内充值"：
-    //     充值额记入 record.sessionRecharge（因期间仍在耗 gas，略低估真实
-    //     充值额），本轮消耗保守清零，避免负数污染累计统计；
-    //   - 差额为小幅负值（< 5 mETH，页面显示精度漂移）→ clamp 到 0；
-    //   - localStorage 读写全部 try/catch：读损坏回退空对象 {}，写超限静默；
-    //   - 启动/刷新前两个阶段都检查余额警戒线，低于阈值时打红底白字大号
-    //     横幅提醒充值，并同步写入日志 buffer 便于事后追查。
-    // ▍可调参数：
-    //   - __GAS_HISTORY_MAX = 3000 —— 单账户历史条数硬上限，约可覆盖 90 天；
-    //     调大占用更多 localStorage 空间，调小统计窗口变短；
-    //   - __GAS_HISTORY_RETAIN_DAYS = 30 —— 时间软上限，只保留最近 30 天；
-    //   - __LOW_BALANCE_THRESHOLD_METH = 10 —— 低余额警戒线（mETH）；调低
-    //     会更晚提醒，有 gas 用尽导致脚本停摆的风险；
-    //   - __RECHARGE_THRESHOLD_METH = 5 —— 充值识别阈值（mETH），余额上升
-    //     不小于此值才算充值；调太小会把显示精度噪声误判成充值。
-    // ▍相关控制台命令：
-    //   - showGasUsage([账户名], [n=20]) —— 列出最近 n 条会话消耗明细并
-    //     汇总折算，不传账户名则遍历所有账户；返回记录数组；
-    //   - clearGasUsage([账户名]) —— 清除指定账户（或不传时全部账户）的
-    //     历史与 pending 记录；
-    //   - showGasStats / showEpochGasStats —— 更完整的报告，见后续板块。
+    //   - checkLowBalanceOnce(账户名,'start')：主循环 printAccountAndRooms
+    //     每会话触发一次（__lowBalanceChecked 去重）；
+    //   - checkLowBalanceOnce(账户名,'end')：页面刷新前触发一次。
+    // ▍依赖：DOM #tx-logs 同父容器的余额文本（getAccountBalance）；log()。
+    // ▍边界与保护：全部 try/catch；抓不到余额/解析失败静默跳过，不抛错。
+    // ▍可调参数：__LOW_BALANCE_THRESHOLD_METH = 10（mETH 警戒线）。
     // ============================================================
 
     // 抓取账户余额文本（mETH/ETH/µETH 等单位）
@@ -650,14 +649,7 @@
         return null;
     }
 
-    // —— Gas 统计：常量与 localStorage 读写工具 ——
-    const __GAS_PENDING_KEY = 'kami_gas_pending';   // 未配对启动记录 {[acc]: {startAt,startRaw,startMeth}}
-    const __GAS_HISTORY_KEY = 'kami_gas_history';   // 消耗历史 {[acc]: [records...]}
-    const __GAS_HISTORY_MAX = 3000;                  // 单账户历史条数硬上限，约可覆盖 90 天记录
-    const __GAS_HISTORY_RETAIN_DAYS = 30;            // 时间软上限：只保留最近 30 天数据
     const __LOW_BALANCE_THRESHOLD_METH = 10;         // 余额低警戒线（mETH），低于此值高亮提醒充值
-    const __RECHARGE_THRESHOLD_METH = 5;             // 充值识别阈值（余额上升 ≥5 mETH 才算充值，避免精度噪声）
-    let __kamiGasSessionRecorded = false;            // 本次脚本会话是否已记录启动余额（仅记一次）
 
     // 余额文本 → mETH 数值（如 "1.2 ETH" → 1200，"500 µETH" → 0.5），解析失败返回 null
     function _parseEthToMeth(text) {
@@ -669,20 +661,6 @@
         // 各单位 → mETH 换算系数
         const toMeth = { '': 1000, m: 1, 'µ': 1e-3, 'μ': 1e-3, u: 1e-3, n: 1e-6, p: 1e-9 };
         return v * (toMeth[u] ?? 1);
-    }
-    // 读 localStorage JSON；缺失/损坏一律回退空对象，保证调用方不用判空
-    function _readGasJSON(key) {
-        try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; }
-        catch { return {}; }
-    }
-    // 写 localStorage JSON；配额超限等异常静默忽略（统计功能不影响主流程）
-    function _writeGasJSON(key, val) {
-        try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-    }
-    // 时间 → 配置时区的字符串 "YYYY-MM-DD HH:mm:ss"（函数名保留 Beijing 仅为兼容）
-    function _fmtBeijingTime(d = new Date()) {
-        return new Date(d.getTime() + __TZ_OFFSET_MS)
-            .toISOString().replace('T', ' ').substring(0, 19);
     }
 
     // 余额低于警戒线时打印高亮充值提醒（红底白字加粗大号）
@@ -702,543 +680,255 @@
         log(`🚨 [余额警告] ${banner}`);
     }
 
-    // 记录会话启动余额：写入 pending 分桶，等页面刷新前由 recordGasEnd 配对求差
-    function recordGasStart(accountName) {
-        // 本次会话已记录过启动余额则跳过（runAutomation 是 setInterval 周期触发，每轮都会进 printAccountAndRooms）
-        if (__kamiGasSessionRecorded) return;
-        const raw = getAccountBalance();
-        if (!raw) { log(`💰 [Gas统计] 启动余额抓取失败（getAccountBalance 返回 null）`); return; }
-        const meth = _parseEthToMeth(raw);
-        if (meth == null) { log(`💰 [Gas统计] 启动余额单位无法解析: "${raw}"`); return; }
-        const acc = accountName || '(unknown)';
-        const pending = _readGasJSON(__GAS_PENDING_KEY);
-        pending[acc] = { startAt: _fmtBeijingTime(), startRaw: raw, startMeth: meth };
-        _writeGasJSON(__GAS_PENDING_KEY, pending);
-        __kamiGasSessionRecorded = true;
-        log(`💰 [Gas统计] 启动余额: ${raw}（账户: ${acc}）`);
-        _warnLowBalanceIfNeeded(meth, raw, acc, 'start');
-    }
-
-    // 刷新前记录会话结束余额：与 pending 中的启动记录配对，产出一条消耗 record
-    function recordGasEnd(accountName) {
-        const raw = getAccountBalance();
-        if (!raw) return;  // 抓不到余额（DOM 未就绪等）直接放弃本轮，不产生脏数据
-        const meth = _parseEthToMeth(raw);
-        if (meth == null) return;
-        const acc = accountName || '(unknown)';
-        const pending = _readGasJSON(__GAS_PENDING_KEY);
-        const start = pending[acc];
-        if (!start) {
-            log(`💰 [Gas统计] 刷新前余额: ${raw}（账户 ${acc} 无配对启动记录，跳过本轮）`);
-            return;
-        }
-        const endAt = _fmtBeijingTime();
-        const startMs = new Date(start.startAt.replace(' ', 'T') + __TZ_ISO_SUFFIX).getTime();  // 配置时区字符串 → 时间戳
-        const durationMs = Math.max(0, Date.now() - startMs);
-
-        // 会话内充值检测：余额异常上升 ≥ 5 mETH（__RECHARGE_THRESHOLD_METH）→ 判定为充值
-        // 充值必须在游戏内操作，因此几乎都发生在脚本会话运行期间
-        // 检测逻辑：rawDelta = startMeth - endMeth，正常消耗应 ≥ 0，若 < -5 即视为充值
-        const rawDelta = +(start.startMeth - meth).toFixed(4);
-        let deltaMeth = rawDelta;
-        let sessionRecharge = 0;
-
-        if (rawDelta < -__RECHARGE_THRESHOLD_METH) {
-            // 大幅负值：会话内充值
-            sessionRecharge = +(-rawDelta).toFixed(4);  // 略低估真实充值额（期间还在消耗 gas）
-            deltaMeth = 0;                               // 保守清零本轮消耗，避免污染累加
-            log(`%c💰 [Gas统计] 会话内检测到充值约 ${sessionRecharge} mETH（${start.startRaw} → ${raw}）`,
-                'color: #00aa00; font-weight: bold; font-size: 14px;');
-        } else if (rawDelta < 0) {
-            // 小幅负值（精度漂移）：clamp 到 0 防止累加污染
-            deltaMeth = 0;
-        }
-
-        const perDay = durationMs > 0 ? +(deltaMeth / durationMs * 86400000).toFixed(4) : 0;  // 折算 24h 消耗速率（mETH/day）
-        const record = {
-            startAt: start.startAt, startRaw: start.startRaw, startMeth: start.startMeth,
-            endAt, endRaw: raw, endMeth: meth,
-            deltaMeth, sessionRecharge, durationMs, perDay
-        };
-        const history = _readGasJSON(__GAS_HISTORY_KEY);
-        if (!Array.isArray(history[acc])) history[acc] = [];
-        history[acc].push(record);
-
-        // 双层裁剪：先按时间（只留最近 30 天），再按条数（最多 3000 条，截掉最旧的）
-        const cutoffMs = Date.now() - __GAS_HISTORY_RETAIN_DAYS * 24 * 60 * 60 * 1000;
-        history[acc] = history[acc].filter(r => {
-            const t = new Date(r.startAt.replace(' ', 'T') + __TZ_ISO_SUFFIX).getTime();
-            return t >= cutoffMs;
-        });
-        if (history[acc].length > __GAS_HISTORY_MAX) {
-            history[acc].splice(0, history[acc].length - __GAS_HISTORY_MAX);
-        }
-
-        _writeGasJSON(__GAS_HISTORY_KEY, history);
-        delete pending[acc];
-        _writeGasJSON(__GAS_PENDING_KEY, pending);
-        log(`💰 [Gas统计] 刷新前余额: ${raw}，本轮消耗 ${deltaMeth} mETH（${_fmtMinSec(durationMs)}），24h 折算 ${perDay} mETH/day`);
-        _warnLowBalanceIfNeeded(meth, raw, acc, 'end');
-    }
-
-    // 控制台命令：列出最近 n 条会话消耗明细并汇总折算；不传账户名则遍历所有账户
-    window.showGasUsage = function (accountName, n = 20) {
-        const history = _readGasJSON(__GAS_HISTORY_KEY);
-        const accounts = accountName ? [accountName] : Object.keys(history);
-        if (accounts.length === 0) { log(`💰 [Gas统计] 无任何记录`); return []; }
-        const result = [];
-        for (const acc of accounts) {
-            const list = history[acc] || [];
-            const slice = list.slice(-n);
-            if (slice.length === 0) continue;
-            log(`════════ 账户 ${acc}（最近 ${slice.length}/${list.length} 条） ════════`);
-            let totalDelta = 0, totalMs = 0;
-            for (const r of slice) {
-                log(`   ${r.startAt} → ${r.endAt} | ${r.startRaw} → ${r.endRaw} | 消耗 ${r.deltaMeth} mETH | ${_fmtMinSec(r.durationMs)} | 24h折算 ${r.perDay} mETH/day`);
-                totalDelta += r.deltaMeth;
-                totalMs += r.durationMs;
-            }
-            const avgPerDay = totalMs > 0 ? totalDelta / totalMs * 86400000 : 0;
-            log(`📊 ${acc} 累计：消耗 ${totalDelta.toFixed(3)} mETH / ${_fmtMinSec(totalMs)}，24h 折算 ${avgPerDay.toFixed(2)} mETH/day`);
-            result.push(...slice.map(r => ({ account: acc, ...r })));
-        }
-        return result;
-    };
-
-    // 控制台命令：清除指定账户（或不传时全部账户）的 gas 历史与 pending 记录
-    window.clearGasUsage = function (accountName) {
-        if (accountName) {
-            const h = _readGasJSON(__GAS_HISTORY_KEY); delete h[accountName]; _writeGasJSON(__GAS_HISTORY_KEY, h);
-            const p = _readGasJSON(__GAS_PENDING_KEY); delete p[accountName]; _writeGasJSON(__GAS_PENDING_KEY, p);
-            log(`🗑️ [Gas统计] 已清除账户 ${accountName} 的所有记录`);
-        } else {
-            localStorage.removeItem(__GAS_HISTORY_KEY);
-            localStorage.removeItem(__GAS_PENDING_KEY);
-            log(`🗑️ [Gas统计] 已清除所有账户的记录`);
-        }
-    };
-
-    // ============================================================
-    // 【板块：showGasStats 消耗统计完整报告】
-    // ------------------------------------------------------------
-    // ▍功能：基于 kami_gas_history 里的会话记录，为账户生成一份完整的
-    //   mETH 消耗体检报告：时间窗口、运行占比、会话时长分布、停机时段
-    //   分级明细、充值历史、总消耗、两种口径的 24h 折算速率、余额耗尽预估。
-    // ▍触发时机：用户控制台手敲 showGasStats([账户名])；不传账户名则遍历
-    //   history 中所有账户逐个输出报告。
-    // ▍依赖：localStorage key kami_gas_history（由上一板块写入）；log()。
-    // ▍核心流程：
-    //   1) 记录按 startAt 排序（保险，正常写入顺序即有序）；
-    //   2) 自然跨度 = 最后一条 endAt - 第一条 startAt；
-    //   3) 累计运行时长，并按单会话时长分三档统计分布；
-    //   4) 相邻记录之间 gap > 0 记为一段停机，按时长分四级汇总；
-    //   5) 充值双路收集：record.sessionRecharge 字段（会话内充值）+
-    //      相邻记录余额跳升 ≥ 阈值（跨会话充值），合并按时间排序；
-    //   6) 汇总总消耗、自然/运行两种 24h 折算速率、按当前余额估算可跑天数；
-    //   7) 所有行 push 进数组后一次 log 输出（避免每行重复时间戳前缀和
-    //      source link 噪声）。
-    // ▍边界与保护：无记录时直接提示并返回；充值识别复用
-    //   __RECHARGE_THRESHOLD_METH 阈值防精度噪声；折算速率为 0 时耗尽预估
-    //   显示 ∞（Infinity 分支）。
-    // ▍关键魔法数字（分级/评级口径，直接内联在条件里）：
-    //   - 会话时长分布：< 10 分钟 = 短会话（可能初始化失败），10-60 分钟 =
-    //     正常（对应页面定时刷新周期），> 60 分钟 = 长会话；
-    //   - 停机分级：< 2 分钟 = 正常 reload 间隙；2-30 分钟 = 短停机（可能
-    //     网络抖动/刷新失败）；30 分钟-6 小时 = 长停机；> 6 小时 = 超长停机
-    //     （长/超长两级会逐段列出起止时间）；
-    //   - 运行占比评级：≥ 95% 打 ✓（健康），≥ 50% 打 ⚠️，否则 ❌；
-    //   - 折算口径：自然 24h = 总消耗/自然跨度（钱包实际下降速度，最实用）；
-    //     运行 24h = 总消耗/累计运行时长（脚本满跑速率，参考用）。
-    // ▍可调参数：无独立常量；如需调整分级口径直接改上述内联阈值。
-    // ▍相关控制台命令：showGasStats([账户名]) —— 输出上述报告。
-    // ============================================================
-
-    // 配置时区的字符串 "YYYY-MM-DD HH:mm:ss" → UTC 毫秒时间戳（与写入互逆）
-    function _parseBeijingToMs(s) {
-        return new Date(s.replace(' ', 'T') + __TZ_ISO_SUFFIX).getTime();
-    }
-
-    // 时长格式化：ms → "X天X小时X分钟"（按量级自动省略高位为零的单位）
-    function _fmtDuration(ms) {
-        if (ms < 0) ms = 0;
-        const totalSec = Math.floor(ms / 1000);
-        const d = Math.floor(totalSec / 86400);
-        const h = Math.floor((totalSec % 86400) / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        if (d > 0) return `${d}天${h}小时${m}分钟`;
-        if (h > 0) return `${h}小时${m}分钟`;
-        return `${m}分钟`;
-    }
-
-    // 为单个账户渲染完整消耗报告（showGasStats 的实际工作函数）
-    function _renderStatsForAccount(acc, list) {
-        if (!list || list.length === 0) {
-            log(`💰 [Gas统计] 账户 ${acc} 无记录`);
-            return;
-        }
-        // 按时间排序（保险）
-        const sorted = [...list].sort((a, b) =>
-            _parseBeijingToMs(a.startAt) - _parseBeijingToMs(b.startAt)
-        );
-        const first = sorted[0];
-        const last  = sorted[sorted.length - 1];
-        const naturalSpanMs = _parseBeijingToMs(last.endAt) - _parseBeijingToMs(first.startAt);
-
-        // 运行情况：会话时长分三档（<10 分钟疑似初始化失败 / 10-60 分钟正常 / >60 分钟偏长）
-        const sessionCount = sorted.length;
-        let totalRunMs = 0;
-        let shortSessions = 0, normalSessions = 0, longSessions = 0;
-        for (const r of sorted) {
-            totalRunMs += r.durationMs || 0;
-            const min = (r.durationMs || 0) / 60000;
-            if (min < 10) shortSessions++;
-            else if (min <= 60) normalSessions++;
-            else longSessions++;
-        }
-        const utilization = naturalSpanMs > 0 ? (totalRunMs / naturalSpanMs * 100) : 0;
-
-        // 停机时段（相邻记录间隔）
-        const downtimes = [];
-        for (let i = 1; i < sorted.length; i++) {
-            const gapMs = _parseBeijingToMs(sorted[i].startAt) - _parseBeijingToMs(sorted[i - 1].endAt);
-            if (gapMs > 0) {
-                downtimes.push({
-                    from: sorted[i - 1].endAt,
-                    to:   sorted[i].startAt,
-                    gapMs
-                });
-            }
-        }
-        const dt_normal  = downtimes.filter(d => d.gapMs < 2 * 60000);              // < 2 分钟：正常 reload 间隙
-        const dt_short   = downtimes.filter(d => d.gapMs >= 2 * 60000 && d.gapMs < 30 * 60000);    // 2-30 分钟：短停机
-        const dt_long    = downtimes.filter(d => d.gapMs >= 30 * 60000 && d.gapMs < 6 * 3600000);  // 30 分钟-6 小时：长停机
-        const dt_massive = downtimes.filter(d => d.gapMs >= 6 * 3600000);           // ≥ 6 小时：超长停机
-        const totalDowntimeMs = downtimes.reduce((s, d) => s + d.gapMs, 0);
-        const sumMs = arr => arr.reduce((s, d) => s + d.gapMs, 0);
-
-        // 充值识别（两路来源，合并后按时间排序）
-        const recharges = [];
-        // 1) 会话内充值（record.sessionRecharge > 0，由 recordGasEnd 判定写入）
-        for (const r of sorted) {
-            if (r.sessionRecharge && r.sessionRecharge >= __RECHARGE_THRESHOLD_METH) {
-                recharges.push({
-                    type: '会话内',
-                    at: r.endAt,
-                    amount: r.sessionRecharge,
-                    fromMeth: r.startMeth,
-                    toMeth: r.endMeth
-                });
-            }
-        }
-        // 2) 跨会话充值：相邻记录之间余额跳升 ≥ 阈值（脚本停机期间的充值）
-        for (let i = 1; i < sorted.length; i++) {
-            const gap = +(sorted[i].startMeth - sorted[i - 1].endMeth).toFixed(4);
-            if (gap >= __RECHARGE_THRESHOLD_METH) {
-                recharges.push({
-                    type: '跨会话',
-                    at: sorted[i].startAt,
-                    amount: gap,
-                    fromMeth: sorted[i - 1].endMeth,
-                    toMeth: sorted[i].startMeth
-                });
-            }
-        }
-        recharges.sort((a, b) => _parseBeijingToMs(a.at) - _parseBeijingToMs(b.at));
-        const totalRecharge = recharges.reduce((s, r) => s + r.amount, 0);
-
-        // 消耗
-        const totalDelta = sorted.reduce((s, r) => s + (r.deltaMeth || 0), 0);
-
-        // 折算：自然口径（含停机时段）与运行口径（只算脚本在跑的时间）
-        const perDayNatural = naturalSpanMs > 0 ? totalDelta / naturalSpanMs * 86400000 : 0;
-        const perDayRunning = totalRunMs    > 0 ? totalDelta / totalRunMs    * 86400000 : 0;
-
-        // 当前余额（最后一条 endMeth），据此按两种速率估算可跑天数
-        const currentMeth = last.endMeth;
-        const daysLeftNatural = perDayNatural > 0 ? currentMeth / perDayNatural : Infinity;
-        const daysLeftRunning = perDayRunning > 0 ? currentMeth / perDayRunning : Infinity;
-
-        // ============== 输出（一次 log 调用，避免每行重复时间戳前缀和 source link）==============
-        const lines = [];
-        const utilFlag = utilization >= 95 ? '✓' : utilization >= 50 ? '⚠️' : '❌';  // 运行占比评级：≥95% 健康 / ≥50% 警告 / 其余异常
-        const fmtDays = (d) => Number.isFinite(d) ? `${d.toFixed(2)} 天` : '∞';      // 速率为 0 时预估为 Infinity → 显示 ∞
-
-        lines.push(``);
-        lines.push(`═══════════ ${acc} 账户 mETH 消耗统计 ═══════════`);
-        lines.push(``);
-        lines.push(`📅 时间窗口`);
-        lines.push(`   首次记录: ${first.startAt}`);
-        lines.push(`   最近记录: ${last.endAt}`);
-        lines.push(`   自然跨度: ${_fmtDuration(naturalSpanMs)}`);
-        lines.push(``);
-        lines.push(`🚀 脚本运行情况`);
-        lines.push(`   会话数:       ${sessionCount} 次`);
-        lines.push(`   累计运行:     ${_fmtDuration(totalRunMs)}`);
-        lines.push(`   运行占比:     ${utilization.toFixed(1)}% ${utilFlag}（健康值 ≥ 95%）`);
-        lines.push(`   会话分布:`);
-        lines.push(`      正常会话(10-60m): ${normalSessions} 次 ✓`);
-        lines.push(`      短会话(< 10m):    ${shortSessions} 次${shortSessions > 0 ? ' ⚠️ 可能初始化失败' : ''}`);
-        lines.push(`      长会话(> 60m):    ${longSessions} 次`);
-        lines.push(``);
-        lines.push(`📴 停机时段（相邻会话之间的空白）`);
-        if (dt_massive.length > 0) {
-            lines.push(`   超长(> 6h): ${dt_massive.length} 段`);
-            for (const d of dt_massive) {
-                lines.push(`      ${d.from} → ${d.to}  共 ${_fmtDuration(d.gapMs)}`);
-            }
-        }
-        if (dt_long.length > 0) {
-            lines.push(`   长(30m-6h): ${dt_long.length} 段（合计 ${_fmtDuration(sumMs(dt_long))}）`);
-            for (const d of dt_long) {
-                lines.push(`      ${d.from} → ${d.to}  共 ${_fmtDuration(d.gapMs)}`);
-            }
-        }
-        if (dt_short.length > 0) {
-            lines.push(`   短(2-30m): ${dt_short.length} 段（合计 ${_fmtDuration(sumMs(dt_short))}，可能网络抖动/刷新失败）`);
-        }
-        if (dt_normal.length > 0) {
-            lines.push(`   正常 reload(< 2m): ${dt_normal.length} 段（合计 ${_fmtDuration(sumMs(dt_normal))}）`);
-        }
-        lines.push(`   合计停机: ${_fmtDuration(totalDowntimeMs)}`);
-        lines.push(``);
-        lines.push(`💰 充值历史（≥ ${__RECHARGE_THRESHOLD_METH} mETH 阈值）`);
-        if (recharges.length === 0) {
-            lines.push(`   （期间无充值）`);
-        } else {
-            for (const r of recharges) {
-                lines.push(`   ${r.at}  +${r.amount.toFixed(2)} mETH  (${r.type})`);
-            }
-            lines.push(`   合计充值: +${totalRecharge.toFixed(2)} mETH（${recharges.length} 笔）`);
-        }
-        lines.push(``);
-        lines.push(`⛽ Gas 消耗`);
-        lines.push(`   总消耗: ${totalDelta.toFixed(3)} mETH（含小额精度误差）`);
-        lines.push(``);
-        lines.push(`📊 折算速率`);
-        lines.push(`   自然 24h: ${perDayNatural.toFixed(3)} mETH/day ⭐ 钱包下降速度（最实用）`);
-        lines.push(`   运行 24h: ${perDayRunning.toFixed(3)} mETH/day（脚本满跑速率，参考用）`);
-        lines.push(``);
-        lines.push(`⏳ 余额耗尽预估（当前余额 ${currentMeth.toFixed(2)} mETH）`);
-        lines.push(`   按当前停机率: 还能跑 ${fmtDays(daysLeftNatural)}`);
-        lines.push(`   若脚本不停:   ${fmtDays(daysLeftRunning)}`);
-        lines.push(``);
-        lines.push(`═══════════════════════════════════════════════════`);
-
-        log(lines.join('\n'));
-    }
-
-    // 控制台命令：输出账户消耗完整报告；不传账户名则遍历所有有记录的账户
-    window.showGasStats = function (accountName) {
-        const history = _readGasJSON(__GAS_HISTORY_KEY);
-        const accounts = accountName ? [accountName] : Object.keys(history);
-        if (accounts.length === 0) {
-            log(`💰 [Gas统计] 无任何记录`);
-            return;
-        }
-        for (const acc of accounts) {
-            _renderStatsForAccount(acc, history[acc] || []);
-        }
-    };
-
-    // ============================================================
-    // 【板块：showEpochGasStats 按 Initia VIP epoch 切分的 gas 统计】
-    // ------------------------------------------------------------
-    // ▍功能：把 gas 消耗历史按 Initia VIP（Initia 链生态的阶段性奖励
-    //   计划，以 14 天为一个 epoch 周期结算）的 epoch 分桶汇总，
-    //   逐 epoch 列出总消耗；对进行中的 epoch 额外给出已过时间占比和
-    //   两种"14 天总消耗"预估（线性外推 / 最近几期平均），便于对照
-    //   VIP 周期规划 gas 预算。
-    // ▍触发时机：用户控制台手敲 showEpochGasStats([账户名])（async 函数）。
-    // ▍依赖：
-    //   - localStorage key kami_gas_history（由 gas 统计板块写入）；
-    //   - 不传账户名时反查当前账户：读游戏对象
-    //     window.network.network.connectedAddress（兼容 value_/value 两种
-    //     字段）取链上地址，再经
-    //     window.network.explorer.accounts.getByOperator(addr) 取账户名；
-    //   - epoch 锚点数据来源：https://app.initia.xyz/vip 页面（精确到分钟）。
-    // ▍核心流程：
-    //   1) 账户名缺省时走反查；反查失败则提示用户显式传参并返回；
-    //   2) 每条记录按 startAt 落入的 epoch 分桶，累加 deltaMeth 与条数；
-    //   3) epoch 升序输出：已结束的列出起止时间与总消耗；进行中的额外算
-    //      已过时长/占比、线性外推预估（当前消耗 ÷ 已过时间 × 14 天）、
-    //      最近 ≤3 个已结束 epoch 的平均消耗（不足时提示无足够历史数据）；
-    //   4) 当前 epoch 若完全无记录也单独列出占位；
-    //   5) 附下一期 epoch 的起始时间；
-    //   6) 所有行拼数组后一次 log 输出（避免每行带时间戳/URL 噪声）。
-    // ▍边界与保护：账户名反查整体 try/catch（游戏对象未就绪时静默失败，
-    //   走"请显式传入"提示）；无历史记录直接提示并返回；分桶时对非数值
-    //   deltaMeth 按 0 处理。
-    // ▍可调参数：
-    //   - __EPOCH_30_START_UTC_MS —— 锚点常量：Epoch 30 起始时刻
-    //     （2026-06-04 08:00 UTC，即北京时间同日 16:00）；官方若调整
-    //     epoch 排期，需同步修正此锚点，否则全部分桶错位；
-    //   - __EPOCH_LENGTH_MS = 14 天 —— 每个 epoch 的严格长度。
-    // ▍相关控制台命令：showEpochGasStats([账户名]) —— 输出上述报告。
-    // ============================================================
-    // 锚点：Epoch 30 起始 = 2026-06-04 08:00 UTC = 北京时间 2026-06-04 16:00
-    // 周期：每个 epoch 严格 14 天
-    // 数据来源：https://app.initia.xyz/vip 页面（精确到分钟）
-    const __EPOCH_30_START_UTC_MS = Date.UTC(2026, 5, 4, 8, 0, 0);  // 月份 0-indexed: 5=Jun
-    const __EPOCH_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
-
-    // UTC 毫秒时间戳 → 所属 epoch 编号（以 Epoch 30 锚点线性推算）
-    function _epochAt(utcMs) {
-        return 30 + Math.floor((utcMs - __EPOCH_30_START_UTC_MS) / __EPOCH_LENGTH_MS);
-    }
-    // epoch 编号 → { start, end } UTC 毫秒区间（左闭右开）
-    function _epochRange(n) {
-        return {
-            start: __EPOCH_30_START_UTC_MS + (n - 30) * __EPOCH_LENGTH_MS,
-            end:   __EPOCH_30_START_UTC_MS + (n - 29) * __EPOCH_LENGTH_MS
-        };
-    }
-    // 把 UTC ms 转成配置时区的字符串 "YYYY-MM-DD HH:mm"（函数名保留 BJ 仅为兼容）
-    function _fmtBJFromUtcMs(utcMs) {
-        const d = new Date(utcMs + __TZ_OFFSET_MS);
-        const pad = n => String(n).padStart(2, '0');
-        return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-    }
-
-    // ------------------------------------------------------------
-    // Epoch 结束前提醒：最后 3 天红字提示（销毁 VIP 点数 / 投票）
-    // 触发：启动 30 秒后检查一次（页面每 ~45 分钟自动刷新，等效持续提醒），
-    //       另每 6 小时兜底一次；不在最后 3 天窗口内则静默。
-    // ------------------------------------------------------------
-    const __EPOCH_REMIND_DAYS = 3;   // 结束前 N 天开始提醒
-    function _epochEndReminder() {
+    // 低余额告警统一入口（独立于已删除的余额差统计）：'start' 每会话一次，'end' 刷新前一次
+    let __lowBalanceChecked = false;
+    function checkLowBalanceOnce(accountName, stage) {
         try {
-            const now = Date.now();
-            const n = _epochAt(now);
-            const { end } = _epochRange(n);
-            const msLeft = end - now;
-            if (msLeft <= 0) return;
-            const daysLeft = Math.ceil(msLeft / (24 * 3600 * 1000));   // 1 = 最后一天
-            if (daysLeft > __EPOCH_REMIND_DAYS) return;
-            const hoursLeft = Math.floor(msLeft / 3600000);
-            log(`%c⏰ ═══════ Epoch ${n} 即将结束（已是最后 ${daysLeft} 天）═══════\n` +
-                `   结束时间：${__TZ_LABEL} ${_fmtBJFromUtcMs(end)}（剩余约 ${hoursLeft} 小时）\n` +
-                `   请及时：① 销毁 VIP 点数（vipp）；② 如需投票，投给 kamigotchi\n` +
-                `   投票入口：https://app.initia.xyz/vip/gauge-vote`,
-                'color: red; font-weight: bold; font-size: 13px;');
-        } catch (e) {}
+            if (stage === 'start') {
+                if (__lowBalanceChecked) return;
+                __lowBalanceChecked = true;
+            }
+            const raw = getAccountBalance();
+            if (!raw) return;
+            const meth = _parseEthToMeth(raw);
+            if (meth == null) return;
+            _warnLowBalanceIfNeeded(meth, raw, accountName || '(unknown)', stage);
+        } catch (_) {}
     }
-    setTimeout(_epochEndReminder, 30 * 1000);
-    setInterval(_epochEndReminder, 6 * 60 * 60 * 1000);
 
-    /**
-     * 按 Initia VIP epoch 切分 gas 消耗
-     * @param {string} [accountName] 不传则用当前 connectedAddress 反查
-     */
-    window.showEpochGasStats = async function (accountName) {
-        // 1. 解析账户名（默认当前账户：链上地址 → 游戏账户名）
-        if (!accountName) {
+    // ============================================================
+    // 【板块：gas 真值账本（按动作分类自记账）+ showGasReport】   🔻SYNC[1.2.7 gas真值账本]
+    // ------------------------------------------------------------
+    // ▍功能：脚本每次发 tx 时按动作（deploy/stop/feed/revive/scavenge/
+    //   xp_potion）记一条"待补账本"（localStorage 'kami_gas_ledger'），
+    //   后台 reconciler 异步用 receipt.gasUsed × gasPrice 回填真实 gas
+    //   （BigInt 存 string，不丢精度）。showGasReport() 汇总各时间窗 / 动作
+    //   分类 / 日均 / revert 白烧 / 余额续航。取代旧"余额差"统计（那套混入
+    //   充值/买道具，不准）。
+    // ▍非侵入红线（I1）：各发 tx 点只调 _gasLedgerRecord(...) 一行，全程
+    //   try/catch，绝不改 tx 发送逻辑/返回值/时序；记账失败绝不影响业务。
+    // ▍零新增 tx（I2）：reconciler 只读 receipt，不发任何 tx。
+    // ▍数据源（0713 实测）：ethers v6 单笔字段是 gasPrice（兼容
+    //   effectiveGasPrice）；status===0 是 revert 但照样烧 gas，计入总额且单列。
+    // ▍地址：acc = window.network.explorer.accounts.getByOperator(signerAddr)；
+    //   acc.operatorAddress = 签名地址（发 tx / 查余额）；acc.id = owner。
+    // ▍触发时机：_gasLedgerRecord 由各发 tx 点同步调用；_gasLedgerReconcile
+    //   由启动时注册的独立定时器每 GAS_LEDGER_RECONCILE_MS 触发；showGasReport
+    //   由用户控制台手敲。
+    // ▍依赖：localStorage；provider = window.network.network.signer.provider
+    //   || window.network.network.provider（补 receipt / 读余额）。
+    // ▍相关控制台命令：showGasReport()。
+    // ============================================================
+
+    const GAS_LEDGER_KEY = 'kami_gas_ledger';          // 账本 localStorage key
+    const GAS_LEDGER_MAX = 5000;                        // 条数硬上限（滚动删旧）
+    const GAS_LEDGER_RETAIN_DAYS = 35;                  // 时间上限：保留 35 天（够 30 天报告）
+    const GAS_LEDGER_RECONCILE_MS = 3 * 60 * 1000;      // reconciler 扫描间隔（3 分钟）
+    const GAS_LEDGER_RECONCILE_BATCH = 20;              // 单轮补 gas 上限（背压）
+    // action 枚举：'deploy' | 'stop' | 'feed' | 'revive' | 'scavenge' | 'xp_potion'
+    //   （核心动作；辅助脚本的 'upgrade' / 'craft' 下批加，本批留位）
+
+    // 读账本（损坏/缺失回退空数组）
+    function _gasLedgerRead() {
+        try {
+            const arr = JSON.parse(localStorage.getItem(GAS_LEDGER_KEY) || '[]');
+            return Array.isArray(arr) ? arr : [];
+        } catch (_) { return []; }
+    }
+    // 写账本（配额超限等静默）
+    function _gasLedgerWrite(arr) {
+        try { localStorage.setItem(GAS_LEDGER_KEY, JSON.stringify(arr)); } catch (_) {}
+    }
+    // 有界裁剪：先按时间（35 天），再按条数（5000，截最旧）
+    function _gasLedgerPrune(arr) {
+        const cutoff = Date.now() - GAS_LEDGER_RETAIN_DAYS * 24 * 60 * 60 * 1000;
+        let out = arr.filter(e => e && typeof e.ts === 'number' && e.ts >= cutoff);
+        if (out.length > GAS_LEDGER_MAX) out = out.slice(out.length - GAS_LEDGER_MAX);
+        return out;
+    }
+    // 从 tx 对象 / hash 字符串 / promise 抓 hash（fire-and-forget 也立刻有 .hash）
+    //   传 promise（如紧急停采 mud 分支）：不 await，.then 里回填 hash 并落盘；抓不到保持 null。
+    //   reconciler 只处理"有 hash 且 gasWei===null"的条目，null-hash 条目（如拾荒 UI 点击）永不补 gas。
+    function _gasLedgerExtractHash(txOrHash, entry) {
+        try {
+            if (!txOrHash) return null;
+            if (typeof txOrHash === 'string') return txOrHash;
+            if (typeof txOrHash.hash === 'string') return txOrHash.hash;
+            if (typeof txOrHash.then === 'function') {
+                // promise：异步回填 hash（不阻塞、不影响调用方）
+                txOrHash.then(t => {
+                    try {
+                        const h = t && (typeof t === 'string' ? t : (t.hash || t.transactionHash));
+                        if (!h || !entry) return;
+                        const arr = _gasLedgerRead();
+                        const found = arr.find(x => x && x.ts === entry.ts && x.action === entry.action && x.hash == null);
+                        if (found) { found.hash = h; _gasLedgerWrite(arr); }
+                    } catch (_) {}
+                }).catch(() => {});
+                return null;
+            }
+        } catch (_) {}
+        return null;
+    }
+    // 【记账 hook】各发 tx 点唯一入口。绝对非侵入：全 try/catch，任何异常静默，绝不影响调用方。
+    //   action=动作枚举；kamiIds=本 tx 涉及的 kami（可空数组）；txOrHash=tx 对象/hash 字符串/promise。
+    function _gasLedgerRecord(action, kamiIds, txOrHash) {
+        try {
+            const ids = Array.isArray(kamiIds)
+                ? kamiIds.map(x => String(x))
+                : (kamiIds != null ? [String(kamiIds)] : []);
+            const entry = { ts: Date.now(), action, kamiIds: ids, n: ids.length, hash: null, gasWei: null, status: null };
+            entry.hash = _gasLedgerExtractHash(txOrHash, entry);
+            const arr = _gasLedgerPrune(_gasLedgerRead());
+            arr.push(entry);
+            _gasLedgerWrite(arr);
+        } catch (_) { /* 记账失败绝不影响业务 */ }
+    }
+
+    // provider（只读 receipt / 余额，绝不发 tx）
+    function _gasLedgerProvider() {
+        try {
+            const net = window.network && window.network.network;
+            if (!net) return null;
+            return (net.signer && net.signer.provider) || net.provider || null;
+        } catch (_) { return null; }
+    }
+    // 【reconciler】扫账本里 gasWei===null 且有 hash 的条目，补 receipt → gasWei / status。
+    //   查不到（未上链/异常）保持 null 下次再补；单轮限 GAS_LEDGER_RECONCILE_BATCH 条背压；全 try/catch；零新增 tx。
+    let __gasReconcileRunning = false;
+    async function _gasLedgerReconcile() {
+        if (__gasReconcileRunning) return;
+        __gasReconcileRunning = true;
+        try {
+            const provider = _gasLedgerProvider();
+            if (!provider || typeof provider.getTransactionReceipt !== 'function') return;
+            const arr = _gasLedgerRead();
+            const targets = [];
+            for (const e of arr) {
+                if (e && e.gasWei == null && e.hash) targets.push(e);
+                if (targets.length >= GAS_LEDGER_RECONCILE_BATCH) break;
+            }
+            if (targets.length === 0) return;
+            const patch = new Map();   // hash → { gasWei, status }
+            for (const e of targets) {
+                try {
+                    const rcpt = await provider.getTransactionReceipt(e.hash);
+                    if (!rcpt) continue;   // 未上链/查不到：保持 null，下轮再补
+                    const gasUsed = rcpt.gasUsed;
+                    const price = (rcpt.gasPrice != null) ? rcpt.gasPrice : rcpt.effectiveGasPrice;   // ethers v6 单笔=gasPrice，兼容 effectiveGasPrice
+                    if (gasUsed == null || price == null) continue;   // 缺字段：下轮再补
+                    const gasWei = (BigInt(gasUsed.toString()) * BigInt(price.toString())).toString();   // 精确 BigInt，存 string 不丢精度
+                    patch.set(e.hash, { gasWei, status: (rcpt.status == null) ? null : Number(rcpt.status) });   // status===0=revert（照样烧 gas，计入总额且单列）
+                } catch (_) { /* 单条异常：跳过，下轮再补 */ }
+            }
+            if (patch.size === 0) return;
+            // 合并回写：重新读当前账本（reconcile 期间可能有新记账 push），按 hash 回填仍为 null 的条目，避免覆盖新条目
+            const cur = _gasLedgerRead();
+            let dirty = false;
+            for (const c of cur) {
+                if (c && c.gasWei == null && c.hash && patch.has(c.hash)) {
+                    const p = patch.get(c.hash);
+                    c.gasWei = p.gasWei;
+                    c.status = p.status;
+                    dirty = true;
+                }
+            }
+            if (dirty) _gasLedgerWrite(_gasLedgerPrune(cur));
+        } catch (_) {
+        } finally {
+            __gasReconcileRunning = false;
+        }
+    }
+
+    // 【控制台命令】showGasReport()：链上真值 gas 报告（攒字符串数组，最后一次 console.log 避 userscript 前缀刷屏）
+    window.showGasReport = async function () {
+        const L = [];
+        const WEI_PER_ETH = 1e18;
+        const fmtEth = (wei) => { try { return (Number(wei) / WEI_PER_ETH).toFixed(6); } catch (_) { return '0.000000'; } };
+        try {
+            const arr = _gasLedgerRead();
+            const now = Date.now();
+            const DAY = 24 * 60 * 60 * 1000;
+            const windows = [
+                { label: '24h', ms: 1 * DAY, days: 1 },
+                { label: '3d',  ms: 3 * DAY, days: 3 },
+                { label: '7d',  ms: 7 * DAY, days: 7 },
+                { label: '30d', ms: 30 * DAY, days: 30 },
+            ];
+            const ACTIONS = ['deploy', 'stop', 'feed', 'revive', 'scavenge', 'xp_potion'];
+            const ACT_LABEL = { deploy: '部署', stop: '停采', feed: '喂食', revive: '复活', scavenge: '拾荒', xp_potion: 'XP药水' };
+
+            L.push('═══════════ ⛽ Gas 真值账本报告（链上 receipt 逐笔核算） ═══════════');
+            L.push(`账本条目: ${arr.length} 条（上限 ${GAS_LEDGER_MAX}，保留 ${GAS_LEDGER_RETAIN_DAYS} 天）`);
+            const pending = arr.filter(e => e && e.hash && e.gasWei == null).length;
+            const noHash  = arr.filter(e => e && !e.hash && e.gasWei == null).length;
+            L.push(`未补 gas: ${pending} 条（有 hash，reconciler 待补）｜无 hash 无法补: ${noHash} 条（拾荒等 UI 点击 tx，无 tx 对象/hash，仅计动作次数）`);
+            L.push('');
+
+            let avg7dGasWei = 0n;   // 供余额续航
+            for (const w of windows) {
+                const since = now - w.ms;
+                const inWin = arr.filter(e => e && e.ts >= since && e.gasWei != null);
+                let total = 0n, revertWei = 0n, revertN = 0, txN = 0;
+                const byAct = {};
+                for (const e of inWin) {
+                    let g = 0n;
+                    try { g = BigInt(e.gasWei); } catch (_) { g = 0n; }
+                    total += g;
+                    txN++;
+                    if (e.status === 0) { revertWei += g; revertN++; }
+                    byAct[e.action] = (byAct[e.action] || 0n) + g;
+                }
+                if (w.label === '7d') avg7dGasWei = (w.days > 0) ? (total / BigInt(w.days)) : 0n;
+                const perDay = (w.days > 0) ? (Number(total) / w.days / WEI_PER_ETH) : 0;
+                L.push(`──────── 最近 ${w.label} ────────`);
+                L.push(`   总 gas: ${fmtEth(total)} ETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(6)} ETH/day`);
+                L.push(`   revert 白烧: ${fmtEth(revertWei)} ETH（${revertN} 笔，已计入上面总额）`);
+                for (const a of ACTIONS) {
+                    if (!(a in byAct)) continue;
+                    const g = byAct[a];
+                    const pct = (total > 0n) ? (Number(g) / Number(total) * 100).toFixed(1) : '0.0';
+                    L.push(`      ${ACT_LABEL[a] || a}: ${fmtEth(g)} ETH (${pct}%)`);
+                }
+                L.push('');
+            }
+
+            // 余额续航：operator 链上余额 ÷ 7 天日均
             try {
-                // 游戏对象两个版本字段名不同，value_/value 都试一遍
-                const addr = window.network?.network?.connectedAddress?.value_
-                          || window.network?.network?.connectedAddress?.value;
-                if (addr) {
-                    const acc = await window.network.explorer.accounts.getByOperator(addr);
-                    accountName = acc?.name || null;
+                const provider = _gasLedgerProvider();
+                let operatorAddr = null, ownerAddr = null, accName = '';
+                try {
+                    const addr = window.network && window.network.network && window.network.network.connectedAddress && window.network.network.connectedAddress.value_;
+                    if (addr) {
+                        const acc = window.network.explorer.accounts.getByOperator(addr);
+                        operatorAddr = (acc && acc.operatorAddress) || addr;
+                        ownerAddr = (acc && acc.id) || null;
+                        accName = (acc && acc.name) || '';
+                    }
+                } catch (_) {}
+                if (provider && typeof provider.getBalance === 'function' && operatorAddr) {
+                    const bal = await provider.getBalance(operatorAddr);
+                    const balWei = BigInt(bal.toString());
+                    L.push('──────── 余额续航 ────────');
+                    L.push(`   Operator ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
+                    L.push(`   当前余额: ${fmtEth(balWei)} ETH`);
+                    if (avg7dGasWei > 0n) {
+                        const daysLeft = Number(balWei) / Number(avg7dGasWei);
+                        L.push(`   按 7 天日均 ${fmtEth(avg7dGasWei)} ETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天`);
+                    } else {
+                        L.push('   （7 天内暂无已补 gas 记录，无法估算续航；等 reconciler 补齐后再看）');
+                    }
+                    if (ownerAddr) L.push(`   Owner(手动 tx 对账地址): ${ownerAddr} → owner 手动 tx gas 请用命令行 bash 查gas.sh（游戏页 CSP 可能拦 Rollytics 索引器）`);
+                    L.push('');
                 }
-            } catch (_) { /* ignore */ }
-            if (!accountName) {
-                log(`❌ [Epoch Gas] 无法识别当前账户名，请显式传入：showEpochGasStats("YourName")`);
-                return;
-            }
+            } catch (_) {}
+
+            L.push('说明：拾荒（UI 点击）无 tx 对象、hash 抓不到，gas 无法入账，仅计动作次数；其余动作均由链上 receipt 逐笔核算，单价逐笔用 receipt 的 gasPrice。');
+            L.push('═══════════════════════════════════════════════════════');
+        } catch (e) {
+            L.push('❌ [showGasReport] 生成报告异常: ' + ((e && e.message) || e));
         }
-
-        const history = (_readGasJSON(__GAS_HISTORY_KEY) || {})[accountName] || [];
-        if (history.length === 0) {
-            log(`💰 [Epoch Gas] 账户 ${accountName} 无 gas 历史记录`);
-            return;
-        }
-
-        // 2. 按 epoch 分桶
-        const byEpoch = new Map();  // epoch number -> { totalMeth, recordCount }
-        for (const r of history) {
-            const startMs = _parseBeijingToMs(r.startAt);
-            const ep = _epochAt(startMs);
-            if (!byEpoch.has(ep)) byEpoch.set(ep, { totalMeth: 0, recordCount: 0 });
-            const b = byEpoch.get(ep);
-            b.totalMeth += (typeof r.deltaMeth === 'number' ? r.deltaMeth : 0);
-            b.recordCount += 1;
-        }
-        const allEpochs = [...byEpoch.keys()].sort((a, b) => a - b);
-        const nowMs = Date.now();
-        const currentEpoch = _epochAt(nowMs);
-
-        // 3. 拼装输出（参考 showGasStats 风格：lines.push 数组 + 一次 log，避免每行都带时间戳/URL 噪声）
-        const lines = [];
-        lines.push(``);
-        lines.push(`═══════════ 📊 ${accountName} 账户 Epoch Gas 消耗统计 ═══════════`);
-        lines.push(``);
-        lines.push(`📅 数据范围`);
-        lines.push(`   首次记录: ${history[0].startAt}`);
-        lines.push(`   共 ${history.length} 条会话`);
-        lines.push(`   锚点:     Epoch 30 起始 = 2026-06-04 08:00 UTC（每 epoch 严格 14 天）`);
-        lines.push(``);
-
-        // 4. 输出每个 epoch（升序）
-        for (const ep of allEpochs) {
-            const range = _epochRange(ep);
-            const data = byEpoch.get(ep);
-            const startBJ = _fmtBJFromUtcMs(range.start);
-            const endBJ = _fmtBJFromUtcMs(range.end);
-            const isCurrent = (ep === currentEpoch);
-
-            if (isCurrent) {
-                const elapsedMs = Math.max(0, nowMs - range.start);
-                const elapsedDays = Math.floor(elapsedMs / (24 * 3600 * 1000));
-                const elapsedHours = Math.floor(elapsedMs / (3600 * 1000)) % 24;
-                const elapsedMins = Math.floor(elapsedMs / (60 * 1000)) % 60;
-                const pct = (elapsedMs / __EPOCH_LENGTH_MS * 100).toFixed(1);
-
-                // 线性外推：按当前消耗速率推满 14 天的总消耗
-                const linearProj = elapsedMs > 0
-                    ? (data.totalMeth / elapsedMs * __EPOCH_LENGTH_MS).toFixed(2)
-                    : '0.00';
-
-                // 取最近 ≤3 个已结束 epoch 求平均，作为第二种预估口径
-                const recent3 = allEpochs.filter(e => e < currentEpoch).slice(-3);
-                let avg3Proj = null;
-                if (recent3.length > 0) {
-                    const sum3 = recent3.reduce((s, e) => s + byEpoch.get(e).totalMeth, 0);
-                    avg3Proj = (sum3 / recent3.length).toFixed(2);
-                }
-
-                lines.push(`🔴 Epoch ${ep} (进行中)`);
-                lines.push(`   ${__TZ_LABEL}:   ${startBJ} → ${endBJ}  (14 天)`);
-                lines.push(`   已经过:     ${elapsedDays} 天 ${elapsedHours} 小时 ${elapsedMins} 分钟  (占 ${pct}%)`);
-                lines.push(`   已消耗:     ${data.totalMeth.toFixed(2)} mETH  (${data.recordCount} 条会话)`);
-                lines.push(`   预计 14 天总消耗:`);
-                lines.push(`      线性外推:       ${linearProj} mETH  (按当前速率)`);
-                lines.push(`      最近 ${recent3.length} 期平均:   ${avg3Proj != null ? avg3Proj + ' mETH' : '无足够历史数据'}`);
-            } else {
-                lines.push(`✅ Epoch ${ep} (已结束)`);
-                lines.push(`   ${__TZ_LABEL}: ${startBJ} → ${endBJ}  (14 天)`);
-                lines.push(`   总消耗:   ${data.totalMeth.toFixed(2)} mETH  (${data.recordCount} 条会话)`);
-            }
-            lines.push(``);
-        }
-
-        // 5. 当前 epoch 完全没有记录时，也单独列出占位（避免报告缺当期）
-        if (!byEpoch.has(currentEpoch)) {
-            const range = _epochRange(currentEpoch);
-            lines.push(`🔴 Epoch ${currentEpoch} (进行中)`);
-            lines.push(`   ${__TZ_LABEL}: ${_fmtBJFromUtcMs(range.start)} → ${_fmtBJFromUtcMs(range.end)}  (14 天)`);
-            lines.push(`   暂无 gas 消耗记录`);
-            lines.push(``);
-        }
-
-        // 6. 下一期提示
-        const nextEpoch = currentEpoch + 1;
-        const nextRange = _epochRange(nextEpoch);
-        lines.push(`📅 下一期`);
-        lines.push(`   Epoch ${nextEpoch} 起始 = ${__TZ_LABEL} ${_fmtBJFromUtcMs(nextRange.start)}`);
-        lines.push(`═══════════════════════════════════════════════════════`);
-
-        // 一次性输出（避免每行都带时间戳/URL 后缀）
-        log(lines.join('\n'));
+        console.log(L.join('\n'));
     };
 
     // ============================================================
@@ -1352,7 +1042,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.6 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.7 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1365,7 +1055,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1540,7 +1230,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.6 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.7 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -1612,33 +1302,9 @@
         console.log('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点HP文本/状态图标(白名单锚定,非随机);真人操作自动让路)；默认on');
         console.log("setKeepAlive('on'|'off')");
         console.log('');
-        console.log('───────── 💰 mETH 消耗追踪 ─────────');
-        console.log('// 查看所有账户最近 20 条记录 + 累计折算（最常用，不带参数）');
-        console.log('%cshowGasUsage()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log("// 查看单个账户最近 20 条记录（把 'YourName' 替换为你的实际账户名）");
-        console.log("showGasUsage('YourName')");
-        console.log('');
-        console.log('// 查看单个账户最近 50 条记录');
-        console.log("showGasUsage('YourName', 50)");
-        console.log('');
-        console.log('// 清除所有账户的 mETH 消耗记录');
-        console.log('clearGasUsage()');
-        console.log('');
-        console.log('// 仅清除单个账户的记录');
-        console.log("clearGasUsage('YourName')");
-        console.log('');
-        console.log('// 完整统计报告：充值识别、停机分析、24h 折算、耗尽预估（最强大）⭐');
-        console.log('%cshowGasStats()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 单账户完整报告');
-        console.log("showGasStats('YourName')");
-        console.log('');
-        console.log('// 按 Initia VIP epoch（每 14 天）切分 gas 消耗，含当前 epoch 进度 + 两种预计');
-        console.log('%cshowEpochGasStats()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 单账户 epoch 切分统计');
-        console.log("showEpochGasStats('YourName')");
+        console.log('───────── 💰 Gas 真值账本 ─────────');
+        console.log('// 链上真值 gas 报告：按动作分类(部署/停采/喂食/复活/拾荒/XP) + 24h/3d/7d/30d + 日均 + revert白烧 + 余额续航（最强大）⭐');
+        console.log('%cshowGasReport()', 'color: red; font-size: 14px;');
         console.log('');
         console.log('───────── 📦 数据库 ─────────');
         console.log('// 手动增量同步精简数据库（diff 账户当前 kami list，只补不删，自动持久化）');
@@ -1661,7 +1327,7 @@
         console.log('💡 切换地块前批量停采 → stopCurrentRoom()');
         console.log('🗺️ 多账户分工策略 → 先 kamiAnalyze()【辅助】看分类，再 stopMinorityForTransfer() 停采 → 手动转移到对应账户');
         console.log('📦 账户新增 kami → syncKamiDb()（启动时自动跑一次，新增 kami 自动入库）');
-        console.log('💰 查看账户 gas 消耗速率 → showGasUsage() / showGasStats()');
+        console.log('💰 查看账户 gas 消耗速率(链上真值,按动作分类) → showGasReport()');
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
     }, 3000);
@@ -2891,7 +2557,7 @@
         let inv = [];
         let invReadSuspicious = false;
         try {
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             invReadSuspicious = !Array.isArray(acc?.inventories) || acc.inventories.length === 0;
             inv = Array.isArray(acc?.inventories) ? acc.inventories : [];
         } catch (e) {
@@ -3088,7 +2754,8 @@
 
                 log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [${apiName}] (fire-and-forget)`);
                 // fire-and-forget：await apiFn() 只等钱包分配 nonce 就发下一只，不等 tx.wait() 上链确认
-                await apiFn(info.kamiId, chosen.index);
+                const __feedTx = await apiFn(info.kamiId, chosen.index);   // 🔻SYNC[1.2.7 gas真值账本] 捕获 fire-and-forget 返回抓 hash（不改发送/时序/返回语义，原返回值本就丢弃）
+                _gasLedgerRecord('feed', [info.kamiId], __feedTx);
 
                 fedCount++;
 
@@ -3470,7 +3137,7 @@
             let myRoom, myKamis;
             try {
                 const addr = window.network.network.connectedAddress.value_;   // 当前连接的操作员钱包地址
-                const acc = await window.network.explorer.accounts.getByOperator(addr);
+                const acc = window.network.explorer.accounts.getByOperator(addr);
                 myRoom = acc?.roomIndex;
                 myKamis = Array.isArray(acc?.kamis) ? acc.kamis : [];
             } catch (e) {
@@ -5360,6 +5027,7 @@
                     // 错误处理在确认阶段 await txPromise 时做）。raw 分支照旧返回 tx。
                     const txPromise = system.executeBatchedAllowFailure(ids);
                     txPromise.catch(() => {});
+                    _gasLedgerRecord('stop', ids, txPromise);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（紧急停采 mud 分支，fire-and-forget promise 抓 hash）
                     // 🔻SYNC→内部版[1.1.19 停采通道统一] D1：发送段耗时（sentAt 即入口 t0，证明发送段快、背靠背成立）
                     log(`📡 [停采诊断/通道] 本批经 MUD 队列已入队(nonce统一，tx 交确认阶段解析) 耗时${Date.now()-sentAt}ms`);
                     return { items, sentAt, tx: null, txPromise, error: null, useFallback: false, nonce: null };
@@ -5374,6 +5042,7 @@
             if (!tx) {
                 return { items, sentAt, error: '返回空Tx', useFallback: false };
             }
+            _gasLedgerRecord('stop', ids, tx);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（紧急停采 raw 分支）
             return { items, sentAt, tx, error: null, useFallback: false, nonce: nonceInfo };
         } catch (e) {
             return { items, sentAt, error: e?.message || String(e), useFallback: false };
@@ -6040,7 +5709,7 @@
                 return;
             }
 
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             const kamis = acc?.kamis || [];
 
             if (kamis.length === 0) {
@@ -6670,7 +6339,7 @@
     //     精简数据库（数组，每项含 index / LT / body 等字段，由
     //     配套的精简数据库脚本预先生成）。
     //   · 全局工具：__getRoomNameByIndex（地块编号 → 名称）、
-    //     recordGasStart（gas 统计起点）、delay、smartReload、log。
+    //     checkLowBalanceOnce（低余额告警）、delay、smartReload、log。
     //   · DOM / localStorage：本板块不直接依赖。
     // ▍核心流程：1) 拉取账户对象，解析名称、地址、kami 列表、所在
     //   房间号；2) 过滤出 state=HARVESTING 的 kami，用内置并发池
@@ -6684,7 +6353,7 @@
     //   引导重跑精简数据库脚本。
     // ▍边界与保护：整个函数被 try/catch 包裹，任何失败只打一行错误
     //   日志、不影响启动流程；affinity 获取失败静默忽略；
-    //   recordGasStart 失败静默忽略；runPool 单项查询异常写入
+    //   checkLowBalanceOnce 失败静默忽略；runPool 单项查询异常写入
     //   { error } 占位，不中断整批；预警以实时 kamiList 为准，已转出
     //   账户的 Kami 不会产生幽灵警告。
     // ▍可调参数：runPool 并发度 concurrency = 6 —— 调大统计更快但对
@@ -6762,8 +6431,8 @@
             );
             log(`🪪 Owner: ${owner}`);
             log(`🧠 Operator: ${operator}`);
-            // 以账户名为 key 记录本次会话 gas 统计的起点（失败静默忽略，不影响主流程）
-            try { recordGasStart(name || '(unknown)'); } catch {}
+            // 会话启动时检查一次账户余额是否低于警戒线（失败静默忽略，不影响主流程；旧余额差 gas 统计已于 1.2.7 删除，改用 showGasReport 链上真值账本）
+            try { checkLowBalanceOnce(name || '(unknown)', 'start'); } catch {}
             console.log(
                 `%c📦 Kami 总数: %c${kamiCount}`,
                 'color:white;font-weight:bold;background:#444;padding:2px 6px;border-radius:4px;',
@@ -7070,6 +6739,7 @@
                 log(`⚠️ [AllowFailure停采/返回空Tx] → ${fmtListForLog}`);
                 return false;
             }
+            _gasLedgerRecord('stop', harvestIds, tx);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（覆盖 mud+raw 两分支，tx 已非空）
             reachedConfirm = true;   // tx 已入队，往后任何抛错都属"确认阶段"，非"发送失败"
             // 🔻SYNC→内部版[1.1.21 停采回执适配] 队列 resolve 出的可能是 tx(带wait) 也可能直接是 receipt，
             //   统一经 _awaitStopReceipt 归一；raw 分支 tx 带 wait，走 wait() 语义/行为逐字节等价。
@@ -7604,6 +7274,14 @@
                             log(`⏳ [停采诊断/退避] 退避复读调度器已启动（每 ${STOP_BACKOFF_SCAN_INTERVAL_MS / 1000}s 扫描一次，仅零 gas 复读 state；表 ${STOP_BACKOFF_TABLE_MS.map(x => x / 1000 + 's').join('/')}）`);
                         }
                     } catch (_) {}
+                    // 🔻SYNC[1.2.7 gas真值账本] C3：启动 gas 账本 reconciler（每 N 分钟只读 receipt 补 gas，零新增 tx，全 try/catch 不影响主循环）
+                    try {
+                        if (!window.__gasLedgerReconcilerStarted) {
+                            window.__gasLedgerReconcilerStarted = true;
+                            setInterval(() => { _gasLedgerReconcile(); }, GAS_LEDGER_RECONCILE_MS);
+                            log(`⛽ [gas账本] reconciler 已启动（每 ${GAS_LEDGER_RECONCILE_MS / 60000} 分钟补一次 receipt gas，单轮≤${GAS_LEDGER_RECONCILE_BATCH} 条，零新增 tx；报告命令 showGasReport()）`);
+                        }
+                    } catch (_) {}
                     break;
                 } else {
                     log('%c⚠️ [启动] waitForEyeHalf 失败，已触发刷新，终止当前启动流程。', 'color: red; font-weight: bold;');
@@ -7795,7 +7473,7 @@
 
         let balBurger = 0, balHoney = 0, balApple = 0;
         try {
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             const inv = Array.isArray(acc?.inventories) ? acc.inventories : [];
             balBurger = Number((inv.find(it => Number(it?.item?.index) === ITEM_CHEESEBURGER)?.balance) || 0);
             balHoney = Number((inv.find(it => Number(it?.item?.index) === ITEM_HONEYDEW_SCALE)?.balance) || 0);
@@ -7904,6 +7582,7 @@
                     // 取舍：偶尔失败浪费 1 笔 ~100-500K gas，比"100% 误报导致永不喂食"好太多
                     log(`🍔 [喂食] #${dbIndex} 缺口${hpGap}HP → ${foodName}`);
                     const tx = await window.network.api.player.pet.item.use(kamiInfo.id, itemToUse);
+                    _gasLedgerRecord('feed', [kamiInfo.id], tx);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（日常喂食）
 
                     // 等待上链确认；tx 对象无 wait 方法时退化为固定 8 秒延时
                     if (typeof tx?.wait === 'function') {
@@ -8213,6 +7892,7 @@
                 log(`⚠️ [批量部署/API返回空Tx]`);
                 return { ok: false, isCallException: false };
             }
+            _gasLedgerRecord('deploy', idsToUse, tx);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（非侵入，仅此一行；tx 已非空，抓 hash 待补 gas）
             if (typeof tx.wait === 'function') {
                 await tx.wait();
             } else {
@@ -9848,7 +9528,7 @@
         const merged = Array.isArray(deadList) ? [...deadList] : [];
         try {
             const addr = window.network?.network?.connectedAddress?.value_;   // 当前操作员(Operator)钱包地址
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             const seen = new Set(merged.map(k => String(k.dbIndex)));   // DOM 名单里已有的 kami index，避免重复加入
             const deadApi = (acc?.kamis || []).filter(k => String(k?.state || '').toUpperCase() === 'DEAD');   // 链上全量死亡名单
             let added = 0;
@@ -9877,7 +9557,7 @@
         let ribbons = 0;
         try {
             const addr = window.network?.network?.connectedAddress?.value_;
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             ribbons = Number((acc?.inventories || []).find(it => Number(it?.item?.index) === REVIVE_RIBBON_ID)?.balance ?? 0);   // 背包中复活丝带(#11001)余额
         } catch (e) {
             log(`⚠️ [复活] 丝带库存查询失败（${e?.message || e}），保守按有货尝试`);
@@ -9922,6 +9602,7 @@
                 try {
                     window.__reviveSentAt.set(k.kamiId, Date.now());   // 发送前登记：防下一轮扫描重发
                     const tx = await window.network.api.player.pet.item.use(k.kamiId, REVIVE_RIBBON_ID);
+                    _gasLedgerRecord('revive', [k.kamiId], tx);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（复活）
                     if (typeof tx?.wait === 'function') {
                         // 慢链下 wait 可能卡几十秒，45s 超时兜底，不阻塞后续 kami 的复活
                         const result = await Promise.race([
@@ -10042,6 +9723,7 @@
         }
         try {
             scavengeBtn.click();
+            _gasLedgerRecord('scavenge', [], null);   // 🔻SYNC[1.2.7 gas真值账本] 记账 hook（拾荒=UI点击，无 tx 对象/hash，仅计动作次数，gas 无法回填）
             log(`[自动拾荒(Scavenge)] 本次自动拾荒完成，拾荒次数(rolls): ${rolls}`);
             await delay(500);
         } finally {
@@ -10111,7 +9793,7 @@
     async function fetchInventoryItems() {
         try {
             const addr = window.network.network.connectedAddress.value_;
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             const inventories = acc.inventories || [];
             const result = {};
             // 物品显示名(小写) → 内部 key；只关心合成链相关的 7 种物品，其余忽略
@@ -10556,7 +10238,7 @@
         let ownedIdx = null;
         try {
             const addr = window.network.network.connectedAddress.value_;
-            const acc = await window.network.explorer.accounts.getByOperator(addr);
+            const acc = window.network.explorer.accounts.getByOperator(addr);
             ownedIdx = new Set((acc?.kamis || []).map(k => Number(k.index)));
             log(`🔍 [XP Potion] 当前账户实时持有 ${ownedIdx.size} 只 kami，数据库 ${db.length} 条`);
         } catch (e) {
@@ -10654,7 +10336,8 @@
 
                 log(`🩹 喂食 ${useName} 给 Kami #${kami.index} (LT=${kami.LT}%)，剩余potion: F=${balFortified} G=${balGreater}`);
                 // 链上喂食 TX：对该 kami 使用选定的药水
-                await window.network.api.player.pet.item.use(kami.kamiId, useItem);
+                const __xpTx = await window.network.api.player.pet.item.use(kami.kamiId, useItem);   // 🔻SYNC[1.2.7 gas真值账本] 捕获返回抓 hash（原返回值本就丢弃）
+                _gasLedgerRecord('xp_potion', [kami.kamiId], __xpTx);
                 // 立即写入轮喂去重记录（即使后续流程中断，这只也不会被重复喂）
                 _saveXPPotionFed(kami.kamiId);
 
@@ -11085,15 +10768,15 @@
     //   - 用户随时手动调用 saveKamiLogs()
     // ▍依赖：
     //   - window.__kamiLogBuffer：日志缓冲区（log() 每条都会追加进去）
-    //   - recordGasEnd(账户名)：gas 统计结算接口
+    //   - checkLowBalanceOnce(账户名,'end')：刷新前低余额告警检查
     //   - window.network.network.connectedAddress.value_：当前钱包地址
     //   - window.network.explorer.accounts.getByOperator(addr)：
     //     由钱包地址反查游戏账户名，用于拼进文件名
     //   - Blob + URL.createObjectURL + 隐藏 <a> 点击：触发浏览器下载
     // ▍核心流程：
     //   1) 先取账户名 accName（失败则留空，不影响后续）
-    //   2) 先调 recordGasEnd()：它内部产生的结算日志会写进
-    //      __kamiLogBuffer，从而和其他日志一起被导出（这就是"先结算
+    //   2) 先调 checkLowBalanceOnce()：它内部产生的告警日志会写进
+    //      __kamiLogBuffer，从而和其他日志一起被导出（这就是"先检查
     //      后导出"顺序不能颠倒的原因）
     //   3) 缓冲区为空则打一条提示直接返回，不生成空文件
     //   4) 生成文件名：kami_log_<账户名>_<日期>_<时间>.txt，时间统一用
@@ -11102,7 +10785,7 @@
     //   5) 拼接日志内容 → Blob → 创建隐藏 <a> → click() 触发下载 →
     //      移除 <a> 并 revokeObjectURL 释放内存
     // ▍边界与保护：
-    //   - 取账户名与 recordGasEnd 均用 try/catch 包裹：链上接口未就绪
+    //   - 取账户名与 checkLowBalanceOnce 均用 try/catch 包裹：DOM/链上接口未就绪
     //     时静默跳过，保证日志导出本身不受影响
     //   - 账户名为空时文件名省略该段（namePart 为空字符串）
     //   - 空缓冲区直接返回，避免下载空文件
@@ -11115,7 +10798,7 @@
      * 保存日志到本地文件
      */
     function saveLogsBeforeReload() {
-        // accName 提前获取，然后先 recordGasEnd（其 log 会进 buffer 一起被导出）
+        // accName 提前获取，然后先做刷新前低余额检查（其 log 会进 buffer 一起被导出）
         let accName = '';
         try {
             const addr = window.network?.network?.connectedAddress?.value_;
@@ -11124,7 +10807,7 @@
                 accName = acc?.name || '';
             }
         } catch {}
-        try { recordGasEnd(accName || '(unknown)'); } catch {}
+        try { checkLowBalanceOnce(accName || '(unknown)', 'end'); } catch {}
 
         const logs = window.__kamiLogBuffer || [];
         if (logs.length === 0) {
@@ -11192,8 +10875,8 @@
     //   setKamiMode、getKamiMode、clearBlockedKamis、clearStopBlockedKamis、
     //   showStopBlockedKamis、showBlockedKamis、clearFeedFails、
     //   clearStarvingStuck、showGasRules、clearXPPotionFed、
-    //   clearFortifiedFed、saveKamiLogs、showGasUsage、clearGasUsage、
-    //   showGasStats、showMyKillers）——功能不变，仅增加手动标记。
+    //   clearFortifiedFed、saveKamiLogs、showGasReport、showMyKillers）
+    //   ——功能不变，仅增加手动标记。
     // ============================================================
     [
         'emergencyStopHarvest',
@@ -11210,9 +10893,7 @@
         'clearXPPotionFed',
         'clearFortifiedFed',
         'saveKamiLogs',
-        'showGasUsage',
-        'clearGasUsage',
-        'showGasStats',
+        'showGasReport',
         'showMyKillers',
     ].forEach(name => {
         if (typeof window[name] === 'function') {
