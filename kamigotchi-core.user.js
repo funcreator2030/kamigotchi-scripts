@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.7
+// @version      1.2.8
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/13 19:42:39
+// @x-release-date 2026/7/13 20:10:35
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.7                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.8                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -840,6 +840,92 @@
         }
     }
 
+    // 【helper】_fetchOwnerGas：查 owner（手动 tx 主身份地址，脚本发不了的充值/转 kami 等）链上 gas。   🔻SYNC[1.2.8 owner手动tx核算]
+    //   数据源：Yominet 官方索引器 Rollytics（游戏页 CORS 放行，实测 fetch 成功；仍全 try/catch 防偶发失败）。
+    //   端点：/indexer/tx/v1/evm-txs/by_account/{owner}?is_signer=true（每笔 hex gasUsed + effectiveGasPrice + blockNumber）。
+    //   owner tx 稀少（实测 ~0.7 笔/天，30 天约 21 笔=1 页），翻页上限 5 页；缓存 localStorage TTL 1h（owner 变化慢）。
+    //   分窗：响应无 timestamp，只有 blockNumber → 用当前区块 - 窗口秒数/每块秒数 得块号阈值切窗（±几小时误差，量小可忽略）。
+    //   ⚠️ 纯只读（fetch Rollytics + provider.getBlockNumber），零新增 tx；不碰账本/reconciler/发 tx 路径。
+    const OWNER_GAS_CACHE_KEY = 'kami_owner_gas_cache';
+    const OWNER_GAS_TTL_MS = 60 * 60 * 1000;   // 1 小时
+    const OWNER_GAS_MAX_PAGES = 5;             // owner tx 稀少，5 页(500 笔)兜底防异常
+    const ROLLYTICS_HOST = 'https://rollytics-api-yominet-1.anvil.asia-southeast.initia.xyz';
+    const OWNER_SEC_PER_BLOCK = 2.29;          // Yominet 出块 ~2.29s（复用 gas 调研实测值），owner tx 按块号估时间分窗
+    async function _fetchOwnerGas(ownerAddr, windows) {
+        // 返回 { ok:true, windows:{ '24h':{wei:'..',txN:n}, ... }, fetchedN, pages, fromCache, blockBased } 或 { ok:false, error }
+        if (!ownerAddr) return { ok: false, error: '无 owner 地址' };
+        const addr = String(ownerAddr).toLowerCase();
+        // 1) 缓存命中（同地址 + 未过期）
+        try {
+            const raw = localStorage.getItem(OWNER_GAS_CACHE_KEY);
+            if (raw) {
+                const c = JSON.parse(raw);
+                if (c && c.ownerAddr === addr && c.windows && (Date.now() - c.ts) < OWNER_GAS_TTL_MS) {
+                    return { ok: true, windows: c.windows, fetchedN: c.fetchedN || 0, pages: c.pages || 0, fromCache: true, blockBased: !!c.blockBased };
+                }
+            }
+        } catch (_) {}
+        // 2) 当前区块（分窗基准）；拿不到则不分窗（owner tx 稀少，全部计入各窗口，报告注明）
+        let curBlock = null;
+        try {
+            const provider = _gasLedgerProvider();
+            if (provider && typeof provider.getBlockNumber === 'function') {
+                curBlock = Number(await provider.getBlockNumber());
+                if (!isFinite(curBlock)) curBlock = null;
+            }
+        } catch (_) { curBlock = null; }
+        // 3) 翻页拉取 Rollytics（上限 OWNER_GAS_MAX_PAGES 页）
+        const txs = [];
+        let pages = 0;
+        try {
+            let nextKey = null;
+            for (let p = 0; p < OWNER_GAS_MAX_PAGES; p++) {
+                let url = ROLLYTICS_HOST + '/indexer/tx/v1/evm-txs/by_account/' + addr + '?is_signer=true&pagination.limit=100';
+                if (nextKey) url += '&pagination.key=' + encodeURIComponent(nextKey);
+                const resp = await fetch(url, { method: 'GET' });
+                if (!resp || !resp.ok) throw new Error('HTTP ' + (resp && resp.status));
+                const data = await resp.json();
+                const arr = (data && data.txs) || [];
+                for (const t of arr) txs.push(t);
+                pages++;
+                nextKey = data && data.pagination && data.pagination.next_key;
+                if (!nextKey || arr.length === 0) break;
+            }
+        } catch (e) {
+            return { ok: false, error: (e && e.message) || String(e) };
+        }
+        // 4) 按块号阈值分窗累加 Σ gasUsed×effectiveGasPrice（两者 hex，BigInt 直接解析 0x 前缀）
+        const out = {};
+        for (const w of windows) out[w.label] = 0n;
+        const cnt = {};
+        for (const w of windows) cnt[w.label] = 0;
+        for (const t of txs) {
+            let g = 0n;
+            try { g = BigInt(t.gasUsed) * BigInt(t.effectiveGasPrice); } catch (_) { continue; }
+            let blk = null;
+            try { blk = Number(BigInt(t.blockNumber)); } catch (_) { blk = null; }
+            for (const w of windows) {
+                let inWin;
+                if (curBlock != null && blk != null) {
+                    const blocksBack = (w.days * 86400) / OWNER_SEC_PER_BLOCK;
+                    inWin = blk >= (curBlock - blocksBack);
+                } else {
+                    inWin = true;   // 无基准块：owner tx 稀少，宁多勿漏全计入（报告注明未分窗）
+                }
+                if (inWin) { out[w.label] += g; cnt[w.label]++; }
+            }
+        }
+        // 5) BigInt→string 存缓存（单条，TTL 1h）
+        const winStr = {};
+        for (const w of windows) winStr[w.label] = { wei: out[w.label].toString(), txN: cnt[w.label] };
+        try {
+            localStorage.setItem(OWNER_GAS_CACHE_KEY, JSON.stringify({
+                ownerAddr: addr, ts: Date.now(), windows: winStr, fetchedN: txs.length, pages, blockBased: (curBlock != null)
+            }));
+        } catch (_) {}
+        return { ok: true, windows: winStr, fetchedN: txs.length, pages, fromCache: false, blockBased: (curBlock != null) };
+    }
+
     // 【控制台命令】showGasReport()：链上真值 gas 报告（攒字符串数组，最后一次 console.log 避 userscript 前缀刷屏）
     window.showGasReport = async function () {
         const L = [];
@@ -865,7 +951,23 @@
             L.push(`未补 gas: ${pending} 条（有 hash，reconciler 待补）｜无 hash 无法补: ${noHash} 条（拾荒等 UI 点击 tx，无 tx 对象/hash，仅计动作次数）`);
             L.push('');
 
-            let avg7dGasWei = 0n;   // 供余额续航
+            // 解析地址：operator（脚本发 tx 地址）+ owner（手动 tx 主身份地址）——一次解析，下方 owner 段/余额续航复用
+            let operatorAddr = null, ownerAddr = null, accName = '';
+            try {
+                const addr = window.network && window.network.network && window.network.network.connectedAddress && window.network.network.connectedAddress.value_;
+                if (addr) {
+                    const acc = window.network.explorer.accounts.getByOperator(addr);
+                    operatorAddr = (acc && acc.operatorAddress) || addr;   // operator=脚本发 tx/燃烧地址
+                    ownerAddr = (acc && acc.id) || null;                    // owner=主身份地址（手动 tx）
+                    accName = (acc && acc.name) || '';
+                }
+            } catch (_) {}
+
+            // ═══ operator（脚本自动化，链上 receipt 逐笔核算，来自账本）═══
+            L.push('═══════════【operator（脚本自动化）· 按动作分类】═══════════');
+            if (operatorAddr) L.push(`   operator 地址: ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
+            let avg7dGasWei = 0n;   // operator 7 天日均（供余额续航）
+            const opWinWei = {};    // label -> BigInt（供合计段）
             for (const w of windows) {
                 const since = now - w.ms;
                 const inWin = arr.filter(e => e && e.ts >= since && e.gasWei != null);
@@ -879,6 +981,7 @@
                     if (e.status === 0) { revertWei += g; revertN++; }
                     byAct[e.action] = (byAct[e.action] || 0n) + g;
                 }
+                opWinWei[w.label] = total;
                 if (w.label === '7d') avg7dGasWei = (w.days > 0) ? (total / BigInt(w.days)) : 0n;
                 const perDay = (w.days > 0) ? (Number(total) / w.days / WEI_PER_ETH) : 0;
                 L.push(`──────── 最近 ${w.label} ────────`);
@@ -893,32 +996,71 @@
                 L.push('');
             }
 
-            // 余额续航：operator 链上余额 ÷ 7 天日均
+            // ═══ owner（手动 tx：充值/转 kami 等，脚本发不了，链上 Rollytics 索引器）═══   🔻SYNC[1.2.8 owner手动tx核算]
+            L.push('═══════════【owner（手动 tx：充值/转 kami 等）· Rollytics 索引器】═══════════');
+            const ownerWinWei = {};   // label -> BigInt（供合计段）
+            for (const w of windows) ownerWinWei[w.label] = 0n;
+            if (ownerAddr) {
+                try { console.log('⏳ 拉取 owner 手动 tx gas（Rollytics 索引器，可能几秒）…'); } catch (_) {}
+                let ownerRes = null;
+                try { ownerRes = await _fetchOwnerGas(ownerAddr, windows); } catch (e) { ownerRes = { ok: false, error: (e && e.message) || String(e) }; }
+                if (ownerRes && ownerRes.ok) {
+                    L.push(`   owner 地址: ${ownerAddr}  ${ownerRes.fromCache ? '（缓存命中，TTL 1h）' : `（实拉 ${ownerRes.fetchedN} 笔 / ${ownerRes.pages} 页）`}`);
+                    if (ownerRes.blockBased === false) {
+                        // 🔻SYNC→内部版[1.2.8 owner手动tx核算] grok审non-blocking:拿不到区块时不假分窗——owner不掺各窗、不掺合计,
+                        //   只报"全部拉到的总额";否则会把全历史算进24h并污染合计(显示误导数字)。
+                        let gAll = 0n, nAll = 0;
+                        try { gAll = BigInt((ownerRes.windows['30d'] && ownerRes.windows['30d'].wei) || '0'); nAll = (ownerRes.windows['30d'] && ownerRes.windows['30d'].txN) || 0; } catch (_) {}
+                        L.push('   ⚠️ 拿不到当前区块,无法按时间窗切分。owner tx 稀少、gas 极小。');
+                        L.push(`   owner 全部拉到: ${fmtEth(gAll)} ETH / ${nAll} 笔（未分窗,不计入下方各窗与合计）`);
+                        // ownerWinWei 保持全 0 → 合计段只按 operator 计,不被污染
+                    } else {
+                        for (const w of windows) {
+                            let g = 0n;
+                            try { g = BigInt((ownerRes.windows[w.label] && ownerRes.windows[w.label].wei) || '0'); } catch (_) { g = 0n; }
+                            const n = (ownerRes.windows[w.label] && ownerRes.windows[w.label].txN) || 0;
+                            ownerWinWei[w.label] = g;
+                            L.push(`   最近 ${w.label}: ${fmtEth(g)} ETH  |  tx ${n} 笔`);
+                        }
+                    }
+                } else {
+                    L.push(`   ⚠️ owner 手动 tx 查询失败/跳过：${(ownerRes && ownerRes.error) || '未知'}`);
+                    L.push('   （不影响上方 operator 报告；owner gas 也可命令行 bash 查gas.sh 兜底。合计段将只按 operator 计）');
+                }
+            } else {
+                L.push('   （未解析到 owner 地址，跳过 owner 段；operator 报告不受影响）');
+            }
+            L.push('');
+
+            // ═══ 合计（operator + owner）═══
+            L.push('═══════════【合计（operator + owner）】═══════════');
+            let sum7dGasWei = 0n;   // 合计 7 天日均（供余额续航参考）
+            for (const w of windows) {
+                const op = opWinWei[w.label] || 0n;
+                const ow = ownerWinWei[w.label] || 0n;
+                const tot = op + ow;
+                if (w.label === '7d') sum7dGasWei = (w.days > 0) ? (tot / BigInt(w.days)) : 0n;
+                const perDay = (w.days > 0) ? (Number(tot) / w.days / WEI_PER_ETH) : 0;
+                L.push(`   最近 ${w.label}: ${fmtEth(tot)} ETH（operator ${fmtEth(op)} + owner ${fmtEth(ow)}）  |  合计日均 ${perDay.toFixed(6)} ETH/day`);
+            }
+            L.push('');
+
+            // 余额续航：operator 链上余额 ÷ operator 7 天日均（脚本消耗=你能控的）；另注合计日均供参考
             try {
                 const provider = _gasLedgerProvider();
-                let operatorAddr = null, ownerAddr = null, accName = '';
-                try {
-                    const addr = window.network && window.network.network && window.network.network.connectedAddress && window.network.network.connectedAddress.value_;
-                    if (addr) {
-                        const acc = window.network.explorer.accounts.getByOperator(addr);
-                        operatorAddr = (acc && acc.operatorAddress) || addr;
-                        ownerAddr = (acc && acc.id) || null;
-                        accName = (acc && acc.name) || '';
-                    }
-                } catch (_) {}
                 if (provider && typeof provider.getBalance === 'function' && operatorAddr) {
                     const bal = await provider.getBalance(operatorAddr);
                     const balWei = BigInt(bal.toString());
-                    L.push('──────── 余额续航 ────────');
+                    L.push('═══════════【余额续航】═══════════');
                     L.push(`   Operator ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
                     L.push(`   当前余额: ${fmtEth(balWei)} ETH`);
                     if (avg7dGasWei > 0n) {
                         const daysLeft = Number(balWei) / Number(avg7dGasWei);
-                        L.push(`   按 7 天日均 ${fmtEth(avg7dGasWei)} ETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天`);
+                        L.push(`   按 operator 7 天日均 ${fmtEth(avg7dGasWei)} ETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天（仅算脚本自动化消耗，你能控的部分）`);
                     } else {
                         L.push('   （7 天内暂无已补 gas 记录，无法估算续航；等 reconciler 补齐后再看）');
                     }
-                    if (ownerAddr) L.push(`   Owner(手动 tx 对账地址): ${ownerAddr} → owner 手动 tx gas 请用命令行 bash 查gas.sh（游戏页 CSP 可能拦 Rollytics 索引器）`);
+                    if (sum7dGasWei > 0n) L.push(`   参考：operator+owner 合计 7 天日均 ${fmtEth(sum7dGasWei)} ETH/day（owner 手动 tx 你控不了，续航仍以 operator 为准）`);
                     L.push('');
                 }
             } catch (_) {}
@@ -1042,7 +1184,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.7 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.8 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1055,7 +1197,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.8';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1230,7 +1372,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.7 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.8 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
