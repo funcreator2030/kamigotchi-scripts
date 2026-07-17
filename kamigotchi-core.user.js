@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.8
+// @version      1.2.9
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/13 20:10:35
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22)
+// @x-release-date 2026/7/17 23:04:56
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.8                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.9                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1184,7 +1184,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.8 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.9 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1192,12 +1192,28 @@
         'color: #d4a017;');
     log(`%c   Windows: 设置 → 系统 → 电源 → 「使设备保持唤醒状态」选「永不」`,
         'color: #d4a017;');
+    // 🔻SYNC→内部版[1.2.9 停摆检测器] D：启动时中断回溯（只读 localStorage，不触发急救，避免与死亡监控双跑）
+    try {
+        const __hbRaw = localStorage.getItem('kami_last_heartbeat');
+        if (__hbRaw) {
+            const __hbTs = Number(__hbRaw);
+            const __hbGap = Date.now() - __hbTs;
+            if (Number.isFinite(__hbTs) && __hbGap > 5 * 60 * 1000) {
+                const __hbMin = Math.floor(__hbGap / 60000);
+                const __hbH = Math.floor(__hbMin / 60);
+                const __hbM = __hbMin % 60;
+                const __hbDur = __hbH > 0 ? `${__hbH}小时${__hbM}分` : `${__hbM}分`;
+                log(`%c📴 距上次运行中断 ${__hbDur}（推测:睡眠/关机/浏览器关闭）。中断期间无人值守，即将进行死亡扫描`,
+                    'color: white; background: #c0392b; font-size: 14px; font-weight: bold; padding: 4px;');
+            }
+        }
+    } catch (_) { /* 隐私模式等读不到 localStorage 时静默 */ }
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.8';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.9';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1372,7 +1388,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.8 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.9 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -5958,6 +5974,186 @@
     window.startMyKamiDeathMonitor = startMyKamiDeathMonitor;
     window.stopMyKamiDeathMonitor = stopMyKamiDeathMonitor;
     window.checkMyKamiDeath = checkMyKamiDeath;
+
+    // ============================================================
+    // 【板块：停摆检测器（心跳 + 跳变检测 + 人话诊断 + 醒来急救）】
+    // ------------------------------------------------------------
+    // ▍功能：
+    //   用 30s 心跳检测 JS 事件循环是否被系统睡眠/浏览器挂起打断。
+    //   醒来后根据 gap 分级：短停摆仅黄字计数；睡眠级停摆打大红横幅、
+    //   人话诊断原因，并触发死亡扫描急救（立即 + 90s 复检，应对索引滞后）。
+    // ▍触发时机：
+    //   脚本注入后模块级立即挂 setInterval；启动阶段另有一次只读
+    //   localStorage.kami_last_heartbeat 的中断回溯（见启动提示板块，不触发急救）。
+    // ▍依赖：
+    //   - checkMyKamiDeath()：现有死亡扫描（内部锁保护，发现死亡会批量复活）
+    //   - hasEmergencyLock / waitForEmergencyRelease：急救必须尊重紧急锁
+    //   - localStorage key：'kami_last_heartbeat'（本板块唯一新增写入）
+    //   - navigator.onLine：人话诊断网络断开（零新增请求）
+    // ▍核心流程：
+    //   1) 每 30s tick：gap = now - __stallLastTick；更新 lastTick；写 heartbeat
+    //   2) gap≥120s 记入 __stallEvents（只留近 2 小时），短停摆打黄日志
+    //   3) gap≥5min：大红横幅 + 决策树人话 + 醒来急救
+    //   4) 急救：等紧急锁释放 → checkMyKamiDeath()；90s 后再复检一次
+    //   5) runAutomation 经查证无重入保护 → 不调用，只提示等主循环下轮
+    // ▍边界与保护：
+    //   - window.__stallDetectorOn 幂等：重复加载不双挂 interval
+    //   - 检测器与急救全程 try/catch，自身异常绝不影响主流程
+    //   - 不新增任何直接发 tx 路径（只调现有 checkMyKamiDeath）
+    //   - 启动回溯只日志、不急救，避免与 startMyKamiDeathMonitor 双跑
+    // ▍可调参数：
+    //   STALL_TICK_MS=30s / STALL_SHORT_MS=120s / STALL_SLEEP_MS=5min /
+    //   STALL_RECHECK_MS=90s / STALL_EVENTS_KEEP_MS=2h
+    // ▍相关控制台命令：无（自动常驻；手动死亡扫描仍用 checkMyKamiDeath()）
+    // 🔻SYNC→内部版[1.2.9 停摆检测器]
+    // ============================================================
+    (function initStallDetector() {
+        try {
+            // I3：重复加载早退，防双挂 setInterval（参考 __deployPausedUntil 幂等风格）
+            if (window.__stallDetectorOn) return;
+            window.__stallDetectorOn = true;
+
+            const STALL_TICK_MS = 30 * 1000;
+            const STALL_SHORT_MS = 120 * 1000;          // ≥2min 且 <5min：短停摆
+            const STALL_SLEEP_MS = 5 * 60 * 1000;       // ≥5min：睡眠级停摆
+            const STALL_RECHECK_MS = 90 * 1000;         // 醒后 90s 复检（索引滞后）
+            const STALL_EVENTS_KEEP_MS = 2 * 60 * 60 * 1000; // 事件窗 2 小时
+
+            let __stallLastTick = Date.now();
+            let __stallEvents = [];   // { at, gapMs }，只留近 2 小时
+            let __stallRescueInFlight = false;
+
+            function __stallFmtHHMM(ts) {
+                return new Date(ts + __TZ_OFFSET_MS).toISOString().substring(11, 16);
+            }
+            function __stallFmtDur(ms) {
+                const totalMin = Math.max(0, Math.round(ms / 60000));
+                if (totalMin < 60) return `${totalMin} 分钟`;
+                const h = Math.floor(totalMin / 60);
+                const m = totalMin % 60;
+                return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+            }
+            function __stallPruneEvents(now) {
+                const cut = now - STALL_EVENTS_KEEP_MS;
+                __stallEvents = __stallEvents.filter(e => e.at >= cut);
+            }
+            function __stallDiagnose(recentCount) {
+                // 决策树：网络断开 → 碎片化睡眠(≥3次) → 单次长停摆
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    return '网络当前断开';
+                }
+                if (recentCount >= 3) {
+                    return `碎片化睡眠形态(近2小时第${recentCount}次停摆)=笔记本未插电源，系统在电池模式下反复自动睡眠(Mac的防睡眠设置只在插电时生效!)`;
+                }
+                return '电脑睡眠/待机或浏览器被挂起';
+            }
+            async function __stallWakeRescue(tag) {
+                if (__stallRescueInFlight) {
+                    log(`ℹ️ [停摆检测] 急救已在进行中，跳过重复触发（${tag}）`);
+                    return;
+                }
+                __stallRescueInFlight = true;
+                try {
+                    // 尊重紧急锁：有锁则排队等待，别硬闯（与常规 tx 入口一致）
+                    if (typeof hasEmergencyLock === 'function' && hasEmergencyLock()) {
+                        if (typeof waitForEmergencyRelease === 'function') {
+                            const ok = await waitForEmergencyRelease('停摆急救', 300000);
+                            if (!ok) {
+                                log(`%c⚠️ [停摆检测] 紧急锁等待超时，跳过本次急救死亡扫描`,
+                                    'color: orange; font-weight: bold;');
+                                return;
+                            }
+                        } else {
+                            log(`%c⚠️ [停摆检测] 紧急锁存在且无等待接口，跳过本次急救`,
+                                'color: orange; font-weight: bold;');
+                            return;
+                        }
+                    }
+                    if (typeof checkMyKamiDeath === 'function') {
+                        log(`⚡ [停摆检测] 醒来急救：立即死亡扫描（${tag}）...`);
+                        await checkMyKamiDeath();
+                    } else {
+                        log(`⚠️ [停摆检测] checkMyKamiDeath 不可用，跳过急救扫描`);
+                    }
+                    // 0716 实测：短醒扫描可能读到滞后索引报「无死亡」→ 90s 后复检
+                    log(`%c⏳ [停摆检测] 醒后索引可能滞后，90s后复检`,
+                        'color: #d4a017; font-weight: bold;');
+                    setTimeout(() => {
+                        (async () => {
+                            try {
+                                if (typeof hasEmergencyLock === 'function' && hasEmergencyLock()
+                                    && typeof waitForEmergencyRelease === 'function') {
+                                    const ok2 = await waitForEmergencyRelease('停摆复检', 300000);
+                                    if (!ok2) {
+                                        log(`⚠️ [停摆检测] 90s复检时紧急锁等待超时，放弃复检`);
+                                        return;
+                                    }
+                                }
+                                if (typeof checkMyKamiDeath === 'function') {
+                                    log(`⚡ [停摆检测] 90s 复检：再次死亡扫描...`);
+                                    await checkMyKamiDeath();
+                                }
+                            } catch (e2) {
+                                log(`⚠️ [停摆检测] 90s复检异常: ${e2?.message || e2}`);
+                            }
+                        })();
+                    }, STALL_RECHECK_MS);
+                    // 查证结论：runAutomation 开头无 running 标志/重入锁 → 不调用，避免与周期主循环并发
+                    log(`ℹ️ [停摆检测] 建议等主循环下轮(≤10分钟)（runAutomation 无重入保护，醒来不强制抢跑）`);
+                } catch (e) {
+                    log(`⚠️ [停摆检测] 醒来急救异常: ${e?.message || e}`);
+                } finally {
+                    __stallRescueInFlight = false;
+                }
+            }
+            function __stallTick() {
+                try {
+                    const now = Date.now();
+                    const gap = now - __stallLastTick;
+                    __stallLastTick = now;
+                    try {
+                        localStorage.setItem('kami_last_heartbeat', String(now));
+                    } catch (_) { /* I4：仅此 key；写失败静默 */ }
+
+                    if (gap < STALL_SHORT_MS) return; // 正常 tick 抖动，忽略
+
+                    // 记录事件（短停摆 + 睡眠级均计数，供碎片化判定）
+                    __stallEvents.push({ at: now, gapMs: gap });
+                    __stallPruneEvents(now);
+                    const recentCount = __stallEvents.length;
+                    const wokeFrom = now - gap;
+
+                    if (gap < STALL_SLEEP_MS) {
+                        // 短停摆：黄日志（计数用）
+                        log(`%c⏱️ [停摆检测] 短停摆 ${__stallFmtDur(gap)}（${__stallFmtHHMM(wokeFrom)} → ${__stallFmtHHMM(now)}），近2小时第 ${recentCount} 次`,
+                            'color: #d4a017; font-weight: bold;');
+                        return;
+                    }
+
+                    // 睡眠级停摆：大红横幅 + 人话诊断 + 急救
+                    const reason = __stallDiagnose(recentCount);
+                    log(`%c⏰ [停摆检测] 脚本停摆 ${__stallFmtDur(gap)}（${__stallFmtHHMM(wokeFrom)} → ${__stallFmtHHMM(now)}）!推测原因:${reason}`,
+                        'color: white; background: red; font-size: 16px; font-weight: bold; padding: 4px;');
+                    log(`%c   停摆期间脚本完全暂停，kami的HP仍在流失且无人停采——请立即插上电源/关闭自动睡眠；正在自动急救(死亡扫描+90秒后复检)`,
+                        'color: white; background: #c0392b; font-size: 13px; font-weight: bold; padding: 3px 6px;');
+                    // fire-and-forget：不阻塞 interval 回调
+                    __stallWakeRescue('睡眠级停摆').catch(e => {
+                        try { log(`⚠️ [停摆检测] 急救 Promise 异常: ${e?.message || e}`); } catch (_) {}
+                    });
+                } catch (e) {
+                    try { log(`⚠️ [停摆检测] tick 异常: ${e?.message || e}`); } catch (_) {}
+                }
+            }
+
+            // 启动即写一次心跳，便于下次会话 D 回溯
+            try { localStorage.setItem('kami_last_heartbeat', String(Date.now())); } catch (_) {}
+            setInterval(__stallTick, STALL_TICK_MS);
+            log(`%c⏰ [停摆检测] 已启动（每 ${STALL_TICK_MS / 1000}s 心跳；≥${STALL_SHORT_MS / 1000}s 记短停摆；≥${STALL_SLEEP_MS / 60000}min 睡眠级急救）`,
+                'color: green; font-weight: bold;');
+        } catch (e) {
+            try { log(`⚠️ [停摆检测] 初始化失败（不影响主流程）: ${e?.message || e}`); } catch (_) {}
+        }
+    })();
 
     // ============================================================
     // 【板块：从 localStorage 恢复精简数据库 kami_core_db】

@@ -2,12 +2,12 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.3
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 00:28:49
-// @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每周全网最强杀手扫描)
+// @x-release-date 2026/7/17 23:04:56
+// @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
 // @run-at       document-idle
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.2                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.3                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -39,7 +39,7 @@
 // ║                     启动后自动跑一次。                                          ║
 // ║  7. 实时步长接口  —— getStaminaFromDOM()：从页面读取实时步长，                  ║
 // ║                     是本脚本和核心脚本合成决策的唯一步长真值来源。              ║
-// ║  8. 精确清算线    —— 每周自动全网扫描最强杀手（四桶档案存 localStorage 的       ║
+// ║  8. 精确清算线    —— 每6小时自动全网扫描最强杀手（四桶档案存 localStorage    ║
 // ║                     kami_top_predators 键，独立键值不覆盖其他数据），按游戏      ║
 // ║                     合约官方公式重算全库清算线；代码内置默认档案兜底。          ║
 // ║                                                                              ║
@@ -91,7 +91,7 @@
 // getRespecPotionCount()   - 查看背包 Respec 药水数量
 // kamiAnalyze()            - 地块适配分析（majority/minority 分布，四色分类输出）
 // findKillerCandidates()   - 在自己账户的 kami 里找适合转型杀手的候选（db-first，几秒完成）
-// scanTopPredators()       - 全网扫描最强杀手并更新威胁档案（自动：无档案/超7天时启动自扫）
+// scanTopPredators()       - 全网扫描最强杀手并更新威胁档案（自动：无档案/超6小时时启动自扫）
 // showTopPredators()       - 查看当前生效的顶尖杀手档案（含来源与扫描时间）
 // refreshPreciseLT()       - 手动按当前档案重算全库精确清算线
 // showHealth()             - 代码健康看板：期望表对照心跳，标红"该跑没跑"的模块（每30分钟自检）
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.2 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.3 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.2';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.3';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -809,7 +809,7 @@
   //   永远克制）焊死在公式里，普遍偏保守约 30 个百分点；本公式改用
   //   "真实存在的最强杀手"参数——清算线更准 → 停采线更低 → 采集更久省 gas。
   // ▍威胁参数来源（优先级）：
-  //   1) localStorage「kami_top_predators」—— 每周自动全网扫描的最新结果；
+  //   1) localStorage「kami_top_predators」—— 每6小时自动全网扫描的最新结果；
   //   2) 无扫描数据时用下方 TOP_PREDATORS_DEFAULT 内置默认档案兜底。
   // ▍依赖：无外部依赖（纯计算）；档案维护见后部扫描板块。
   // ▍相关控制台命令：scanTopPredators() / showTopPredators() / refreshPreciseLT()
@@ -817,18 +817,25 @@
 
   // localStorage 专用键——独立键值对，与 kami_core_db / kami_mode / gas 记录等互不覆盖
   const TOP_PREDATORS_KEY = 'kami_top_predators';
-  // 扫描结果有效期：超过 7 天则启动时自动重扫
-  const TOP_PREDATORS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  // 扫描结果有效期：超过 6 小时则启动时自动重扫(核心脚本每 ~45 分钟例行刷新会触发检查)
+  // 🔻SYNC→内部版[1.2.3 天敌档案地板]：0717 用户定案 7 天→6 小时——#12649 案证明杀手属性
+  //   可在扫描窗口内跳变(疑似道具瞬时加技能,非渐进练级),7 天窗口太危险;全网扫描为纯本地
+  //   ECS 读取(20~60 秒、零 gas、__topScanRunning 防重入),6 小时一扫成本可忽略。
+  const TOP_PREDATORS_TTL_MS = 6 * 60 * 60 * 1000;
   // 技能重置优先级门槛（精确清算线刻度；旧公式刻度的 75% ≈ 新刻度 40%）
   const RESPEC_LT_THRESHOLD = 40;
   // 内置默认档案（兜底：首次运行还没有扫描数据时按这份算；2026-07-07 全网实测四桶最强样本）
   // 字段：hand=杀手的手型亲和；vio=Violence 总值；ats/atr=攻击方 threshold 技能加成
   // ⚠️ 同步维护：精简数据库脚本（公开≥1.1.8/内部≥1.1.13）内置同值副本 DB_TOP_PREDATORS，且构建时直接按其写精确初值——改这里的公式或默认档案必须两处同步。
+  // 🔻SYNC→内部版[1.2.3 天敌档案地板]：0717 dias 15 只死亡归因定案——杀手 #12649(NORMAL手)
+  //   把 ATS 从 0.30 练到 0.38(ECS 实测),旧档案/旧周扫描全部低估 8pp,15 只全死在停采线
+  //   之上的"隐形死亡带"。NORMAL ats 按实测 0.38+0.02 前瞻垫提到 0.40;EERIE 按 #11224
+  //   实测 0.30(+0.01 垫)提到 0.31。SCRAP/INSECT 无新证据不动。
   const TOP_PREDATORS_DEFAULT = [
-    { label: '包络EERIE手',  hand: 'EERIE',  vio: 36, ats: 0.29, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0708 #4277（非真实个体，对已知现实恒保守）
+    { label: '包络EERIE手',  hand: 'EERIE',  vio: 36, ats: 0.31, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0717 #11224 实测 0.30+0.01 垫（非真实个体，对已知现实恒保守）
     { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
     { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
-    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.30, atr: 0.50 },
+    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body
   ];
 
   // 标准正态 CDF（与上方旧公式同一 Abramowitz–Stegun 近似，抽出为共享工具）
@@ -894,7 +901,11 @@
           const used = actives.length ? actives : cands;
           for (const e of used) list.push({ label: `#${e.index}${e.owner ? '@' + e.owner : ''}`, hand: h, vio: e.vio, ats: e.ats || 0, atr: e.atr || 0, lt24: e.lt24 });
         }
-        if (list.length) result = { list, source: '全网扫描', at: data.at || 0, demoted, benchHarm: data.benchHarm };
+        // 🔻SYNC→内部版[1.2.3 天敌档案地板]：默认档案从"无扫描才兜底"升级为【永久地板】——
+        //   0717 事故根因：周扫描(TTL 7天)窗口内杀手练级(#12649 ATS 0.30→0.38),旧扫描结果
+        //   优先级高于默认档案,把更新后的默认值盖掉。修法：扫描结果与默认档案取并集,
+        //   __worstLTOver 对列表取最坏值 → 地板自动生效、扫描信息零丢失,无需逐维合并。
+        if (list.length) result = { list: list.concat(TOP_PREDATORS_DEFAULT), source: '全网扫描+默认地板', at: data.at || 0, demoted, benchHarm: data.benchHarm };
       }
     } catch (e) {}
     if (!result) result = { list: TOP_PREDATORS_DEFAULT, source: '内置默认', at: 0, demoted: [] };
@@ -2266,7 +2277,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.2 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.3 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -2285,7 +2296,7 @@
     console.log('     %c⚠️ 需配合【精简数据库脚本】重建 db；老 db 自动降级到全 API 扫描', 'color: red;');
     console.log('');
     console.log('  🗡️ %cscanTopPredators()', 'color: red; font-size: 14px;');
-    console.log('     全网扫描最强杀手（四桶帕累托前沿+主人+哨兵，20~60秒）；结果供精确清算线使用，7天自动重扫');
+    console.log('     全网扫描最强杀手（四桶帕累托前沿+主人+哨兵，20~60秒）；结果供精确清算线使用，6小时自动重扫');
     console.log('  📐 showTopPredators() / refreshPreciseLT()');
     console.log('  📊 compareLT()           - 对照 兜底线(数据库初值) vs 实战线(现役档案+活跃度) 的清算线差异，compareLT(true) 全量');
     console.log('     查看当前威胁档案 / 手动按档案重算全库精确清算线');
@@ -3765,7 +3776,7 @@
   window.findKillerCandidates = findKillerCandidates;
 
   // ============================================================
-  // 【板块：全网最强杀手扫描（每周自动 + 手动）】
+  // 【板块：全网最强杀手扫描（每6小时自动 + 手动）】
   // ------------------------------------------------------------
   // ▍功能：扫描全网【全部】kami（含 RESTING/DEAD——杀手随时可部署/复活），
   //   按 hand 分四桶找出最强杀手（每桶帕累托前沿：三维不被碾压者全保留），结果存 localStorage 供上方
@@ -3774,7 +3785,7 @@
   //   方便你决定是否把它加进杀手监控名单。
   // ▍触发时机：
   //   - 自动：启动后游戏 API 就绪 + 延迟 90 秒（错峰启动期高峰）→
-  //     无扫描数据（首次）或数据超 7 天 → 自动全网扫描；
+  //     无扫描数据（首次）或数据超 6 小时 → 自动全网扫描；
   //     数据仍有效时只做一次 refreshPreciseLT()（保证 db 与档案一致）；
   //   - 手动：控制台 scanTopPredators() 随时触发。
   // ▍依赖：window.network.explorer（本地 ECS，零 gas）；扫描 20~60 秒，
@@ -3875,7 +3886,7 @@
       // 单条汇总输出（避免每行带来源链接）
       const out = [];
       out.push(`═══════ 🗡️ 全网最强杀手扫描完成（耗时 ${((Date.now() - t0) / 1000).toFixed(0)}s，扫 ${done} 只，失败跳过 ${skipped}）═══════`);
-      out.push(`结果已存 localStorage.${TOP_PREDATORS_KEY}，精确清算线立即按新档案生效；超 7 天后启动时自动重扫`);
+      out.push(`结果已存 localStorage.${TOP_PREDATORS_KEY}，精确清算线立即按新档案生效；超 6 小时后启动时自动重扫`);
       // 与杀手监控名单比对（杀手监控脚本暴露的 __killerWatchList；未加载时无法判断）
       const __watchKnown = Array.isArray(window.__killerWatchList);
       const __watchSet = new Set([
@@ -3945,7 +3956,7 @@
     if (eff.demoted?.length) {
       out.push(`  ⏬ 已降级（主人沉寂 >${PREDATOR_INACTIVE_DAYS} 天，不参与清算线）：` + eff.demoted.map(d => `#${d.index}${d.owner ? '@' + d.owner : ''}(${d.hand},${d.idleDays}天)`).join('｜'));
     }
-    out.push(`说明：清算线对"活跃档案"取最坏对位（主人 >${PREDATOR_INACTIVE_DAYS} 天无链上动作的自动降级；整桶沉寂则整桶保守回退）；scanTopPredators() 立即重扫；数据超 7 天自动重扫`);
+    out.push(`说明：清算线对"活跃档案"取最坏对位（主人 >${PREDATOR_INACTIVE_DAYS} 天无链上动作的自动降级；整桶沉寂则整桶保守回退）；scanTopPredators() 立即重扫；数据超 6 小时自动重扫`);
     console.log(out.join('\n'));
   }
 
@@ -3992,7 +4003,7 @@
   window.showTopPredators = showTopPredators;
   window.compareLT = compareLT;
 
-  // ── 启动调度：API 就绪后延迟 90 秒 → 无档案/超 7 天自动扫，否则只重算；
+  // ── 启动调度：API 就绪后延迟 90 秒 → 无档案/超 6 小时自动扫，否则只重算；
   //    另每 60 分钟轻量重算一次（覆盖核心脚本 syncKamiDb 自愈新增的旧公式初值）──
   (async function autoTopPredatorScan() {
     const MAX_WAIT = 5 * 60 * 1000, POLL_MS = 5000, start = Date.now();
@@ -4005,7 +4016,7 @@
         try { stored = JSON.parse(localStorage.getItem(TOP_PREDATORS_KEY) || 'null'); } catch (e) {}
         const age = stored?.at ? Date.now() - stored.at : Infinity;
         if (!stored || age > TOP_PREDATORS_TTL_MS) {
-          log(`%c🗡️ [杀手扫描] ${!stored ? '首次运行、尚无威胁档案' : '档案已超 7 天'}，自动全网扫描…`, 'color: red; font-weight: bold;');
+          log(`%c🗡️ [杀手扫描] ${!stored ? '首次运行、尚无威胁档案' : `档案已超 ${Math.round(TOP_PREDATORS_TTL_MS / 3600000)} 小时`}，自动全网扫描…`, 'color: red; font-weight: bold;');
           await scanTopPredators();
         } else {
           refreshPreciseLT();

@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi精简数据库-公开版 (database)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.3
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 00:28:49
+// @x-release-date 2026/7/17 23:04:56
 // @description  Kamigotchi精简数据库公开版：扫描账户全部kami构建17字段本地数据库(含清算线LT)，构建前自动备份
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -14,7 +14,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.2.2                      ║
+// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.2.3                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本为整个脚本套件构建"精简数据库"——扫描当前账户的全部 kami，               ║
 // ║  把每只 kami 的关键数据压缩成 17 个字段，存入 localStorage.kami_core_db        ║
@@ -50,7 +50,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
 // 说明（v1.1.8 起）：本脚本写入的 LT/LTHP 已按"官方精确公式 + 内置默认
-// 最强杀手档案"计算；辅助脚本启动后仍会按每周全网扫描的最新档案重算覆盖
+// 最强杀手档案"计算；辅助脚本启动后仍会按每6小时全网扫描的最新档案重算覆盖
 // （refreshPreciseLT）——口径相同，构建值与最终生效值随档案新旧略有差异。
 
 (function () {
@@ -97,13 +97,13 @@
 
     // 脚本启动提示。⚠️ 顺序约束：log() 引用上方的 __TZ_OFFSET_MS（const 不提升，存在
     //   暂时性死区），首次调用必须晚于时区常量定义——曾因放在其前导致脚本启动即崩（v1.1.9 修复）。
-    log('%c✅ Kamigotchi精简数据库-公开版 v1.2.2 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
+    log('%c✅ Kamigotchi精简数据库-公开版 v1.2.3 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.11 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '精简数据库';
-        const SELF_VERSION = '1.2.2';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.3';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -175,11 +175,14 @@
     const CORE_DB_OLD_KEY = 'kami_core_db_old'; // 构建前旧库备份 key
     // 内置默认威胁档案（与辅助脚本 TOP_PREDATORS_DEFAULT 同值同序，改动必须两处同步）。
     // 取历史实测最强、方向故意保守：个别杀手事后易主/消失只会让线偏高、不会偏低。
+    // 🔻SYNC→内部版[1.2.3 天敌档案地板]：0717 dias 15死归因——#12649(NORMAL手)ATS 实测
+    //   0.38(档案 0.30,全体低估 8pp)。NORMAL ats→0.40(实测+0.02垫);EERIE ats→0.31
+    //   (#11224 实测 0.30+0.01垫)。与辅助脚本 TOP_PREDATORS_DEFAULT 同值同步(家规)。
     const DB_TOP_PREDATORS = [
-        { hand: 'EERIE',  vio: 36, ats: 0.29, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0708 #4277（非真实个体，对已知现实恒保守）
+        { hand: 'EERIE',  vio: 36, ats: 0.31, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0717 #11224 实测 0.30+0.01 垫（非真实个体，对已知现实恒保守）
         { hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
         { hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
-        { hand: 'NORMAL', vio: 34, ats: 0.30, atr: 0.50 },
+        { hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02垫)——15死案主凶,专杀NORMAL body
     ];
 
     // ============================================================
@@ -498,7 +501,7 @@
     //   ratio/shift 为空按 0 计；结果截断 [0,1]。
     // ▍与辅助脚本的关系：⚠️ 本实现与辅助脚本的 computePreciseLT /
     //   computePreciseLTForRecord 是同一公式的两份副本，公式或默认
-    //   档案改动必须两处同步。运行期辅助脚本仍会按"每周全网扫描"的
+    //   档案改动必须两处同步。运行期辅助脚本仍会按"每6小时全网扫描"的
     //   最新档案，在启动/扫描后/每小时重算覆盖本脚本写入的初值
     //   （口径相同，数值随档案新旧略有差异）。
     // ▍相关控制台命令：无。
