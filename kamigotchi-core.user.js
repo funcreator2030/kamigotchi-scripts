@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.12
+// @version      1.2.13
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/18 00:36:00
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12)
+// @x-release-date 2026/7/18 00:49:58
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.12                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.13                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -939,7 +939,26 @@
     //   只统计 24h、翻页上限 15、独立缓存 TTL 1h（key 升 v2，防旧 evm 口径缓存串味）；
     //   翻满 15 页仍未越过 24h 边界 → truncated:true（报告必须标注「仅下限」，不许当全量）。
     //   ⚠️ 纯只读 GET，零新增 tx；失败由调用方 try/catch 静默降级。
-    const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache_v2';
+    // 🔻SYNC→内部版[1.2.13 链上全量分类]：0718 实测——cosmos tx 自带完整 calldata,
+    //   选择器+合约地址=天然动作标签,连"没记过日志"的 tx(含拾荒 UI 点击)都能分类。
+    //   映射表按 (选择器, 合约前缀小写) 匹配;认领依据:部署/停采/道具=0713 探针,
+    //   升级/加点/拾荒=0717 日志时间戳对照认领(拾荒=重掷+领取两步连招,升级→15s→加点同kami连招)。
+    //   未匹配的进"未知"桶并显示指纹,见一个认领一个(改这张表即可)。
+    const CHAIN_ACTION_MAP = [
+        { sel: '0x68f37c94', c: '0x0777687ec9feb7349c23a19ba7d11a1fe8cd35f1', label: '部署' },
+        { sel: '0xb0fa4458', c: '0x1ca193e7b9a698c1a9b7fd48e9c5948514293c72', label: '停采' },
+        { sel: '0xe60f3a76', c: '0x0198d6090cf2325b958f266d70a836637bf9046f', label: '道具使用(喂食/复活/XP)' },
+        { sel: '0x3e991df3', c: '0x66895964d938a98ef336811b0aaac1af437ae40e', label: '升级(等级)' },
+        { sel: '0xe60f3a76', c: '0x3201f72d1e2a993aee04f5d013bab89fa744ca48', label: '加点(技能)' },
+        { sel: '0x3e991df3', c: '0xd2d740df8a', label: '拾荒(重掷)' },   // 前缀匹配,0717 04:35 日志对时认领
+        { sel: '0x72de78c2', c: '0x309bd8c598', label: '拾荒(领取)' },   // 同上
+    ];
+    function _chainActionLabel(sel, contract) {
+        const c = String(contract || '').toLowerCase();
+        for (const m of CHAIN_ACTION_MAP) { if (m.sel === sel && c.indexOf(m.c) === 0) return m.label; }
+        return '未知 ' + sel + '@' + c.slice(0, 12) + '…';
+    }
+    const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache_v3';   // v3:结构加了分类桶,换key防旧结构串味
     const ADDR_GAS_24H_TTL_MS = 60 * 60 * 1000;   // 1 小时
     const ADDR_GAS_24H_MAX_PAGES = 15;
     async function _fetchAddrGas24h(addr) {
@@ -951,12 +970,13 @@
             if (raw) {
                 const c = JSON.parse(raw);
                 if (c && c.addr === a && c.wei != null && (Date.now() - c.ts) < ADDR_GAS_24H_TTL_MS) {
-                    return { ok: true, wei: c.wei, txN: c.txN || 0, pages: c.pages || 0, fromCache: true, truncated: !!c.truncated };
+                    return { ok: true, wei: c.wei, txN: c.txN || 0, pages: c.pages || 0, fromCache: true, truncated: !!c.truncated, cls: c.cls || null };
                 }
             }
         } catch (_) {}
         const cutoffMs = Date.now() - 24 * 3600 * 1000;
         let totalWei = 0n, txN = 0, pages = 0, sawOutside = false;
+        const cls = {};   // label -> { wei: BigInt, n }（链上全量分类桶）
         try {
             let nextKey = null;
             for (let p = 0; p < ADDR_GAS_24H_MAX_PAGES; p++) {
@@ -984,6 +1004,20 @@
                     } catch (_) { continue; }
                     totalWei += g;
                     txN++;
+                    // 链上分类：从 MsgCall 取选择器+合约 → 标签（异常不影响总额统计）
+                    try {
+                        const msgs = (((t.tx || {}).body || {}).messages) || [];
+                        let label = '未知(非MsgCall)';
+                        for (const m of msgs) {
+                            if (String(m['@type'] || '').indexOf('MsgCall') >= 0) {
+                                label = _chainActionLabel(String(m.input || '').slice(0, 10), m.contract_addr);
+                                break;
+                            }
+                        }
+                        if (!cls[label]) cls[label] = { wei: 0n, n: 0 };
+                        cls[label].wei += g;
+                        cls[label].n++;
+                    } catch (_) {}
                 }
                 nextKey = data && data.pagination && data.pagination.next_key;
                 if (!nextKey || arr.length === 0) break;
@@ -996,12 +1030,15 @@
         // 翻满 15 页仍未见到 24h 外 tx → 样本截断，仅下限
         const truncated = (pages >= ADDR_GAS_24H_MAX_PAGES && !sawOutside);
         const weiStr = totalWei.toString();
+        // 分类桶序列化（BigInt→字符串,缓存/返回统一用此形态）
+        const clsSer = {};
+        try { for (const k in cls) clsSer[k] = { wei: cls[k].wei.toString(), n: cls[k].n }; } catch (_) {}
         try {
             localStorage.setItem(ADDR_GAS_24H_CACHE_KEY, JSON.stringify({
-                addr: a, ts: Date.now(), wei: weiStr, txN, pages, truncated
+                addr: a, ts: Date.now(), wei: weiStr, txN, pages, truncated, cls: clsSer
             }));
         } catch (_) {}
-        return { ok: true, wei: weiStr, txN, pages, fromCache: false, truncated };
+        return { ok: true, wei: weiStr, txN, pages, fromCache: false, truncated, cls: clsSer };
     }
 
     // 【控制台命令】showGasReport()：链上真值 gas 报告（攒字符串数组，最后一次 console.log 避 userscript 前缀刷屏）
@@ -1102,10 +1139,23 @@
                         try { chainWei = BigInt(chainRes.wei || '0'); } catch (_) { chainWei = 0n; }
                         chain24Wei = chainWei; chain24Truncated = !!chainRes.truncated;
                         const truncTag = chainRes.truncated ? '  ⚠️样本截断,仅下限' : '';
-                        L.push(`   链上总账(Rollytics 24h): ${fmtMeth(chainWei)} mETH / ${chainRes.txN || 0} 笔${truncTag}`);
+                        L.push(`   链上总账(cosmos 全量 24h): ${fmtMeth(chainWei)} mETH / ${chainRes.txN || 0} 笔${truncTag}`);
+                        // 🔻SYNC→内部版[1.2.13 链上全量分类]：按选择器+合约反推动作,无需日志——
+                        //   连账本启用前/拾荒UI点击等"没记过账"的 tx 也全部分类。这是全量口径;
+                        //   上面账本分类是实时口径(能细分道具用途/单kami归因),两者互补。
+                        if (chainRes.cls) {
+                            const rows = [];
+                            try { for (const k in chainRes.cls) rows.push({ label: k, wei: BigInt(chainRes.cls[k].wei || '0'), n: chainRes.cls[k].n || 0 }); } catch (_) {}
+                            rows.sort((x, y) => (y.wei > x.wei ? 1 : (y.wei < x.wei ? -1 : 0)));
+                            for (const r of rows) {
+                                const pct = (chainWei > 0n) ? (Number(r.wei) / Number(chainWei) * 100).toFixed(1) : '0.0';
+                                const avgW = (r.n > 0) ? (r.wei / BigInt(r.n)) : 0n;
+                                L.push(`      ${r.label}: ${fmtMeth(r.wei)} mETH (${pct}%) | ${r.n} 笔 | 均 ${fmtMeth(avgW)} mETH/笔`);
+                            }
+                        }
                         const ledger24 = opWinWei['24h'] || 0n;
                         const gap = chainWei - ledger24;
-                        L.push(`   账本外缺口: ${fmtMeth(gap)} mETH(≈未挂钩tx+未补receipt;持续>10%需排查漏挂)`);
+                        L.push(`   账本外缺口: ${fmtMeth(gap)} mETH(=链上全量-账本;账本启用前的tx+拾荒等无hash项都在这里,上方链上分类已覆盖它们)`);
                     } else {
                         L.push('   链上总账对照不可用');
                     }
@@ -1313,7 +1363,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.12 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.13 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1342,7 +1392,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.12';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.13';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1517,7 +1567,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.12 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.13 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
