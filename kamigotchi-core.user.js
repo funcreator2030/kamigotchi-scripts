@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.9
+// @version      1.2.10
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/17 23:04:56
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9)
+// @x-release-date 2026/7/17 23:40:21
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.9                   ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.10                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -784,6 +784,8 @@
             _gasLedgerWrite(arr);
         } catch (_) { /* 记账失败绝不影响业务 */ }
     }
+    // 🔻SYNC→内部版[1.2.10 gas全口径] 暴露记账钩子供辅助脚本挂钩（辅助有 typeof 守卫；核心旧版无此接口时辅助静默跳过）
+    window.__kamiGasRecord = _gasLedgerRecord;
 
     // provider（只读 receipt / 余额，绝不发 tx）
     function _gasLedgerProvider() {
@@ -926,11 +928,82 @@
         return { ok: true, windows: winStr, fetchedN: txs.length, pages, fromCache: false, blockBased: (curBlock != null) };
     }
 
+    // 【helper】_fetchAddrGas24h：任意地址最近 24h 链上 gas 总账（operator 自审计对照用）。   🔻SYNC→内部版[1.2.10 gas全口径]
+    //   复用 Rollytics 端点与解析；只统计 24h、翻页上限 15、独立缓存 TTL 1h；
+    //   翻满 15 页仍未越过 24h 边界 → truncated:true（报告必须标注「仅下限」，不许当全量）。
+    //   ⚠️ 纯只读 GET，零新增 tx；失败由调用方 try/catch 静默降级。
+    const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache';
+    const ADDR_GAS_24H_TTL_MS = 60 * 60 * 1000;   // 1 小时
+    const ADDR_GAS_24H_MAX_PAGES = 15;
+    async function _fetchAddrGas24h(addr) {
+        // 返回 { ok:true, wei:'..', txN, pages, fromCache, truncated } 或 { ok:false, error }
+        if (!addr) return { ok: false, error: '无地址' };
+        const a = String(addr).toLowerCase();
+        try {
+            const raw = localStorage.getItem(ADDR_GAS_24H_CACHE_KEY);
+            if (raw) {
+                const c = JSON.parse(raw);
+                if (c && c.addr === a && c.wei != null && (Date.now() - c.ts) < ADDR_GAS_24H_TTL_MS) {
+                    return { ok: true, wei: c.wei, txN: c.txN || 0, pages: c.pages || 0, fromCache: true, truncated: !!c.truncated };
+                }
+            }
+        } catch (_) {}
+        let curBlock = null;
+        try {
+            const provider = _gasLedgerProvider();
+            if (provider && typeof provider.getBlockNumber === 'function') {
+                curBlock = Number(await provider.getBlockNumber());
+                if (!isFinite(curBlock)) curBlock = null;
+            }
+        } catch (_) { curBlock = null; }
+        if (curBlock == null) return { ok: false, error: '无当前区块' };
+        const minBlk = curBlock - (86400 / OWNER_SEC_PER_BLOCK);
+        let totalWei = 0n, txN = 0, pages = 0, sawOutside = false;
+        try {
+            let nextKey = null;
+            for (let p = 0; p < ADDR_GAS_24H_MAX_PAGES; p++) {
+                let url = ROLLYTICS_HOST + '/indexer/tx/v1/evm-txs/by_account/' + a + '?is_signer=true&pagination.limit=100';
+                if (nextKey) url += '&pagination.key=' + encodeURIComponent(nextKey);
+                const resp = await fetch(url, { method: 'GET' });
+                if (!resp || !resp.ok) throw new Error('HTTP ' + (resp && resp.status));
+                const data = await resp.json();
+                const arr = (data && data.txs) || [];
+                pages++;
+                for (const t of arr) {
+                    let blk = null;
+                    try { blk = Number(BigInt(t.blockNumber)); } catch (_) { blk = null; }
+                    if (blk == null) continue;
+                    if (blk < minBlk) { sawOutside = true; continue; }
+                    let g = 0n;
+                    try { g = BigInt(t.gasUsed) * BigInt(t.effectiveGasPrice); } catch (_) { continue; }
+                    totalWei += g;
+                    txN++;
+                }
+                nextKey = data && data.pagination && data.pagination.next_key;
+                if (!nextKey || arr.length === 0) break;
+                // 索引通常新→旧；已越过 24h 边界则后续更旧，可停
+                if (sawOutside) break;
+            }
+        } catch (e) {
+            return { ok: false, error: (e && e.message) || String(e) };
+        }
+        // 翻满 15 页仍未见到 24h 外 tx → 样本截断，仅下限
+        const truncated = (pages >= ADDR_GAS_24H_MAX_PAGES && !sawOutside);
+        const weiStr = totalWei.toString();
+        try {
+            localStorage.setItem(ADDR_GAS_24H_CACHE_KEY, JSON.stringify({
+                addr: a, ts: Date.now(), wei: weiStr, txN, pages, truncated
+            }));
+        } catch (_) {}
+        return { ok: true, wei: weiStr, txN, pages, fromCache: false, truncated };
+    }
+
     // 【控制台命令】showGasReport()：链上真值 gas 报告（攒字符串数组，最后一次 console.log 避 userscript 前缀刷屏）
+    // 🔻SYNC→内部版[1.2.10 gas全口径] mETH 单位 + 分类笔数/均价 + 辅助动作类型 + operator 链上总账对照
     window.showGasReport = async function () {
         const L = [];
-        const WEI_PER_ETH = 1e18;
-        const fmtEth = (wei) => { try { return (Number(wei) / WEI_PER_ETH).toFixed(6); } catch (_) { return '0.000000'; } };
+        const WEI_PER_METH = 1e15;   // 1 mETH = 0.001 ETH = 1e15 wei
+        const fmtMeth = (wei) => { try { return (Number(wei) / WEI_PER_METH).toFixed(3); } catch (_) { return '0.000'; } };
         try {
             const arr = _gasLedgerRead();
             const now = Date.now();
@@ -941,8 +1014,8 @@
                 { label: '7d',  ms: 7 * DAY, days: 7 },
                 { label: '30d', ms: 30 * DAY, days: 30 },
             ];
-            const ACTIONS = ['deploy', 'stop', 'feed', 'revive', 'scavenge', 'xp_potion'];
-            const ACT_LABEL = { deploy: '部署', stop: '停采', feed: '喂食', revive: '复活', scavenge: '拾荒', xp_potion: 'XP药水' };
+            const ACTIONS = ['deploy', 'stop', 'feed', 'revive', 'scavenge', 'xp_potion', 'craft', 'upgrade', 'skill', 'respec'];
+            const ACT_LABEL = { deploy: '部署', stop: '停采', feed: '喂食', revive: '复活', scavenge: '拾荒', xp_potion: 'XP药水', craft: '合成', upgrade: '升级', skill: '加点', respec: '重置技能' };
 
             L.push('═══════════ ⛽ Gas 真值账本报告（链上 receipt 逐笔核算） ═══════════');
             L.push(`账本条目: ${arr.length} 条（上限 ${GAS_LEDGER_MAX}，保留 ${GAS_LEDGER_RETAIN_DAYS} 天）`);
@@ -972,26 +1045,53 @@
                 const since = now - w.ms;
                 const inWin = arr.filter(e => e && e.ts >= since && e.gasWei != null);
                 let total = 0n, revertWei = 0n, revertN = 0, txN = 0;
-                const byAct = {};
+                const byAct = {};   // action -> { wei: BigInt, n: number }
                 for (const e of inWin) {
                     let g = 0n;
                     try { g = BigInt(e.gasWei); } catch (_) { g = 0n; }
                     total += g;
                     txN++;
                     if (e.status === 0) { revertWei += g; revertN++; }
-                    byAct[e.action] = (byAct[e.action] || 0n) + g;
+                    if (!byAct[e.action]) byAct[e.action] = { wei: 0n, n: 0 };
+                    byAct[e.action].wei += g;
+                    byAct[e.action].n++;
                 }
                 opWinWei[w.label] = total;
                 if (w.label === '7d') avg7dGasWei = (w.days > 0) ? (total / BigInt(w.days)) : 0n;
-                const perDay = (w.days > 0) ? (Number(total) / w.days / WEI_PER_ETH) : 0;
+                const perDay = (w.days > 0) ? (Number(total) / w.days / WEI_PER_METH) : 0;
                 L.push(`──────── 最近 ${w.label} ────────`);
-                L.push(`   总 gas: ${fmtEth(total)} ETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(6)} ETH/day`);
-                L.push(`   revert 白烧: ${fmtEth(revertWei)} ETH（${revertN} 笔，已计入上面总额）`);
+                L.push(`   总 gas: ${fmtMeth(total)} mETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(3)} mETH/day`);
+                L.push(`   revert 白烧: ${fmtMeth(revertWei)} mETH（${revertN} 笔，已计入上面总额）`);
                 for (const a of ACTIONS) {
                     if (!(a in byAct)) continue;
-                    const g = byAct[a];
+                    const slot = byAct[a];
+                    const g = slot.wei;
+                    const n = slot.n;
                     const pct = (total > 0n) ? (Number(g) / Number(total) * 100).toFixed(1) : '0.0';
-                    L.push(`      ${ACT_LABEL[a] || a}: ${fmtEth(g)} ETH (${pct}%)`);
+                    const avgWei = (n > 0) ? (g / BigInt(n)) : 0n;
+                    L.push(`      ${ACT_LABEL[a] || a}: ${fmtMeth(g)} mETH (${pct}%) | ${n} 笔 | 均 ${fmtMeth(avgWei)} mETH/笔`);
+                }
+                L.push('');
+            }
+
+            // operator 链上总账对照（Rollytics 24h，防再漏挂）——失败静默降级，绝不影响主报告
+            if (operatorAddr) {
+                try {
+                    let chainRes = null;
+                    try { chainRes = await _fetchAddrGas24h(operatorAddr); } catch (e) { chainRes = { ok: false, error: (e && e.message) || String(e) }; }
+                    if (chainRes && chainRes.ok) {
+                        let chainWei = 0n;
+                        try { chainWei = BigInt(chainRes.wei || '0'); } catch (_) { chainWei = 0n; }
+                        const truncTag = chainRes.truncated ? '  ⚠️样本截断,仅下限' : '';
+                        L.push(`   链上总账(Rollytics 24h): ${fmtMeth(chainWei)} mETH / ${chainRes.txN || 0} 笔${truncTag}`);
+                        const ledger24 = opWinWei['24h'] || 0n;
+                        const gap = chainWei - ledger24;
+                        L.push(`   账本外缺口: ${fmtMeth(gap)} mETH(≈未挂钩tx+未补receipt;持续>10%需排查漏挂)`);
+                    } else {
+                        L.push('   链上总账对照不可用');
+                    }
+                } catch (_) {
+                    L.push('   链上总账对照不可用');
                 }
                 L.push('');
             }
@@ -1012,7 +1112,7 @@
                         let gAll = 0n, nAll = 0;
                         try { gAll = BigInt((ownerRes.windows['30d'] && ownerRes.windows['30d'].wei) || '0'); nAll = (ownerRes.windows['30d'] && ownerRes.windows['30d'].txN) || 0; } catch (_) {}
                         L.push('   ⚠️ 拿不到当前区块,无法按时间窗切分。owner tx 稀少、gas 极小。');
-                        L.push(`   owner 全部拉到: ${fmtEth(gAll)} ETH / ${nAll} 笔（未分窗,不计入下方各窗与合计）`);
+                        L.push(`   owner 全部拉到: ${fmtMeth(gAll)} mETH / ${nAll} 笔（未分窗,不计入下方各窗与合计）`);
                         // ownerWinWei 保持全 0 → 合计段只按 operator 计,不被污染
                     } else {
                         for (const w of windows) {
@@ -1020,7 +1120,7 @@
                             try { g = BigInt((ownerRes.windows[w.label] && ownerRes.windows[w.label].wei) || '0'); } catch (_) { g = 0n; }
                             const n = (ownerRes.windows[w.label] && ownerRes.windows[w.label].txN) || 0;
                             ownerWinWei[w.label] = g;
-                            L.push(`   最近 ${w.label}: ${fmtEth(g)} ETH  |  tx ${n} 笔`);
+                            L.push(`   最近 ${w.label}: ${fmtMeth(g)} mETH  |  tx ${n} 笔`);
                         }
                     }
                 } else {
@@ -1040,8 +1140,8 @@
                 const ow = ownerWinWei[w.label] || 0n;
                 const tot = op + ow;
                 if (w.label === '7d') sum7dGasWei = (w.days > 0) ? (tot / BigInt(w.days)) : 0n;
-                const perDay = (w.days > 0) ? (Number(tot) / w.days / WEI_PER_ETH) : 0;
-                L.push(`   最近 ${w.label}: ${fmtEth(tot)} ETH（operator ${fmtEth(op)} + owner ${fmtEth(ow)}）  |  合计日均 ${perDay.toFixed(6)} ETH/day`);
+                const perDay = (w.days > 0) ? (Number(tot) / w.days / WEI_PER_METH) : 0;
+                L.push(`   最近 ${w.label}: ${fmtMeth(tot)} mETH（operator ${fmtMeth(op)} + owner ${fmtMeth(ow)}）  |  合计日均 ${perDay.toFixed(3)} mETH/day`);
             }
             L.push('');
 
@@ -1053,19 +1153,19 @@
                     const balWei = BigInt(bal.toString());
                     L.push('═══════════【余额续航】═══════════');
                     L.push(`   Operator ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
-                    L.push(`   当前余额: ${fmtEth(balWei)} ETH`);
+                    L.push(`   当前余额: ${fmtMeth(balWei)} mETH`);
                     if (avg7dGasWei > 0n) {
                         const daysLeft = Number(balWei) / Number(avg7dGasWei);
-                        L.push(`   按 operator 7 天日均 ${fmtEth(avg7dGasWei)} ETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天（仅算脚本自动化消耗，你能控的部分）`);
+                        L.push(`   按 operator 7 天日均 ${fmtMeth(avg7dGasWei)} mETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天（仅算脚本自动化消耗，你能控的部分）`);
                     } else {
                         L.push('   （7 天内暂无已补 gas 记录，无法估算续航；等 reconciler 补齐后再看）');
                     }
-                    if (sum7dGasWei > 0n) L.push(`   参考：operator+owner 合计 7 天日均 ${fmtEth(sum7dGasWei)} ETH/day（owner 手动 tx 你控不了，续航仍以 operator 为准）`);
+                    if (sum7dGasWei > 0n) L.push(`   参考：operator+owner 合计 7 天日均 ${fmtMeth(sum7dGasWei)} mETH/day（owner 手动 tx 你控不了，续航仍以 operator 为准）`);
                     L.push('');
                 }
             } catch (_) {}
 
-            L.push('说明：拾荒（UI 点击）无 tx 对象、hash 抓不到，gas 无法入账，仅计动作次数；其余动作均由链上 receipt 逐笔核算，单价逐笔用 receipt 的 gasPrice。');
+            L.push('说明：拾荒（UI 点击）无 tx 对象、hash 抓不到，gas 无法入账，仅计动作次数；其余动作均由链上 receipt 逐笔核算，单价逐笔用 receipt 的 gasPrice。合成/升级/加点/重置由辅助脚本挂钩记账(需辅助≥1.2.4)。');
             L.push('═══════════════════════════════════════════════════════');
         } catch (e) {
             L.push('❌ [showGasReport] 生成报告异常: ' + ((e && e.message) || e));
@@ -1184,7 +1284,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.9 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.10 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1213,7 +1313,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.9';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.10';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1388,7 +1488,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.9 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.10 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
