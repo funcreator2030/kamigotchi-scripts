@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.11
+// @version      1.2.12
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/18 00:10:22
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11)
+// @x-release-date 2026/7/18 00:36:00
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.11                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.12                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1045,8 +1045,15 @@
             // ═══ operator（脚本自动化，链上 receipt 逐笔核算，来自账本）═══
             L.push('═══════════【operator（脚本自动化）· 按动作分类】═══════════');
             if (operatorAddr) L.push(`   operator 地址: ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
-            let avg7dGasWei = 0n;   // operator 7 天日均（供余额续航）
-            const opWinWei = {};    // label -> BigInt（供合计段）
+            // 🔻SYNC→内部版[1.2.12 日均按实际覆盖折算]：日均分母 = min(窗口长度, 账本实际覆盖时长)。
+            //   否则账本刚启用时(如只记了1.5h)按整窗口除,日均被稀释、续航虚高(0718实测曾算出4988天)。
+            let ledgerStartTs = now;
+            for (const e of arr) { if (e && e.ts && e.ts < ledgerStartTs) ledgerStartTs = e.ts; }
+            const ledgerCoverMs = Math.max(now - ledgerStartTs, 60 * 60 * 1000);   // 至少按1小时算,防冷启动除小数爆表
+            const _coverH = (ledgerCoverMs / 3600000).toFixed(1);
+            let avg7dWeiPerDay = 0;   // operator 7 天日均 wei/day（分母=实际覆盖,供余额续航）
+            const opWinWei = {};      // label -> BigInt（供合计段）
+            const opEffDays = {};     // label -> 实际覆盖天数（供合计段同款折算）
             for (const w of windows) {
                 const since = now - w.ms;
                 const inWin = arr.filter(e => e && e.ts >= since && e.gasWei != null);
@@ -1063,10 +1070,13 @@
                     byAct[e.action].n++;
                 }
                 opWinWei[w.label] = total;
-                if (w.label === '7d') avg7dGasWei = (w.days > 0) ? (total / BigInt(w.days)) : 0n;
-                const perDay = (w.days > 0) ? (Number(total) / w.days / WEI_PER_METH) : 0;
+                const effDays = Math.min(w.days, ledgerCoverMs / DAY);
+                opEffDays[w.label] = effDays;
+                const partial = effDays < w.days - 0.01;
+                if (w.label === '7d') avg7dWeiPerDay = (effDays > 0) ? (Number(total) / effDays) : 0;
+                const perDay = (effDays > 0) ? (Number(total) / effDays / WEI_PER_METH) : 0;
                 L.push(`──────── 最近 ${w.label} ────────`);
-                L.push(`   总 gas: ${fmtMeth(total)} mETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(3)} mETH/day`);
+                L.push(`   总 gas: ${fmtMeth(total)} mETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(3)} mETH/day${partial ? `（说明:账本 ${_coverH} 小时前才开始记账,日均按实际记账时长折算,不是按整个${w.label}平均）` : ''}`);
                 L.push(`   revert 白烧: ${fmtMeth(revertWei)} mETH（${revertN} 笔，已计入上面总额）`);
                 for (const a of ACTIONS) {
                     if (!(a in byAct)) continue;
@@ -1081,6 +1091,8 @@
             }
 
             // operator 链上总账对照（Rollytics 24h，防再漏挂）——失败静默降级，绝不影响主报告
+            // 🔻SYNC→内部版[1.2.12 续航数据源智能选择] 对照结果外提供余额续航复用(账本<24h时续航改用链上真实24h)
+            let chain24Wei = null, chain24Truncated = false;
             if (operatorAddr) {
                 try {
                     let chainRes = null;
@@ -1088,6 +1100,7 @@
                     if (chainRes && chainRes.ok) {
                         let chainWei = 0n;
                         try { chainWei = BigInt(chainRes.wei || '0'); } catch (_) { chainWei = 0n; }
+                        chain24Wei = chainWei; chain24Truncated = !!chainRes.truncated;
                         const truncTag = chainRes.truncated ? '  ⚠️样本截断,仅下限' : '';
                         L.push(`   链上总账(Rollytics 24h): ${fmtMeth(chainWei)} mETH / ${chainRes.txN || 0} 笔${truncTag}`);
                         const ledger24 = opWinWei['24h'] || 0n;
@@ -1140,13 +1153,15 @@
 
             // ═══ 合计（operator + owner）═══
             L.push('═══════════【合计（operator + owner）】═══════════');
-            let sum7dGasWei = 0n;   // 合计 7 天日均（供余额续航参考）
+            let sum7dWeiPerDay = 0;   // 合计 7 天日均 wei/day（operator按实际覆盖折算+owner按整窗;供余额续航参考）
             for (const w of windows) {
                 const op = opWinWei[w.label] || 0n;
                 const ow = ownerWinWei[w.label] || 0n;
                 const tot = op + ow;
-                if (w.label === '7d') sum7dGasWei = (w.days > 0) ? (tot / BigInt(w.days)) : 0n;
-                const perDay = (w.days > 0) ? (Number(tot) / w.days / WEI_PER_METH) : 0;
+                const opEff = opEffDays[w.label] || w.days;
+                const perDayWei = (opEff > 0 ? Number(op) / opEff : 0) + (w.days > 0 ? Number(ow) / w.days : 0);
+                if (w.label === '7d') sum7dWeiPerDay = perDayWei;
+                const perDay = perDayWei / WEI_PER_METH;
                 L.push(`   最近 ${w.label}: ${fmtMeth(tot)} mETH（operator ${fmtMeth(op)} + owner ${fmtMeth(ow)}）  |  合计日均 ${perDay.toFixed(3)} mETH/day`);
             }
             L.push('');
@@ -1160,13 +1175,21 @@
                     L.push('═══════════【余额续航】═══════════');
                     L.push(`   Operator ${operatorAddr}${accName ? ' (' + accName + ')' : ''}`);
                     L.push(`   当前余额: ${fmtMeth(balWei)} mETH`);
-                    if (avg7dGasWei > 0n) {
-                        const daysLeft = Number(balWei) / Number(avg7dGasWei);
-                        L.push(`   按 operator 7 天日均 ${fmtMeth(avg7dGasWei)} mETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天（仅算脚本自动化消耗，你能控的部分）`);
+                    // 🔻SYNC→内部版[1.2.12 续航数据源智能选择]：用户0718定案——账本覆盖不足24h时,
+                    //   续航直接用链上抓的真实24h消耗算(全量、准),并用人话说明用了哪个数据、为什么;
+                    //   账本跑满24h后自动切回账本口径(能按动作分类、能剔除owner)。
+                    const ledgerMature = ledgerCoverMs >= 24 * 3600 * 1000;
+                    if (!ledgerMature && chain24Wei != null && chain24Wei > 0n) {
+                        const daysLeft = Number(balWei) / Number(chain24Wei);
+                        L.push(`   还能用 ≈ ${daysLeft.toFixed(1)} 天（按链上真实的最近24小时消耗 ${fmtMeth(chain24Wei)} mETH/day 计算${chain24Truncated ? ';⚠️链上样本截断,真实消耗只多不少,续航可能更短' : ''}）`);
+                        L.push(`   说明：本地账本 ${_coverH} 小时前才开始记账,数据还太少,所以续航先按链上抓到的全量真实消耗来算。等账本攒满 24 小时,会自动改用账本估算（那时还能看出哪类操作最费钱）。`);
+                    } else if (avg7dWeiPerDay > 0) {
+                        const daysLeft = Number(balWei) / avg7dWeiPerDay;
+                        L.push(`   按 operator 7 天日均 ${fmtMeth(Math.round(avg7dWeiPerDay))} mETH/day 估算，还能用 ≈ ${daysLeft.toFixed(1)} 天（仅算脚本自动化消耗，你能控的部分${ledgerMature ? '' : `;账本仅覆盖 ${_coverH} 小时,按实际折算`}）`);
                     } else {
-                        L.push('   （7 天内暂无已补 gas 记录，无法估算续航；等 reconciler 补齐后再看）');
+                        L.push('   （暂无可用消耗数据：账本无已补 gas 记录、链上对照也不可用；等 reconciler 补齐后再看）');
                     }
-                    if (sum7dGasWei > 0n) L.push(`   参考：operator+owner 合计 7 天日均 ${fmtMeth(sum7dGasWei)} mETH/day（owner 手动 tx 你控不了，续航仍以 operator 为准）`);
+                    if (sum7dWeiPerDay > 0) L.push(`   参考：operator+owner 合计 7 天日均 ${fmtMeth(Math.round(sum7dWeiPerDay))} mETH/day（owner 手动 tx 你控不了，续航仍以 operator 为准）`);
                     L.push('');
                 }
             } catch (_) {}
@@ -1290,7 +1313,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.11 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.12 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1319,7 +1342,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.11';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.12';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1494,7 +1517,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.11 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.12 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
