@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.10
+// @version      1.2.11
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/17 23:40:21
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10)
+// @x-release-date 2026/7/18 00:10:22
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.10                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.11                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -929,10 +929,17 @@
     }
 
     // 【helper】_fetchAddrGas24h：任意地址最近 24h 链上 gas 总账（operator 自审计对照用）。   🔻SYNC→内部版[1.2.10 gas全口径]
-    //   复用 Rollytics 端点与解析；只统计 24h、翻页上限 15、独立缓存 TTL 1h；
+    // 🔻SYNC→内部版[1.2.11 对照换cosmos端点]：0717 深夜三口径对账实测——Rollytics evm-txs
+    //   索引不完整（7d 仅含 ~75% tx，1086/1455），用它对照会把「账本外缺口」算成负数误导。
+    //   全量真值在 cosmos 端点 /indexer/tx/v1/txs/by_account/{addr}：每条自带真实 timestamp
+    //   （免区块号估时，故本函数不再依赖 provider/OWNER_SEC_PER_BLOCK）、gas_used、
+    //   tx.auth_info.fee{amount,gas_limit}。单笔实扣 = fee_amount × gas_used ÷ gas_limit
+    //   （BigInt 先乘后除——fee÷limit 有 +1wei 级余数，先除会丢精度）；fee_amount 本身是
+    //   预付额(limit×price)比实扣高 ~43%，不可直接累加。该口径与 kamistats 实测偏差 +1.2%。
+    //   只统计 24h、翻页上限 15、独立缓存 TTL 1h（key 升 v2，防旧 evm 口径缓存串味）；
     //   翻满 15 页仍未越过 24h 边界 → truncated:true（报告必须标注「仅下限」，不许当全量）。
     //   ⚠️ 纯只读 GET，零新增 tx；失败由调用方 try/catch 静默降级。
-    const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache';
+    const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache_v2';
     const ADDR_GAS_24H_TTL_MS = 60 * 60 * 1000;   // 1 小时
     const ADDR_GAS_24H_MAX_PAGES = 15;
     async function _fetchAddrGas24h(addr) {
@@ -948,21 +955,12 @@
                 }
             }
         } catch (_) {}
-        let curBlock = null;
-        try {
-            const provider = _gasLedgerProvider();
-            if (provider && typeof provider.getBlockNumber === 'function') {
-                curBlock = Number(await provider.getBlockNumber());
-                if (!isFinite(curBlock)) curBlock = null;
-            }
-        } catch (_) { curBlock = null; }
-        if (curBlock == null) return { ok: false, error: '无当前区块' };
-        const minBlk = curBlock - (86400 / OWNER_SEC_PER_BLOCK);
+        const cutoffMs = Date.now() - 24 * 3600 * 1000;
         let totalWei = 0n, txN = 0, pages = 0, sawOutside = false;
         try {
             let nextKey = null;
             for (let p = 0; p < ADDR_GAS_24H_MAX_PAGES; p++) {
-                let url = ROLLYTICS_HOST + '/indexer/tx/v1/evm-txs/by_account/' + a + '?is_signer=true&pagination.limit=100';
+                let url = ROLLYTICS_HOST + '/indexer/tx/v1/txs/by_account/' + a + '?pagination.limit=100';
                 if (nextKey) url += '&pagination.key=' + encodeURIComponent(nextKey);
                 const resp = await fetch(url, { method: 'GET' });
                 if (!resp || !resp.ok) throw new Error('HTTP ' + (resp && resp.status));
@@ -970,18 +968,26 @@
                 const arr = (data && data.txs) || [];
                 pages++;
                 for (const t of arr) {
-                    let blk = null;
-                    try { blk = Number(BigInt(t.blockNumber)); } catch (_) { blk = null; }
-                    if (blk == null) continue;
-                    if (blk < minBlk) { sawOutside = true; continue; }
+                    let ts = NaN;
+                    try { ts = Date.parse(t.timestamp); } catch (_) { ts = NaN; }
+                    if (!isFinite(ts)) continue;
+                    if (ts < cutoffMs) { sawOutside = true; continue; }
                     let g = 0n;
-                    try { g = BigInt(t.gasUsed) * BigInt(t.effectiveGasPrice); } catch (_) { continue; }
+                    try {
+                        const fee = (((t.tx || {}).auth_info || {}).fee) || {};
+                        let feeWei = 0n;
+                        for (const am of (fee.amount || [])) feeWei += BigInt(am.amount || '0');
+                        const used = BigInt(t.gas_used || '0');
+                        const limit = BigInt(fee.gas_limit || '0');
+                        if (limit <= 0n || feeWei <= 0n) continue;
+                        g = (feeWei * used) / limit;   // 实扣 = used×price；先乘后除保精度
+                    } catch (_) { continue; }
                     totalWei += g;
                     txN++;
                 }
                 nextKey = data && data.pagination && data.pagination.next_key;
                 if (!nextKey || arr.length === 0) break;
-                // 索引通常新→旧；已越过 24h 边界则后续更旧，可停
+                // 索引严格新→旧（0717 实测 15 页降序无缝）；已越过 24h 边界则后续更旧，可停
                 if (sawOutside) break;
             }
         } catch (e) {
@@ -1284,7 +1290,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.10 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.11 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1313,7 +1319,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.10';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.11';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1488,7 +1494,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.10 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.11 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
