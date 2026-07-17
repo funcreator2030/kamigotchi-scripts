@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.13
+// @version      1.2.14
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/18 00:49:58
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13)
+// @x-release-date 2026/7/18 01:03:49
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.13                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.14                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1091,6 +1091,7 @@
             let avg7dWeiPerDay = 0;   // operator 7 天日均 wei/day（分母=实际覆盖,供余额续航）
             const opWinWei = {};      // label -> BigInt（供合计段）
             const opEffDays = {};     // label -> 实际覆盖天数（供合计段同款折算）
+            let __printedPartialWin = false; const __skippedWins = [];   // 🔻SYNC[1.2.14] 重复窗口折叠
             for (const w of windows) {
                 const since = now - w.ms;
                 const inWin = arr.filter(e => e && e.ts >= since && e.gasWei != null);
@@ -1112,6 +1113,11 @@
                 const partial = effDays < w.days - 0.01;
                 if (w.label === '7d') avg7dWeiPerDay = (effDays > 0) ? (Number(total) / effDays) : 0;
                 const perDay = (effDays > 0) ? (Number(total) / effDays / WEI_PER_METH) : 0;
+                // 🔻SYNC→内部版[1.2.14 报告美化] 窗口折叠:账本覆盖不足时,后续更长窗口数据完全相同,
+                //   只打第一个"不满窗"的,其余折叠成一行说明(注意:统计簿记 opWinWei/opEffDays 已在上方
+                //   填完,合计段/续航不受折叠影响,折叠的只是显示)。
+                if (partial && __printedPartialWin) { __skippedWins.push(w.label); continue; }
+                if (partial) __printedPartialWin = true;
                 L.push(`──────── 最近 ${w.label} ────────`);
                 L.push(`   总 gas: ${fmtMeth(total)} mETH  |  tx ${txN} 笔  |  日均 ${perDay.toFixed(3)} mETH/day${partial ? `（说明:账本 ${_coverH} 小时前才开始记账,日均按实际记账时长折算,不是按整个${w.label}平均）` : ''}`);
                 L.push(`   revert 白烧: ${fmtMeth(revertWei)} mETH（${revertN} 笔，已计入上面总额）`);
@@ -1126,6 +1132,8 @@
                 }
                 L.push('');
             }
+
+            if (__skippedWins.length) L.push(`   （${__skippedWins.join(' / ')} 窗口与上方相同——账本仅覆盖 ${_coverH} 小时,数据尚未撑满更长窗口,不重复展示）\n`);
 
             // operator 链上总账对照（Rollytics 24h，防再漏挂）——失败静默降级，绝不影响主报告
             // 🔻SYNC→内部版[1.2.12 续航数据源智能选择] 对照结果外提供余额续航复用(账本<24h时续航改用链上真实24h)
@@ -1244,12 +1252,55 @@
                 }
             } catch (_) {}
 
-            L.push('说明：拾荒（UI 点击）无 tx 对象、hash 抓不到，gas 无法入账，仅计动作次数；其余动作均由链上 receipt 逐笔核算，单价逐笔用 receipt 的 gasPrice。合成/升级/加点/重置由辅助脚本挂钩记账(需辅助≥1.2.4)。');
+            L.push('说明：账本=发送时打标签(实时、能细分道具用途/单kami归因);「链上总账」段=从链上按函数选择器反推动作(全量兜底,连拾荒UI点击、账本启用前的tx都覆盖)。合成/升级/加点/重置由辅助脚本挂钩记账(需辅助≥1.2.4)。');
             L.push('═══════════════════════════════════════════════════════');
         } catch (e) {
             L.push('❌ [showGasReport] 生成报告异常: ' + ((e && e.message) || e));
         }
-        console.log(L.join('\n'));
+        // 🔻SYNC→内部版[1.2.14 报告美化]：按行型自动配色(%c 分段)+动作行注入图标。纯展示层,
+        //   数据零改动;任何异常回退到原样纯文本输出(兜底 catch)。
+        try {
+            const ACT_ICON = { '部署': '🚀', '停采': '🛑', '喂食': '🍎', '复活': '💞', '拾荒': '🧹', 'XP药水': '🧪', '合成': '🔨', '升级': '⬆️', '加点': '🎯', '重置技能': '♻️', '道具使用': '📦', '未知': '❔' };
+            const S = {
+                title:   'background:#1a237e;color:#fff;font-size:14px;font-weight:bold;padding:2px 8px;border-radius:3px',
+                secOp:   'background:#0d47a1;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px',
+                secChain:'background:#4a148c;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px',
+                secOwner:'background:#37474f;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px',
+                secSum:  'background:#004d40;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px',
+                secLife: 'background:#1b5e20;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px',
+                win:     'color:#1565c0;font-weight:bold',
+                act:     'color:#283593',
+                chainAct:'color:#6a1b9a',
+                life:    'color:#2e7d32;font-weight:bold;font-size:13px',
+                warn:    'color:#e65100;font-weight:bold',
+                dim:     'color:#9e9e9e',
+                plain:   'color:inherit',
+            };
+            const fmt = [], args = [];
+            let inChain = false;
+            for (let line of L) {
+                let st = S.plain;
+                if (/^═+$/.test(line)) st = S.dim;
+                else if (line.indexOf('⛽') >= 0) st = S.title;
+                else if (line.indexOf('【operator') >= 0) { st = S.secOp; inChain = false; }
+                else if (line.indexOf('【owner') >= 0) { st = S.secOwner; inChain = false; }
+                else if (line.indexOf('【合计') >= 0) { st = S.secSum; inChain = false; }
+                else if (line.indexOf('【余额续航】') >= 0) { st = S.secLife; inChain = false; }
+                else if (line.indexOf('链上总账') >= 0) { st = S.secChain; inChain = true; }
+                else if (/^────/.test(line)) st = S.win;
+                else if (line.indexOf('还能用 ≈') >= 0) st = S.life;
+                else if (line.indexOf('⚠️') >= 0 || line.indexOf('缺口') >= 0) st = S.warn;
+                else if (/^\s{4,}\S.* mETH \(/.test(line)) {
+                    const t = line.trim();
+                    for (const k in ACT_ICON) { if (t.indexOf(k) === 0) { line = line.replace(t, ACT_ICON[k] + ' ' + t); break; } }
+                    st = inChain ? S.chainAct : S.act;
+                }
+                fmt.push('%c' + line); args.push(st);
+            }
+            console.log(fmt.join('\n'), ...args);
+        } catch (_) {
+            console.log(L.join('\n'));   // 美化失败原样输出,数据永远可读
+        }
     };
 
     // ============================================================
@@ -1363,7 +1414,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.13 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.14 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1392,7 +1443,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.13';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.14';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1567,7 +1618,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.13 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.14 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
