@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.17
+// @version      1.2.18
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/18 09:49:50
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17)
+// @x-release-date 2026/8/2 10:06:40
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.17                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.18                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.17 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.18 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.17';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.18';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.17 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.18 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -11731,6 +11731,9 @@
                 try {
                     const { sc, cards } = _findScroller();
                     if (!sc) return;
+                    // 🔻SYNC→内部版[1.2.18 扫掠可见性] 用户反馈:列表突然自己滚动,不明真相会以为电脑被黑。
+                    //   扫掠前后各打一条控制台说明(仅日志,不碰游戏UI),让用户翻控制台就能看懂。
+                    log('%c🖱️ [保活/扫掠] 脚本正在自动滚动 kami 列表(防浏览器降速),约20秒 —— 这是脚本行为,不是电脑被入侵;你动一下鼠标它立即停止并还原;永久关闭: setKeepAlive(\'off\')', 'color:#42a5f5');
                     _safeClick(cards);
                     const origin = sc.scrollTop;
                     const maxTop = () => sc.scrollHeight - sc.clientHeight;
@@ -11739,7 +11742,7 @@
                         sc.scrollTop = Math.min(sc.scrollTop + rnd(250, 420), maxTop());
                         await pause(rnd(300, 700));
                         if (Math.random() < 0.12) await pause(1500);
-                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; return; }   // 扫掠中真人来了→立即还原让路
+                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; log('%c🙋 [保活/扫掠] 检测到你在操作,已立即停止滚动并还原位置', 'color:#ffa726'); return; }   // 扫掠中真人来了→立即还原让路
                     }
                     await pause(rnd(800, 1500));
                     guard = 0;
@@ -11747,10 +11750,11 @@
                         sc.scrollTop = Math.max(sc.scrollTop - rnd(250, 420), 0);
                         await pause(rnd(300, 700));
                         if (Math.random() < 0.12) await pause(1500);
-                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; return; }
+                        if (_humanActive()) { sc.scrollTop = origin; __statYield++; log('%c🙋 [保活/扫掠] 检测到你在操作,已立即停止滚动并还原位置', 'color:#ffa726'); return; }
                     }
                     sc.scrollTop = origin;
                     __statSweep++;
+                    log('%c✅ [保活/扫掠] 自动滚动结束,列表已回到原位', 'color:#66bb6a');
                 } catch (e) {} finally { __sweepRunning = false; }
             }
             function _tickMove() {
@@ -11778,6 +11782,7 @@
             setTimeout(_tickMove, 45000);
             setTimeout(_tickSweep, 90000);
             log(`🖱️ [保活] 人化活动模拟已启动（75s合成mousemove + 5min人化全程扫掠；真人操作3分钟内自动让路；关闭: setKeepAlive('off')）`);
+            log(`   ℹ️ 说明：每约5分钟脚本会自动滚动一次 kami 列表(约20秒)——这是防浏览器对无操作页面降速的保活行为，不是异常；届时控制台会有蓝色提示行`);
         } catch (e) {}
     })();
 
