@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.18
+// @version      1.2.19
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/2 10:06:40
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18)
+// @x-release-date 2026/8/9 10:35:45
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.18                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.19                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.18 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.19 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.18';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.19';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.18 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.19 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -11375,6 +11375,8 @@
     // ▍相关控制台命令：
     //   saveKamiLogs() — 手动立即导出当前全部日志到下载文件夹
     // ============================================================
+    let __lastLogSaveAt = 0;   // 🔻SYNC[1.2.19] 上次保存日志的时刻(内存变量,新会话归零),卸载钩子据此去重
+
     /**
      * 保存日志到本地文件
      */
@@ -11420,10 +11422,44 @@
         URL.revokeObjectURL(url);
 
         log(`%c📁 [日志保存] 已保存 ${logs.length} 条日志到: 下载文件夹/${filename}`, 'color: #00ff00; font-weight: bold;');
+        __lastLogSaveAt = Date.now();   // 🔻SYNC[1.2.19] 记录保存时刻,供卸载钩子去重
     }
 
     // 暴露手动保存命令
     window.saveKamiLogs = saveLogsBeforeReload;
+
+    // ============================================================
+    // 🔻SYNC→内部版[1.2.19 刷新即存日志] 【板块：卸载前抢救日志（手动刷新/关标签页也保存）】
+    // ------------------------------------------------------------
+    // ▍动因：此前只有脚本自己的两条刷新路径(smartReload / performScheduledReload)会调
+    //   saveLogsBeforeReload()。用户手动 F5、关标签页、浏览器崩溃 → 上次自动保存至今的
+    //   日志全部丢失(最长可丢 45 分钟)。参考 plonkie 脚本的 pagehide/beforeunload 打法。
+    // ▍去重：与自动保存互斥——30 秒内已保存过则跳过(自动刷新路径是"先保存、1.5秒后 reload",
+    //   不去重会产生两份重复文件)。__lastLogSaveAt 是内存变量,新会话自动归零,
+    //   所以连续手动刷新每次都会各存一份(不会被上个会话的时间戳挡住)。
+    // ▍幂等：重复注入脚本时先摘旧监听再挂新的,防止一次刷新触发多次下载。
+    // ▍⚠️ 已知限制：浏览器可能拦截卸载期间的下载(后台标签页尤其常见),这是尽力而为的
+    //   兜底,不是保证。脚本自己的定时刷新路径仍然是最可靠的那条(它是先保存后刷新)。
+    // ▍相关：Chrome 首次会问"允许下载多个文件",需允许一次。
+    // ============================================================
+    (function initUnloadLogSave() {
+        try {
+            const MIN_GAP_MS = 30000;   // 与自动保存的去重窗口
+            if (window.__kamiUnloadSave) {   // 幂等:摘旧监听
+                try { window.removeEventListener('pagehide', window.__kamiUnloadSave); } catch (_) {}
+                try { window.removeEventListener('beforeunload', window.__kamiUnloadSave); } catch (_) {}
+            }
+            window.__kamiUnloadSave = () => {
+                try {
+                    if (Date.now() - __lastLogSaveAt < MIN_GAP_MS) return;   // 刚存过(自动刷新路径),不重复
+                    saveLogsBeforeReload();
+                } catch (_) {}
+            };
+            window.addEventListener('pagehide', window.__kamiUnloadSave);
+            window.addEventListener('beforeunload', window.__kamiUnloadSave);
+            log('💾 [日志保存] 卸载钩子已挂：手动刷新 / 关标签页也会自动保存日志（与定时刷新的保存互斥，30 秒内不重复）');
+        } catch (_) {}
+    })();
 
     // ============================================================
     // 【板块：控制台命令统一打"手动调用"标记】
