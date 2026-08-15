@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.5
+// @version      1.2.6
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/15 09:21:48
+// @x-release-date 2026/8/15 09:27:07
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.5                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.6                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.5 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.6 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -2280,7 +2280,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.5 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.6 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -2907,6 +2907,7 @@
   // ▍可调参数：
   //   - HELPER_REVIVE_RIBBON = 11001 — 复活丝带的物品 ID；
   //   - HELPER_REVIVE_COOLDOWN_MS = 15 分钟 — 同一 kami 防重发窗口，
+  const HELPER_REVIVE_MAX_PER_ROUND = 30;   // 🔻SYNC[1.2.6] 单轮复活上限：与核心 REVIVE_MAX_PER_ROUND 同值，防独占TX锁
   //     必须与核心脚本保持一致，否则三路防重发互认失效；
   //   - 45000（45 秒）— 单笔复活 tx 的确认超时上限；
   //   - 1200（1.2 秒）— 相邻两笔复活 tx 的发送间隔；
@@ -2946,8 +2947,18 @@
       if (!kid) continue;
       if (now - (window.__reviveSentAt.get(kid) || 0) <= HELPER_REVIVE_COOLDOWN_MS) continue;
       todo.push({ index: k.index, kamiId: kid });
-      // 待复活名单按丝带库存截断：丝带不够时只救排前面的
-      if (todo.length >= ribbons) break;
+      // 待复活名单截断：丝带库存 与 单轮上限 取小者（🔻SYNC[1.2.6 复活单轮限流]）
+      if (todo.length >= Math.min(ribbons, HELPER_REVIVE_MAX_PER_ROUND)) break;
+    }
+    // 🔻SYNC→内部版[1.2.6 复活单轮限流]：同核心 1.2.21——一次性复活几百只会独占 TX 锁十几分钟，
+    //   期间喂食/停采/部署全部排队（0815 实盘 1105 只死亡雪崩教训）。分轮跑，剩余下轮自动继续。
+    if (dead.length > todo.length && todo.length >= HELPER_REVIVE_MAX_PER_ROUND) {
+      const __left = dead.length - todo.length;
+      log(`%c🧯 [辅助复活/单轮限流] 死亡 ${dead.length} 只 → 本轮先救 ${todo.length} 只（单轮上限 ${HELPER_REVIVE_MAX_PER_ROUND}）`,
+          'color: #42a5f5; font-weight: bold;');
+      log(`   为什么限流：一次性复活会独占 TX 锁十几分钟，期间喂食/停采/部署全被卡住，反而害死更多 kami`);
+      log(`%c   剩余约 ${__left} 只：核心脚本的死亡监控（约 3 分钟一轮）会自动接手继续复活，丝带不浪费、不重复发 tx，无需人工干预`,
+          'color: #66bb6a;');
     }
     if (todo.length === 0) { log(`🩺 [辅助复活] ${dead.length} 只死亡均在 15 分钟复活冷却内（其他触发路径已处理），不重发`); return true; }
 

@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.20
+// @version      1.2.21
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/15 09:21:48
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20)
+// @x-release-date 2026/8/15 09:27:07
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.20                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.21                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.20 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.21 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.20';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.21';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.20 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.21 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -10089,6 +10089,7 @@
     //   - REVIVE_RIBBON_ID = 11001 — 复活丝带 Red Ribbon Gummy 的物品 ID，
     //     链上物品表固定值，勿改；
     //   - REVIVE_RETRY_COOLDOWN_MS = 15*60*1000 — 同一 kami 的复活重发冷却。
+    const REVIVE_MAX_PER_ROUND = 30;   // 🔻SYNC[1.2.21] 单轮复活上限：防批量复活长时间独占TX锁阻塞喂食/停采/部署（0815雪崩教训）；剩余下轮自动继续
     //     调小：慢链下可能对同一只重复发 tx、多耗丝带；调大：tx 意外丢失时
     //     要等更久才补发；
     //   - 45000 — tx.wait 确认超时(ms)。调小：慢链下"确认超时"误报增多；
@@ -10149,9 +10150,24 @@
                 'color: red; font-weight: bold; font-size: 14px;');
             return;
         }
-        const todo = fresh.slice(0, ribbons);   // 丝带不足时截断：只复活名单前 N 只（N = 丝带余额）
-        if (todo.length < fresh.length) {
-            log(`%c⚠️ [复活] 丝带仅 ${ribbons} 个 < 死亡 ${fresh.length} 只，本轮先复活前 ${todo.length} 只，请补货`, 'color: orange; font-weight: bold;');
+        const byRibbon = fresh.slice(0, ribbons);   // 丝带不足时截断：只复活名单前 N 只（N = 丝带余额）
+        if (byRibbon.length < fresh.length) {
+            log(`%c⚠️ [复活] 丝带仅 ${ribbons} 个 < 死亡 ${fresh.length} 只，本轮先复活前 ${byRibbon.length} 只，请补货`, 'color: orange; font-weight: bold;');
+        }
+        // 🔻SYNC→内部版[1.2.21 复活单轮限流]：单轮复活上限，防长时间独占 TX 锁。
+        //   动因(0815 实盘 1105 只死亡雪崩)：一次批量复活 215 只 = 215 笔 tx ≈ 10~18 分钟，
+        //   期间普通锁被独占，喂食/部署/普通停采/拾荒全部排队(实测普通锁被超时强制释放)，
+        //   反而制造新的死亡。分轮跑：每轮锁占用降到约 1.5 分钟，其余模块能正常穿插。
+        //   剩余的由下一轮死亡监控(约3分钟)自动继续，15 分钟防重发冷却保证不会重复发 tx。
+        const todo = byRibbon.slice(0, REVIVE_MAX_PER_ROUND);
+        if (todo.length < byRibbon.length) {
+            const __left = byRibbon.length - todo.length;
+            const __rounds = Math.ceil(byRibbon.length / REVIVE_MAX_PER_ROUND);
+            log(`%c🧯 [复活/单轮限流] 待复活 ${byRibbon.length} 只 → 本轮先救 ${todo.length} 只（单轮上限 ${REVIVE_MAX_PER_ROUND}）`,
+                'color: #42a5f5; font-weight: bold;');
+            log(`   为什么限流：一次性复活几百只会独占 TX 锁十几分钟，期间喂食/停采/部署全被卡住，反而害死更多 kami（0815 实盘教训）`);
+            log(`%c   剩余 ${__left} 只：下一轮死亡扫描（约 3 分钟后）自动继续，预计 ${__rounds} 轮全部救回；丝带不会浪费，也不会重复发 tx，无需人工干预`,
+                'color: #66bb6a;');
         }
 
         if (hasEmergencyLock()) { log(`[TX锁] ⏸️ 紧急锁存在，本轮跳过复活（下轮再试）`); return; }
