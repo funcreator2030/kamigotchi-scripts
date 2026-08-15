@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/17 23:40:21
+// @x-release-date 2026/8/15 09:21:48
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.4                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.5                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.4 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.5 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.4';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -2280,7 +2280,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.4 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.5 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -2963,7 +2963,16 @@
     try {
       log(`%c💀 [辅助复活] 启动窗口批量复活 ${todo.length} 只：${todo.map(t => '#' + t.index).join(', ')}（丝带库存 ${ribbons}）`,
           'color: red; font-weight: bold;');
+      let __hRevDone = 0;   // 🔻SYNC[1.2.5 复活让路紧急停采] 已发出数,让路日志用
       for (const t of todo) {
+        // 🔻SYNC→内部版[1.2.5 复活让路紧急停采]：每笔前查紧急锁,杀手来袭立即中断让路。
+        //   同核心 1.2.20:旧码只在循环开始前查一次,215 只的批量复活会把紧急停采干等 353 秒
+        //   (0815 实盘 1105 只死亡雪崩根因)。剩余的下轮自动复活,15 分钟防重发冷却保证不重复。
+        if (window.hasEmergencyLock?.()) {
+          log(`%c⏸️ [辅助复活] 检测到紧急停采(杀手来袭),立即让路——本轮已复活 ${__hRevDone} 只,剩余 ${todo.length - __hRevDone} 只延后到下一轮自动复活(丝带不会浪费)`,
+              'color: #ffa726; font-weight: bold;');
+          break;
+        }
         // 🔬🔻SYNC→内部版[1.1.17 升级/复活冷却观察日志]：复活tx前尽量读取 harvest.time.last 记
         // 观察日志（本地ECS只读查询，不消耗gas）；读取失败（网络异常等）不影响复活流程，
         // 仅跳过该条观察日志，绝不影响下方复活tx的发送/等待/防重发逻辑。
@@ -2978,6 +2987,7 @@
 
         try {
           window.__reviveSentAt.set(t.kamiId, Date.now());   // 发送前登记：三路触发互不重发
+          __hRevDone++;   // 🔻SYNC[1.2.5] 计入已处理,让路日志用
           const tx = await net.api.player.pet.item.use(t.kamiId, HELPER_REVIVE_RIBBON);
           try { if (typeof window.__kamiGasRecord === 'function') window.__kamiGasRecord('revive', [t.kamiId], tx); } catch (_) {}   // 🔻SYNC→内部版[1.2.4 gas挂钩]
           let __reviveResultTag = '已发出（无wait，成败未知）';
