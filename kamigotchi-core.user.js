@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.22
+// @version      1.2.23
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/25 19:56:17
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22)
+// @x-release-date 2026/8/25 20:17:57
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥+首试限流1.2.23)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.22                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.23                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.22 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.23 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.22';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.23';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.22 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.23 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -2936,6 +2936,9 @@
     // 🔻SYNC[1.2.22 卡链先试一次] 判定卡链后的"尝试喂食"重试冷却:同一 kami 6 小时内只试一次,
     //   避免对真卡死的 kami 每轮反复烧食物与 gas;跨刷新用 window 级 Map(会话内有效,刷新后重来一次可接受)
     const STUCK_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+    // 🔻SYNC[1.2.23] 每轮「卡链首试」上限:0825 实盘 232 只待试 × 每笔 mempool 卡 60s = 一轮 4 小时,
+    //   期间占锁阻塞其他功能。分轮跑,其余下轮继续(已饿 24h+ 的多等一轮零额外损失)。
+    const STUCK_FIRST_TRY_MAX_PER_ROUND = 20;
     window.__stuck24hTried = window.__stuck24hTried || new Map();   // kamiId -> 上次尝试喂食的时刻
     // 保护2: 兜底 — 喂过还是STARVING的kami，累计次数达阈值则跳过
     const __starvingFedRecord = new Map();       // kamiId -> { count, lastFeedTime }
@@ -2955,6 +2958,22 @@
      */
     async function _starvingFeedKamis(kamiList, logPrefix) {
         if (!kamiList.length) return 0;
+        // 🔻SYNC→内部版[1.2.23 救援互斥]：普通停采与紧急停采两条路径会各自调用本函数处理**同一份**
+        //   STARVING 名单。0825 实盘:两路并发跑,#8460/#9755/#10604 各被重复喂食一次(白烧食物+gas),
+        //   而且两路同时发 tx 加剧 mempool 拥堵。根因=两路的 Step2 富化都在任何一笔喂食落地【之前】
+        //   完成,各自看到的 __starvingFedRecord 都是空的(TOCTOU)。修法:整函数级互斥,先到先做,
+        //   后到的直接返回(名单相同,先到者已在处理,重复跑纯浪费)。
+        if (window.__starvingFeedRunning) {
+            log(`⏸️ [${logPrefix}] 另一条救援路径正在喂食同一批 STARVING（先到先做），本轮跳过重复处理`);
+            return 0;
+        }
+        window.__starvingFeedRunning = true;
+        try {
+        return await _starvingFeedKamisInner(kamiList, logPrefix);
+        } finally { window.__starvingFeedRunning = false; }
+    }
+
+    async function _starvingFeedKamisInner(kamiList, logPrefix) {
 
         // 【Step 1】单次库存查询：一次取回账户全部道具余额，避免逐只 kami 重复查询
         const addr = window.network?.network?.connectedAddress?.value_;
@@ -2994,6 +3013,11 @@
 
         const foodSummary = available.map(f => `${f.name}(+${f.hp})×${balMap.get(f.index)}`).join(', ');
         log(`🍔 [${logPrefix}] 可用食物: ${foodSummary}`);
+
+        // SYNC[1.2.23 卡链首试单轮上限] 本轮「卡链首试」名额(每轮最多试这么多只,其余下轮继续)
+
+        let __stuckTryQuota = STUCK_FIRST_TRY_MAX_PER_ROUND;
+
 
         // 【Step 2】并发预查每个 kami：kamiId / harvest.time.last 24h 卡链 / S2纯观测dump / 停采预检
         // CONC 路 worker 共享 nextI 指针"抢号"处理，结果按原顺序写入 enriched
@@ -3048,6 +3072,16 @@
                                     enriched[i] = out;
                                     continue;
                                 }
+                                // 🔻SYNC→内部版[1.2.23 卡链首试单轮上限]：0825 实盘——232 只待首试,
+                                //   每笔 tx 卡 mempool 60 秒超时,一轮要跑 4 小时,期间锁被占、其他功能全排队。
+                                //   限流:每轮最多试 STUCK_FIRST_TRY_MAX_PER_ROUND 只,其余下轮继续
+                                //   (它们本来就已经饿着 24 小时以上,多等一轮零额外损失)。
+                                if (__stuckTryQuota <= 0) {
+                                    out.skipReason = `stuck24hQueued`;   // 本轮名额用完,排队等下轮
+                                    enriched[i] = out;
+                                    continue;
+                                }
+                                __stuckTryQuota--;
                                 out.stuck24hTrying = true;   // 本轮先试一次(不跳过,继续走下面的喂食流程)
                             }
                         }
@@ -3108,6 +3142,7 @@
 
         // 【Step 3】按顺序 fire-and-forget 喂食
         let fedCount = 0;
+        let __queuedCount = 0;   // SYNC[1.2.23] 因单轮上限排队等下轮的数量
         let skippedCount = 0;
         let skippedCooldown = 0;  // 【v1.1.11 冷却公式预筛】冷却期跳过计数，单独统计不计入失败
         for (let idx = 0; idx < enriched.length; idx++) {
@@ -3117,6 +3152,8 @@
                 if (info.stopOk) {
                     skippedCount++;
                     log(`ℹ️ [${logPrefix}] #${kami.dbIndex} 停采预检通过（实时HP>0），无需喂食`);
+                } else if (info.skipReason === 'stuck24hQueued') {
+                    __queuedCount++;   // 汇总打印,不逐只刷屏
                 } else if (info.skipReason === 'stuck24h') {
                     // 🔻SYNC[1.2.22] 走到这里说明"6小时内已经试喂过一次但仍饿着" → 才判定真卡链
                     log(`%c⛔ [${logPrefix}] #${kami.dbIndex} 链上最后tx ${info.stuckTimeLastStr}（${info.stuckHours}小时前）；已尝试喂食但仍为 0 血，判定卡链上，本轮跳过。请手动处理（6小时后脚本会再自动试一次）`,
@@ -3176,6 +3213,16 @@
                 break;
             }
 
+            // 🔻SYNC[1.2.23 发tx前实时复查]：Step2 富化到此刻可能已过去几分钟，期间本 kami 可能已被
+            //   别的路径/上一轮喂过。这里用**最新**的 __starvingFedRecord 再查一次（Step2 那次是快照）。
+            {
+                const __rec = __starvingFedRecord.get(info.kamiId);
+                if (__rec && (Date.now() - __rec.lastFeedTime) < STARVING_STUCK_COOLDOWN_MS) {
+                    log(`⏭️ [${logPrefix}] #${kami.dbIndex} 刚刚已被喂过（${Math.round((Date.now() - __rec.lastFeedTime) / 1000)}秒前），跳过重复喂食`);
+                    continue;
+                }
+            }
+
             // 🔻SYNC[1.2.22 卡链先试一次]：登记尝试时刻 + 明确告知用户"这是抢救性尝试"
             if (info.stuck24hTrying) {
                 try { window.__stuck24hTried.set(info.kamiId, Date.now()); } catch (_) {}
@@ -3224,6 +3271,12 @@
 
         // 【v1.1.11 冷却公式预筛】汇总里补一段冷却跳过统计，方便和 API 验证跳过区分开复盘
         const cooldownPart = skippedCooldown > 0 ? `，冷却预筛跳过${skippedCooldown}个（下轮重试）` : '';
+        // SYNC[1.2.23] 因单轮上限排队的,汇总成一行人话,不逐只刷屏
+        if (__queuedCount > 0) {
+            log(`%c🧯 [${logPrefix}] 另有 ${__queuedCount} 只疑似卡链的 STARVING 排队等下一轮抢救（本轮首试名额 ${STUCK_FIRST_TRY_MAX_PER_ROUND} 已用完）`,
+                'color: #42a5f5;');
+            log(`   为什么分轮：卡链的 kami 每笔喂食 tx 可能卡 mempool 60 秒，一轮全试会占锁数小时、把停采/部署/复活全堵住；它们已饿 24 小时以上，多等一轮无额外损失`);
+        }
         if (skippedCount > 0) {
             log(`📊 [${logPrefix}] 汇总：${kamiList.length}个候选 → fire-and-forget发送${fedCount}个，API验证HP>0跳过${skippedCount}个${cooldownPart}`);
         } else {
