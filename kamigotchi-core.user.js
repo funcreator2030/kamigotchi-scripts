@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.27
+// @version      1.2.28
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/25 21:28:06
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食+喂后复查1.2.27)
+// @x-release-date 2026/8/25 21:59:45
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析+nonce防空洞1.2.28)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.27                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.28                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -948,6 +948,7 @@
         { sel: '0x68f37c94', c: '0x0777687ec9feb7349c23a19ba7d11a1fe8cd35f1', label: '部署' },
         { sel: '0xb0fa4458', c: '0x1ca193e7b9a698c1a9b7fd48e9c5948514293c72', label: '停采' },
         { sel: '0xe60f3a76', c: '0x0198d6090cf2325b958f266d70a836637bf9046f', label: '道具使用(喂食/复活/XP)' },
+        { sel: '0xe60f3a76', c: '0x56fd9d735c400acd47fe2d0bfb4c12642c780f79', label: '道具使用(喂食/复活/XP)' },   // 🔻SYNC[1.2.28] 0825发现patch后新址
         { sel: '0x3e991df3', c: '0x66895964d938a98ef336811b0aaac1af437ae40e', label: '升级(等级)' },
         { sel: '0xe60f3a76', c: '0x3201f72d1e2a993aee04f5d013bab89fa744ca48', label: '加点(技能)' },
         { sel: '0x3e991df3', c: '0xd2d740df8a', label: '拾荒(重掷)' },   // 前缀匹配,0717 04:35 日志对时认领
@@ -1424,7 +1425,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.27 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.28 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1454,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.27';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.28';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1629,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.27 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.28 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -3179,7 +3180,11 @@
         //   为什么敢 raw(0710双通道nonce分叉旧伤):救援全程持**紧急锁**,其余tx模块让路,
         //   通道独占;nonce起点取pending口径,已含队列在飞tx。calldata手拼(选择器0xe60f3a76+
         //   kamiId+itemIndex,布局经链上真tx逐字节验证),不走ABI(避开encodeFunctionData签名歧义旧坑)。
-        const FEED_RAW_CONTRACT = '0x0198d6090cf2325b958f266d70a836637bf9046f';   // system.kami.use.item
+        // 🔻SYNC→内部版[1.2.28 地址运行时解析] ⚠️0825血训:游戏patch会**重新部署系统合约**——
+        //   0713探针的旧地址 0x0198d609… 已成僵尸(写权限注销,谁调都revert,157笔全灭);
+        //   手动UI喂食成功的打的是新地址 0x56fd9d73…。**铁律:严禁硬编码系统合约地址,
+        //   唯一安全源=运行时 txQueue.systems[key].target(停采raw一直没炸正是因为用它)**。
+        const FEED_RAW_SELECTOR_ONLY = true;   // 地址不再硬编码,见下方 __feedTarget 运行时解析
         const FEED_RAW_SELECTOR = '0xe60f3a76';                                   // executeTyped(uint256,uint32)
         const __pad32 = (v) => BigInt(v).toString(16).padStart(64, '0');
         const __feedChan = (() => { try { return localStorage.getItem('kami_starving_feed_channel') || 'raw'; } catch (_) { return 'raw'; } })();
@@ -3193,8 +3198,15 @@
             try {
                 const __addr = await __rawSigner.getAddress();
                 __rawNonce = await __rawSigner.provider.getTransactionCount(__addr, 'pending');
+                // 🔻SYNC[1.2.28] 运行时解析当前 use.item 系统合约地址(patch后地址会变,硬编码必腐烂)
+                const __feedSys = (window.network?.txQueue?.systems || window.network?.network?.txQueue?.systems || {})['system.kami.use.item'];
+                var __feedTarget = __feedSys?.target || null;
+                if (!__feedTarget) {
+                    __rawMode = false;
+                    log(`⚠️ [${logPrefix}] 无法运行时解析 use.item 合约地址(txQueue.systems 不可用),本轮回退MUD队列(绝不打硬编码地址)`);
+                }
                 if (!hasEmergencyLock()) { setEmergencyLock(); __weSetEmergency = true; }
-                log(`%c🚀 [${logPrefix}] raw直发模式:绕开MUD队列串行(旧:每笔≤60s等待),显式nonce起点=${__rawNonce},救援持紧急锁独占tx通道;回退命令: setStarvingFeedChannel('queue')`,
+                log(`%c🚀 [${logPrefix}] raw直发模式:合约=${__feedTarget}(运行时解析),nonce起点=${__rawNonce},救援持紧急锁独占tx通道;回退命令: setStarvingFeedChannel('queue')`,
                     'color: #42a5f5; font-weight: bold;');
             } catch (e) {
                 __rawMode = false;
@@ -3276,9 +3288,10 @@
                 let __feedTx;
                 if (__rawMode && !isPaeonSpell) {
                     // raw直发:手拼calldata+显式nonce,submit即返回(不等确认),真正连发
-                    const __n = __rawNonce++;
+                    const __n = __rawNonce;
                     const __data = FEED_RAW_SELECTOR + __pad32(info.kamiId) + __pad32(chosen.index);
-                    __feedTx = await __rawSigner.sendTransaction({ to: FEED_RAW_CONTRACT, data: __data, nonce: __n, gasLimit: 2000000 });   // 实测单笔喂食≈1.2M gas(0.003mETH÷2.5e6wei),2M留裕量防out-of-gas
+                    __feedTx = await __rawSigner.sendTransaction({ to: __feedTarget, data: __data, nonce: __n, gasLimit: 2000000 });
+                    __rawNonce++;   // 🔻SYNC[1.2.28] 发送**成功后**才消耗nonce——失败不烧号,杜绝空洞(0825实锤:168482空洞卡死后续101笔)
                     __rawSent++;
                     log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [raw#${__rawSent} nonce=${__n}] tx=${(__feedTx?.hash || '').slice(0, 10)}…`);
                 } else {
@@ -3307,7 +3320,15 @@
                 if (__rawMode) { await delay(__rawSent % 10 === 0 ? 1200 : 150); }
                 else { await delay(300); }
             } catch (e) {
-                log(`❌ [${logPrefix}] #${kami.dbIndex} 喂食tx发送失败: ${e?.message || e}`);
+                log(`❌ [${logPrefix}] #${kami.dbIndex} 喂食tx发送失败: ${(e?.message || e + '').toString().slice(0, 160)}`);
+                // 🔻SYNC[1.2.28] raw发送失败(池满/nonce错位等)→与链上重新对账nonce,防空洞/防重号
+                if (__rawMode) {
+                    try {
+                        const __ra = await __rawSigner.getAddress();
+                        __rawNonce = await __rawSigner.provider.getTransactionCount(__ra, 'pending');
+                        await delay(2000);   // 池满时稍等再继续
+                    } catch (_) {}
+                }
             }
         }
 
