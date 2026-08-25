@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.24
+// @version      1.2.25
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/25 20:38:00
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速·全量预分配1.2.24)
+// @x-release-date 2026/8/25 20:55:17
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.24                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.25                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.24 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.25 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.24';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.25';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.24 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.25 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -3122,6 +3122,49 @@
         }
         // 启动 CONC 个 worker 并等待全部预查完成
         await Promise.all(Array.from({ length: CONC }, workerLoop));
+
+        // 【Step 2.5】🔻SYNC→内部版[1.2.25 全量预分配·补齐]（1.2.24 编辑事故:此块未落盘,
+        //   致 plannedFood 全空、151只被静默跳过、发送0——本版补齐并加防复发响guard）
+        //   发第一笔 tx 前用本地数据(kami_core_db.maxhp + Step1库存)给全部待喂算好"谁吃什么",
+        //   当场报告食物够不够。零链上调用。规则同1.2.22:不浪费前提下加血最多;边分边扣库存。
+        const __stockWork = new Map(balMap);
+        const __foodDesc = [...STARVING_FOOD_LIST].sort((a, b) => b.hp - a.hp);
+        let __planned = 0, __noFood = 0, __cand = 0;
+        const __planByFood = new Map();
+        for (const info of enriched) {
+            if (!info || info.skipReason) continue;
+            __cand++;
+            let __gap = null;
+            try {
+                const rec = (window.kami_core_db || []).find(r => Number(r.index) === Number(info.kami.dbIndex));
+                const mx = Number(rec?.maxhp);
+                if (mx > 0) __gap = mx;   // STARVING = 0 血,缺口即满血值
+            } catch (_) {}
+            let food = null;
+            if (__gap != null) {
+                for (const f of __foodDesc) { if (f.hp <= __gap && (__stockWork.get(f.index) || 0) > 0) { food = f; break; } }
+                if (!food) { for (let j = __foodDesc.length - 1; j >= 0; j--) { const f = __foodDesc[j]; if ((__stockWork.get(f.index) || 0) > 0) { food = f; break; } } }
+            } else {
+                for (const f of __foodDesc) { if ((__stockWork.get(f.index) || 0) > 0) { food = f; break; } }
+            }
+            if (!food) { __noFood++; continue; }
+            __stockWork.set(food.index, (__stockWork.get(food.index) || 0) - 1);
+            info.plannedFood = food;
+            __planned++;
+            __planByFood.set(food.name, (__planByFood.get(food.name) || 0) + 1);
+        }
+        if (__planned > 0) {
+            const planStr = [...__planByFood.entries()].map(([n, c]) => `${n}×${c}`).join(', ');
+            log(`%c📋 [${logPrefix}] 食物分配完成：${__planned} 只可喂（${planStr}）`, 'color: #42a5f5; font-weight: bold;');
+            if (__noFood > 0) {
+                log(`%c⚠️ [${logPrefix}] 食物不足！另有 ${__noFood} 只没分到食物，请尽快补货（Mina 商店）`, 'color: red; font-weight: bold;');
+            } else {
+                log(`   ✅ 食物充足，全部可喂；接下来连续发送 tx（0 血 kami 停不了采也躲不了杀手，喂食是唯一救法，不等下一轮）`);
+            }
+        } else if (__cand > 0) {
+            // 🚨 防复发 guard：有候选却一只都没分到——要么食物真空了,要么逻辑又坏了,决不静默
+            log(`%c🚨 [${logPrefix}] 异常：${__cand} 只待喂但 0 只分到食物（无食物:${__noFood}）——若食物有库存仍见此条,请把日志发给维护者`, 'color: red; font-weight: bold; font-size: 14px;');
+        }
 
         // 【Step 3】按顺序 fire-and-forget 喂食
         let fedCount = 0;
