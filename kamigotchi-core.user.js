@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.26
+// @version      1.2.27
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/25 21:05:35
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26)
+// @x-release-date 2026/8/25 21:28:06
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食+喂后复查1.2.27)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.26                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.27                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1424,7 +1424,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.26 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.27 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1453,7 +1453,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.26';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.27';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1628,7 +1628,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.26 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.27 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -2936,6 +2936,12 @@
     // 🔻SYNC[1.2.22 卡链先试一次] 判定卡链后的"尝试喂食"重试冷却:同一 kami 6 小时内只试一次,
     //   避免对真卡死的 kami 每轮反复烧食物与 gas;跨刷新用 window 级 Map(会话内有效,刷新后重来一次可接受)
     const STUCK_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+    // 🔻SYNC→内部版[1.2.27 raw并行喂食] 救援喂食通道:默认 raw(绕开MUD队列串行);可秒回退
+    window.setStarvingFeedChannel = function (v) {
+        if (v !== 'raw' && v !== 'queue') { console.log("用法: setStarvingFeedChannel('raw'|'queue') 当前=" + (localStorage.getItem('kami_starving_feed_channel') || 'raw')); return; }
+        try { localStorage.setItem('kami_starving_feed_channel', v); } catch (_) {}
+        console.log(`✅ 饿死救援喂食通道已切为 ${v}(下轮救援生效)`);
+    };
     window.__stuck24hTried = window.__stuck24hTried || new Map();   // kamiId -> 上次尝试喂食的时刻
     // 保护2: 兜底 — 喂过还是STARVING的kami，累计次数达阈值则跳过
     const __starvingFedRecord = new Map();       // kamiId -> { count, lastFeedTime }
@@ -3166,6 +3172,36 @@
             log(`%c🚨 [${logPrefix}] 异常：${__cand} 只待喂但 0 只分到食物（无食物:${__noFood}）——若食物有库存仍见此条,请把日志发给维护者`, 'color: red; font-weight: bold; font-size: 14px;');
         }
 
+        // 🔻SYNC→内部版[1.2.27 raw并行喂食+紧急级]（用户 0825 定案三件套:①批量分批连发喂食tx
+        //   ②发完复查,到停采线的当场停 ③救援升级为紧急级）。
+        //   为什么 raw:MUD 队列是串行的,每笔等前一笔确认或60s对账超时才放行(0825实测60~75s/笔,
+        //   133只≈2小时);raw 直发+显式递增nonce=停采批量同款打法,133笔≈1~2分钟。
+        //   为什么敢 raw(0710双通道nonce分叉旧伤):救援全程持**紧急锁**,其余tx模块让路,
+        //   通道独占;nonce起点取pending口径,已含队列在飞tx。calldata手拼(选择器0xe60f3a76+
+        //   kamiId+itemIndex,布局经链上真tx逐字节验证),不走ABI(避开encodeFunctionData签名歧义旧坑)。
+        const FEED_RAW_CONTRACT = '0x0198d6090cf2325b958f266d70a836637bf9046f';   // system.kami.use.item
+        const FEED_RAW_SELECTOR = '0xe60f3a76';                                   // executeTyped(uint256,uint32)
+        const __pad32 = (v) => BigInt(v).toString(16).padStart(64, '0');
+        const __feedChan = (() => { try { return localStorage.getItem('kami_starving_feed_channel') || 'raw'; } catch (_) { return 'raw'; } })();
+        const __rawSigner = window.network?.network?.signer;
+        let __rawMode = __feedChan === 'raw' && typeof __rawSigner?.sendTransaction === 'function'
+                        && typeof __rawSigner?.provider?.getTransactionCount === 'function';
+        let __rawNonce = null;
+        let __weSetEmergency = false;
+        let __rawSent = 0;
+        if (__rawMode) {
+            try {
+                const __addr = await __rawSigner.getAddress();
+                __rawNonce = await __rawSigner.provider.getTransactionCount(__addr, 'pending');
+                if (!hasEmergencyLock()) { setEmergencyLock(); __weSetEmergency = true; }
+                log(`%c🚀 [${logPrefix}] raw直发模式:绕开MUD队列串行(旧:每笔≤60s等待),显式nonce起点=${__rawNonce},救援持紧急锁独占tx通道;回退命令: setStarvingFeedChannel('queue')`,
+                    'color: #42a5f5; font-weight: bold;');
+            } catch (e) {
+                __rawMode = false;
+                log(`⚠️ [${logPrefix}] raw直发初始化失败(${e?.message || e}),本轮回退MUD队列逐笔发送`);
+            }
+        }
+
         // 【Step 3】按顺序 fire-and-forget 喂食
         let fedCount = 0;
         let skippedCount = 0;
@@ -3237,10 +3273,20 @@
                     continue;
                 }
 
-                log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [${apiName}] (fire-and-forget)`);
-                // fire-and-forget：await apiFn() 只等钱包分配 nonce 就发下一只，不等 tx.wait() 上链确认
-                const __feedTx = await apiFn(info.kamiId, chosen.index);   // 🔻SYNC[1.2.7 gas真值账本] 捕获 fire-and-forget 返回抓 hash（不改发送/时序/返回语义，原返回值本就丢弃）
-                _gasLedgerRecord('feed', [info.kamiId], __feedTx);
+                let __feedTx;
+                if (__rawMode && !isPaeonSpell) {
+                    // raw直发:手拼calldata+显式nonce,submit即返回(不等确认),真正连发
+                    const __n = __rawNonce++;
+                    const __data = FEED_RAW_SELECTOR + __pad32(info.kamiId) + __pad32(chosen.index);
+                    __feedTx = await __rawSigner.sendTransaction({ to: FEED_RAW_CONTRACT, data: __data, nonce: __n, gasLimit: 2000000 });   // 实测单笔喂食≈1.2M gas(0.003mETH÷2.5e6wei),2M留裕量防out-of-gas
+                    __rawSent++;
+                    log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [raw#${__rawSent} nonce=${__n}] tx=${(__feedTx?.hash || '').slice(0, 10)}…`);
+                } else {
+                    // Paeon法术卡走cast、或用户切回queue通道:保留MUD队列路径
+                    log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [${apiName}] (fire-and-forget)`);
+                    __feedTx = await apiFn(info.kamiId, chosen.index);
+                }
+                _gasLedgerRecord('feed', [info.kamiId], __feedTx);   // 🔻SYNC[1.2.7 gas真值账本]
 
                 fedCount++;
 
@@ -3257,12 +3303,48 @@
                 if (newBal <= 0) balMap.delete(chosen.index);
                 else balMap.set(chosen.index, newBal);
 
-                // 小间隔让 nonce 排队稳定
-                await delay(300);
+                // 🔻SYNC[1.2.27] 发送节奏:raw=150ms/笔+每10笔歇1.2s(批量分批);queue=300ms/笔
+                if (__rawMode) { await delay(__rawSent % 10 === 0 ? 1200 : 150); }
+                else { await delay(300); }
             } catch (e) {
                 log(`❌ [${logPrefix}] #${kami.dbIndex} 喂食tx发送失败: ${e?.message || e}`);
             }
         }
+
+        // 🔻SYNC→内部版[1.2.27 喂后复查·当场转停]（用户设计②）:等确认窗后读链上检查点HP
+        //   (喂食tx落地会把 stats.health.sync 刷新为真实HP,KB§18.12——此刻sync可信);
+        //   喂活且仍在停采线下的→翻isStarving+更新delta,紧随其后的停采批自然带走(复用全部现有停采机器);
+        //   喂活且血量健康的→delta>1,被下游过滤,继续采集;tx未落地的→保持只喂不停,下轮再救。
+        if (__rawMode && fedCount > 0) {
+            try {
+                const __postWaitMs = 20000;
+                log(`⏳ [${logPrefix}] 已连发 ${fedCount} 笔,等待 ${__postWaitMs / 1000}s 确认后复查血量...`);
+                await delay(__postWaitMs);
+                let __alive = 0, __toStop = 0, __still0 = 0;
+                for (const info of enriched) {
+                    if (!info || !info.plannedFood || info.skipReason) continue;
+                    try {
+                        const st = await window.network.explorer.kamis.getByIndex(info.kami.dbIndex, { stats: true });
+                        const hs = st?.stats?.health;
+                        const sync = Number(hs?.sync), total = Number(hs?.total);
+                        if (sync > 0 && total > 0) {
+                            __alive++;
+                            const pct = sync / total * 100;
+                            const thr = Number(info.kami.threshold);
+                            if (Number.isFinite(thr)) {
+                                info.kami.hpPercent = pct;
+                                info.kami.delta = pct - thr;
+                                info.kami.isStarving = false;   // 喂活:回归正常逻辑
+                                if (pct - thr <= 1) __toStop++;
+                            }
+                        } else { __still0++; }
+                    } catch (_) {}
+                }
+                log(`%c🩺 [${logPrefix}] 喂后复查:${__alive} 只已确认喂活(${__toStop} 只在停采线下,转入本轮停采),${__still0} 只确认未到账(继续只喂不停,下轮自动再救)`,
+                    'color: #66bb6a; font-weight: bold;');
+            } catch (e) { log(`⚠️ [${logPrefix}] 喂后复查异常(${e?.message || e}),不影响已发喂食;未复查的下轮扫描自然处理`); }
+        }
+        if (__weSetEmergency) { try { releaseEmergencyLock(); } catch (_) {} }
 
         // 【v1.1.11 冷却公式预筛】汇总里补一段冷却跳过统计，方便和 API 验证跳过区分开复盘
         const cooldownPart = skippedCooldown > 0 ? `，冷却预筛跳过${skippedCooldown}个（下轮重试）` : '';
@@ -4487,7 +4569,7 @@
             //   它们只走喂食救援:喂活(+150HP,约79%)后高于停采线,继续采集即健康状态,
             //   下轮扫描自然回归正常逻辑。此过滤同时化解1.2.23互斥的副作用
             //   (互斥跳过喂食时,调用方曾把"跳过"当"喂完"直接停采0血kami→16批必败tx)。
-            const __stopListNoStarv = validList.filter(x => !x.isStarving);
+            const __stopListNoStarv = validList.filter(x => !x.isStarving && !(typeof x.delta === 'number' && x.delta > 1));   // 🔻SYNC[1.2.27] 喂活转健康的也不停
             const __starvSkipN = validList.length - __stopListNoStarv.length;
             if (__starvSkipN > 0) {
                 log(`%c⏸️ [紧急停采] ${__starvSkipN} 只 STARVING 已交喂食救援，本轮不停采（0血停不了采；喂活后下轮按正常逻辑处理）`,
@@ -9687,7 +9769,7 @@
         //   影响面更大；退避重试上限 5 次
         // ============================================================
         // 🔻SYNC[1.2.26 STARVING只喂不停]：同紧急路径——0血停采必revert,API批只停非STARVING
-        const __apiNoStarv = apiList.filter(x => !x.isStarving);
+        const __apiNoStarv = apiList.filter(x => !x.isStarving && !(typeof x.delta === 'number' && x.delta > 1));   // 🔻SYNC[1.2.27] 喂活转健康的(delta>1)也不停
         if (apiList.length - __apiNoStarv.length > 0) {
             log(`%c⏸️ [批量停止] ${apiList.length - __apiNoStarv.length} 只 STARVING 已交喂食救援，本轮不停采（0血停不了采）`,
                 'color: #ffa726; font-weight: bold;');
