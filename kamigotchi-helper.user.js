@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.6
+// @version      1.2.7
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/15 09:27:07
+// @x-release-date 2026/9/8 16:01:43
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.6                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.7                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.6 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.7 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -837,6 +837,28 @@
     { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
     { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body
   ];
+  // 🔻SYNC→内部版[1.2.7 装备余量] 0826 用户实测:#12649 装备给了 +10% attack threshold(ratio)
+  //   与 +10% shift。**装备是可随时穿脱的临时加成**(合约 LibEquipment.assignTemporary +
+  //   ON_UNEQUIP_{SLOT} 清理),杀手完全可以"平时裸装、动手前穿满"——我们的扫描是时点快照,
+  //   很可能扫到裸装值。故防守侧必须按"对方随时可穿满装备"计算:对所有档案(扫描值与默认值)
+  //   统一加装备余量。ATR 默认已取满值 0.50(公式上限,装备无法再抬),故只需抬 ATS。
+  //   代价:清算线整体上移约 10pp → 停采更早、gas 略增;收益:堵住"装备杀"这条系统性漏判。
+  //   关掉:setPredatorEquipHeadroom(0)。
+  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.10;
+  function __equipHeadroom() {
+    try {
+      const v = localStorage.getItem('kami_predator_equip_headroom');
+      if (v !== null && isFinite(+v)) return Math.max(0, +v);
+    } catch (_) {}
+    return PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT;
+  }
+  window.setPredatorEquipHeadroom = function (v) {
+    if (!isFinite(+v) || +v < 0) { console.log(`用法: setPredatorEquipHeadroom(0.10) 当前=${__equipHeadroom()}(装备余量ATS,0=关闭)`); return; }
+    try { localStorage.setItem('kami_predator_equip_headroom', String(+v)); } catch (_) {}
+    try { __predSelCache = null; } catch (_) {}
+    console.log(`✅ 天敌装备余量已设为 ${+v}(下次清算线计算生效,可 refreshPreciseLT() 立即重算)`);
+  };
+
 
   // 标准正态 CDF（与上方旧公式同一 Abramowitz–Stegun 近似，抽出为共享工具）
   function __ltCdf(x) {
@@ -908,7 +930,17 @@
         if (list.length) result = { list: list.concat(TOP_PREDATORS_DEFAULT), source: '全网扫描+默认地板', at: data.at || 0, demoted, benchHarm: data.benchHarm };
       }
     } catch (e) {}
-    if (!result) result = { list: TOP_PREDATORS_DEFAULT, source: '内置默认', at: 0, demoted: [] };
+    if (!result) {
+      result = { list: TOP_PREDATORS_DEFAULT, source: '内置默认', at: 0, demoted: [] };
+      // 🔻SYNC[1.2.7] 回落内置默认=清算线可能系统性偏低,必须显眼(旧版只在健康看板小字提示,漏看数周)
+      try {
+        if (!window.__predFallbackWarned) {
+          window.__predFallbackWarned = true;
+          log(`%c⚠️ [清算线] 正在使用【内置默认】威胁档案(本地扫描档案缺失或为空)——对练级/带装备的新杀手可能低估。建议手动 scanTopPredators() 重扫`,
+              'color: red; font-weight: bold;');
+        }
+      } catch (_) {}
+    }
     __predSelCache = { at: Date.now(), result };
     return result;
   }
@@ -916,8 +948,11 @@
   function __worstLTOver(preds, harmony, bodyAffinity, ratio, shift, maxhp) {
     if (!(harmony > 0) || !(maxhp > 0)) return { LT: null, LTHP: null };
     const def = { harm: harmony, body: bodyAffinity, dtr: ratio ?? 0, dts: shift ?? 0 };
+    // 🔻SYNC[1.2.7 装备余量] 对每个档案的 ATS 加装备余量后再算(见 PREDATOR_EQUIP_HEADROOM 说明)
+    const __hr = __equipHeadroom();
     let worst = 0;
-    for (const p of preds) {
+    for (const p0 of preds) {
+      const p = __hr > 0 ? { ...p0, ats: (p0.ats || 0) + __hr } : p0;
       const lt = computePreciseLT(p, def);
       if (lt > worst) worst = lt;
     }
@@ -2280,7 +2315,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.6 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.7 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -3902,8 +3937,26 @@
         }
       }
 
+      // 🔻SYNC[1.2.7 空档案不落盘] 扫描结果四桶全空=本次扫描没成功(API异常/过滤过严),
+      //   此时【绝不】用空结果覆盖既有档案(否则把好档案冲掉,且新时间戳会骗过重扫判据)。
+      const __hasAny = ['EERIE', 'SCRAP', 'INSECT', 'NORMAL'].some(h => (buckets[h] || []).some(e => e && e.vio > 0));
       const data = { version: 1, at: Date.now(), scanned: done, skipped, buckets, sentinel, benchHarm: BENCH_HARM };
       try {
+        if (!__hasAny) {
+          log(`%c🚨 [杀手扫描] 本次扫描【零有效结果】(扫描${done}只全被过滤或API异常)——不写入档案(保留既有),清算线暂用内置默认`,
+              'color: red; font-weight: bold; font-size: 14px;');
+          // 🔻SYNC[1.2.7 零结果形状诊断] 游戏 patch 可能改动客户端数据形状(0825 已发生过合约地址换代),
+          //   届时 stats/bonuses 路径读空→全被过滤→空桶。零结果时 dump 一只的真实形状,一眼看出改了哪。
+          try {
+            const __probeIdx = (window.kami_core_db || [])[0]?.index;
+            if (__probeIdx != null) {
+              const __d = await ex.kamis.getByIndex(Number(__probeIdx), { stats: true, traits: true, bonus: true });
+              log(`🔬 [杀手扫描/形状诊断] 探针 #${__probeIdx}: 顶层keys=[${Object.keys(__d || {}).join(',')}]`);
+              log(`   stats.violence=${JSON.stringify(__d?.stats?.violence)} | bonuses.attack.threshold=${JSON.stringify(__d?.bonuses?.attack?.threshold)}`);
+              log(`   ⚠️ 若 violence.total 或 bonuses.attack.threshold 为 undefined,说明游戏改了数据形状,需更新扫描字段路径——请把这三行发给维护者`);
+            }
+          } catch (__e) { log(`🔬 [杀手扫描/形状诊断] 探针失败: ${__e?.message || __e}`); }
+        } else
         localStorage.setItem(TOP_PREDATORS_KEY, JSON.stringify(data));
       } catch (e) {
         log(`⚠️ [杀手扫描] localStorage 写入失败（结果本次会话仍生效）: ${e?.message || e}`);
@@ -4041,8 +4094,21 @@
         let stored = null;
         try { stored = JSON.parse(localStorage.getItem(TOP_PREDATORS_KEY) || 'null'); } catch (e) {}
         const age = stored?.at ? Date.now() - stored.at : Infinity;
-        if (!stored || age > TOP_PREDATORS_TTL_MS) {
-          log(`%c🗡️ [杀手扫描] ${!stored ? '首次运行、尚无威胁档案' : `档案已超 ${Math.round(TOP_PREDATORS_TTL_MS / 3600000)} 小时`}，自动全网扫描…`, 'color: red; font-weight: bold;');
+        // 🔻SYNC→内部版[1.2.7 空档案强制重扫] 0826血案根因:旧判据只看"档案存不存在/新不新",
+        //   不看"里面有没有货"。一次扫描写进空桶(buckets 全空)后,该档案"存在且新鲜"→6小时内
+        //   绝不重扫→全程回落内置默认→清算线系统性偏低→#12649带装备连杀。修法:加有效性判据。
+        const __usable = (() => {
+          try {
+            const b = stored?.buckets || {};
+            return ['EERIE', 'SCRAP', 'INSECT', 'NORMAL'].some(h => (b[h] || []).some(e => e && e.vio > 0));
+          } catch (_) { return false; }
+        })();
+        if (!stored || !__usable || age > TOP_PREDATORS_TTL_MS) {
+          if (stored && !__usable) {
+            log(`%c🚨 [杀手扫描] 本地威胁档案【无有效条目】(四桶全空)——清算线正在用内置默认,可能系统性偏低！立即强制重扫…`,
+                'color: red; font-weight: bold; font-size: 14px;');
+          }
+          log(`%c🗡️ [杀手扫描] ${!stored ? '首次运行、尚无威胁档案' : (!__usable ? '档案为空,强制重扫' : `档案已超 ${Math.round(TOP_PREDATORS_TTL_MS / 3600000)} 小时`)}，自动全网扫描…`, 'color: red; font-weight: bold;');
           await scanTopPredators();
         } else {
           refreshPreciseLT();
