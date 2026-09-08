@@ -832,9 +832,9 @@
   //   之上的"隐形死亡带"。NORMAL ats 按实测 0.38+0.02 前瞻垫提到 0.40;EERIE 按 #11224
   //   实测 0.30(+0.01 垫)提到 0.31。SCRAP/INSECT 无新证据不动。
   const TOP_PREDATORS_DEFAULT = [
-    { label: '包络EERIE手',  hand: 'EERIE',  vio: 37, ats: 0.31, atr: 0.50 },   // 维度包络：ats 取 0717 #11224 实测 0.30+0.01 垫；vio 0826 探针实测 #11224=37（原记 36 偏低 1 点，已按实测抬齐）
-    { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
-    { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
+    { label: '包络EERIE手',  hand: 'EERIE',  vio: 38, ats: 0.32, atr: 0.50 },   // 0908 全网扫描实测该桶最强 vio38/ats0.31 → 各 +0.01~ 垫（维度包络，非真实个体）
+    { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.31, atr: 0.50 },   // 0908 实测 vio41/ats0.30 → ats +0.01 垫
+    { label: '默认INSECT手', hand: 'INSECT', vio: 38, ats: 0.32, atr: 0.50 },   // ⚠️0908 实测该桶最强 vio38/ats0.31,原记 36/0.26 两维都偏低,已抬齐+垫
     { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826探针实测 ats=0.30(含1枚Ancient Tape+10%的可能),我们默认0.40已更保守
   ];
   // 🔻SYNC→内部版[1.2.7 装备余量] 0826 用户实测:#12649 装备给了 +10% attack threshold(ratio)
