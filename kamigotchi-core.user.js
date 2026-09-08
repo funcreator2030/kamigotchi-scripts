@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.29
+// @version      1.2.30
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/8/25 23:26:40
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29)
+// @x-release-date 2026/9/8 16:44:22
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,杀手在房禁止部署1.2.30)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.29                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.30                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1425,7 +1425,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.29 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.30 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1454,7 +1454,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.29';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.30';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1629,7 +1629,7 @@
     setTimeout(() => {
         console.log('');
         console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.29 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.30 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         console.log('══════════════════════════════════════════════════════════════');
         console.log('');
         console.log('───────── 🛑 紧急控制 ─────────');
@@ -9957,6 +9957,38 @@
                     log(`%c🛡️ [部署] 跳过 ${__skippedKillers.length} 只杀手 kami: ${__skippedKillers.map(p => '#' + p.dbIndex).join(', ')}（不参与自动部署，由用户手动部署到攻击位置）`,
                         'color: orange;');
                 }
+            }
+
+            // ============================================================
+            // 🔻SYNC→内部版[1.2.30 杀手在房禁止部署] 【板块：部署杀手门禁（与紧急停采对称）】
+            // ------------------------------------------------------------
+            // ▍动因(0908 hahabtc 送人头事故,日志逐分钟实锤)：
+            //   shrike 在 Elder Path 连续 2 小时(14:31→16:28,每 3 分钟一次同房警报),
+            //   停采模块每轮紧急撤离——**但部署模块毫不知情,期间照常部署 4 批**
+            //   (14:53 / 15:14 / 15:42 / 16:05),刚放进去就被清算:
+            //   #21799、#20925(16:05 部署)、#21847(15:42 部署)全部阵亡。
+            //   这三只 **STARVING 记录为 0**(不是饿死),死因就是"被送进有杀手的房间"。
+            // ▍根因：紧急停采有门禁,部署**没有对称门禁** → 形成"撤离→部署→被杀→复活→再部署"血泵。
+            // ▍修法：监控脚本(≥1.2.3)命中同房警报时挂 window.__kamiKillerInRoom 标志;
+            //   部署前查该标志,新鲜(TTL 内)则本轮不部署,等杀手离开。
+            // ▍TTL 取 6 分钟：监控轮询约 3 分钟一轮,取 2 轮容错——杀手真走了最多空等 6 分钟
+            //   (代价仅是延后部署,几乎无损);而漏防一次就是一只 kami + 复活丝带。
+            // ▍降级：监控未运行/未升级 → 标志永不存在 → 行为与旧版完全一致(不引入新风险)。
+            // ▍相关：紧急停采本身不受影响;停采侧照旧。
+            // ============================================================
+            const KILLER_ROOM_DEPLOY_BLOCK_TTL_MS = 6 * 60 * 1000;
+            if (pool.length > 0) {
+                try {
+                    const __kir = window.__kamiKillerInRoom;
+                    const __age = __kir?.at ? Date.now() - __kir.at : Infinity;
+                    if (__age < KILLER_ROOM_DEPLOY_BLOCK_TTL_MS) {
+                        log(`%c🛑 [部署/杀手门禁] 杀手 ${__kir.killer} 就在【${__kir.room}】(${Math.round(__age / 1000)}秒前警报)——本轮取消部署 ${pool.length} 只,等它离开再放`,
+                            'color: white; background: #c62828; font-size: 14px; font-weight: bold; padding: 3px 8px;');
+                        log(`   为什么：往有杀手的房间部署 = 送人头(0908 实录:同房警报持续 2 小时期间照常部署 4 批,#21799/#20925/#21847 刚部署即被清算)`);
+                        log(`   放行条件：同房警报停止 ${Math.round(KILLER_ROOM_DEPLOY_BLOCK_TTL_MS / 60000)} 分钟后自动恢复部署（停采/喂食/复活不受影响）`);
+                        pool = [];
+                    }
+                } catch (_) { /* 标志异常绝不影响部署主流程 */ }
             }
 
             // ============================================================

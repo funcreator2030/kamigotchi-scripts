@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.3
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/7/12 00:28:49
+// @x-release-date 2026/9/8 16:44:22
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -320,7 +320,7 @@
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.2.2';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.3';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -751,6 +751,21 @@
                     log(`   我的位置: 【${myRoomInfo.name}】(房间${myRoom})`);
                     log(`   监控中的 ${_killerLabel(playerInfo.playerName, playerId)} 名下杀手: ${kamiListStr}`);
                     log(`   活跃度: ${activityNote}`);
+
+                    // 🔻SYNC→内部版[1.2.3 杀手在房标志·供部署门禁]（0908 hahabtc 送人头事故）：
+                    //   事故实录:shrike 在 Elder Path 连续 2 小时(14:31→16:28 每3分钟报警一次),
+                    //   停采模块每轮紧急撤离——**但部署模块毫不知情,期间照常部署 4 批**
+                    //   (14:53/15:14/15:42/16:05),刚放进去就被杀(#21799/#20925/#21847)。
+                    //   根因:停采有紧急门禁,部署**没有对称门禁**,形成"撤离→部署→被杀"血泵。
+                    //   本标志把"杀手在房"这一事实持久化,供核心脚本部署前查(时效见核心侧 TTL)。
+                    try {
+                        window.__kamiKillerInRoom = {
+                            at: Date.now(),
+                            killer: _killerLabel(playerInfo.playerName, playerId),
+                            room: killerRoomInfo.name,
+                            roomIndex: playerRoom,
+                        };
+                    } catch (_) {}
 
                     // 每轮至多触发一次停采，然后 continue 查完名单剩余玩家（保证全员位置/活跃度
                     // 情报完整，也让循环后的"自家杀手位置追踪"必然可达）
