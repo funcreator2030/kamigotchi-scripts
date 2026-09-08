@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.7
+// @version      1.2.8
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/8 16:01:43
+// @x-release-date 2026/9/8 16:53:26
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.7                         ║
+// ║                    Kamigotchi 辅助脚本 · 公开版 v1.2.8                         ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -179,13 +179,13 @@
   }
 
   //=====提示脚本启动======
-  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.7 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+  log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.8 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.8';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -867,6 +867,24 @@
     } catch (_) {}
     return PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT;
   }
+  // 🔻SYNC[1.2.8] 假定的装备容量:合约 getEquipmentCapacity = max(1, 1 + EQUIP_CAPACITY_SHIFT),
+  //   默认 1(0826 截图 #12649 底部「📦 1/1」实证)。杀手若通过道具抬高容量,可用
+  //   setPredatorEquipCapacity(n) 手工上调;不确定时宁可设大一点(只多停一档,不漏防)。
+  const PREDATOR_EQUIP_CAPACITY_DEFAULT = 1;
+  function __equipCapacityAssumed() {
+    try {
+      const v = localStorage.getItem('kami_predator_equip_capacity');
+      if (v !== null && isFinite(+v) && +v >= 0) return Math.floor(+v);
+    } catch (_) {}
+    return PREDATOR_EQUIP_CAPACITY_DEFAULT;
+  }
+  window.setPredatorEquipCapacity = function (n) {
+    if (!isFinite(+n) || +n < 0) { console.log(`用法: setPredatorEquipCapacity(1) 当前=${__equipCapacityAssumed()}(假定杀手装备容量)`); return; }
+    try { localStorage.setItem('kami_predator_equip_capacity', String(Math.floor(+n))); } catch (_) {}
+    try { __predSelCache = null; } catch (_) {}
+    console.log(`✅ 假定装备容量已设为 ${Math.floor(+n)}(refreshPreciseLT() 立即重算)`);
+  };
+
   function __equipHeadroomATR() {   // ratio(ATR)余量
     try {
       const v = localStorage.getItem('kami_predator_equip_headroom_atr');
@@ -950,7 +968,8 @@
               demoted.push({ hand: h, index: x.e.index, owner: x.e.owner || '', idleDays: Math.round(x.idle) });
           }
           const used = actives.length ? actives : cands;
-          for (const e of used) list.push({ label: `#${e.index}${e.owner ? '@' + e.owner : ''}`, hand: h, vio: e.vio, ats: e.ats || 0, atr: e.atr || 0, lt24: e.lt24 });
+          for (const e of used) list.push({ label: `#${e.index}${e.owner ? '@' + e.owner : ''}`, hand: h, vio: e.vio, ats: e.ats || 0, atr: e.atr || 0, lt24: e.lt24,
+                                            eqN: e.eqN || 0, eqAts: e.eqAts || 0, eqAtr: e.eqAtr || 0, eqItems: e.eqItems || '' });   // 🔻SYNC[1.2.8] 装备加成随档案传递
         }
         // 🔻SYNC→内部版[1.2.3 天敌档案地板]：默认档案从"无扫描才兜底"升级为【永久地板】——
         //   0717 事故根因：周扫描(TTL 7天)窗口内杀手练级(#12649 ATS 0.30→0.38),旧扫描结果
@@ -977,14 +996,28 @@
   function __worstLTOver(preds, harmony, bodyAffinity, ratio, shift, maxhp) {
     if (!(harmony > 0) || !(maxhp > 0)) return { LT: null, LTHP: null };
     const def = { harm: harmony, body: bodyAffinity, dtr: ratio ?? 0, dts: shift ?? 0 };
-    // 🔻SYNC[1.2.7 装备余量] 对每个档案同时加 shift(ATS)与 ratio(ATR)余量再算——
-    //   #12649 实证:Pet 装备加 ratio、Effects 装备加 shift,两者在公式里分别是乘项与加项。
+    // 🔻SYNC→内部版[1.2.8 装备加成精确计入]（替代 1.2.7 的笼统余量）：
+    //   对每个档案，攻方有效 ATS/ATR = 读数 + 该杀手【实际装备】加成 + 【剩余空格】按最强已知装备预留。
+    //   · 为什么还要"+实际装备"：读数是否已含装备未做受控实验确认(源码指向"含",但未证)。
+    //     保守取"不含"假设 → 宁可早停一档(多点 gas),也不漏防(一只 kami + 丝带 + 数百 musu)。
+    //   · 为什么要"剩余空格预留"：装备标注 [til unequipped] 可随时穿脱,扫描只是时点快照,
+    //     杀手能平时裸装、动手前穿满。空格数 = 容量(默认1) − 已装件数。
+    //   · 档案里没有 eqN/eqAts 字段时(旧档案/装备读取失败) → 回退 1.2.7 的笼统余量,不留缺口。
     const __hrS = __equipHeadroom(), __hrR = __equipHeadroomATR();
+    const __cap = __equipCapacityAssumed();
     let worst = 0;
     for (const p0 of preds) {
-      const p = (__hrS > 0 || __hrR > 0)
-        ? { ...p0, ats: (p0.ats || 0) + __hrS, atr: (p0.atr || 0) + __hrR }
-        : p0;
+      let p = p0;
+      if (typeof p0.eqN === 'number') {
+        // 新档案:精确路径
+        const slotsLeft = Math.max(0, __cap - (p0.eqN || 0));
+        const addAts = (p0.eqAts || 0) + slotsLeft * __hrS;
+        const addAtr = (p0.eqAtr || 0) + slotsLeft * __hrR;
+        p = (addAts || addAtr) ? { ...p0, ats: (p0.ats || 0) + addAts, atr: (p0.atr || 0) + addAtr } : p0;
+      } else if (__hrS > 0 || __hrR > 0) {
+        // 旧档案/内置默认:笼统余量兜底
+        p = { ...p0, ats: (p0.ats || 0) + __hrS, atr: (p0.atr || 0) + __hrR };
+      }
       const lt = computePreciseLT(p, def);
       if (lt > worst) worst = lt;
     }
@@ -2347,7 +2380,7 @@
   setTimeout(() => {
     console.log('');
     console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.7 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.8 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
     console.log('════════════════════════════════════');
     console.log('');
     console.log('  📋 checkAllKamiSkills()');
@@ -3916,6 +3949,59 @@
       const buckets = { EERIE: [], SCRAP: [], INSECT: [], NORMAL: [] };
       const sentinel = [];   // ATS>0.4 哨兵名单
       let done = 0, skipped = 0;
+
+      // 🔻SYNC→内部版[1.2.8 装备加成精确计入]（用户 0908 定案：装备会抬高杀手属性，
+      //   必须真正计入杀手属性与清算线计算，而不是拍一个笼统余量）。
+      //   做法：扫描前一次性建「kamiID → 已装备物品」映射(遍历 OwnsEquipID 组件,O(n) 一次),
+      //   再对每件装备读它的 EQUIP 效果(Allo: type=ATK_THRESHOLD_SHIFT/RATIO, value),
+      //   得到该杀手的装备加成实值 eqAts/eqAtr,连同装备名一起存进档案。
+      //   ⚠️ 装备可随时穿脱([til unequipped]) → 还要按"剩余空格全部装满最强已知装备"预留,
+      //   容量取 getEquipmentCapacity 的口径(默认 1,可被 EQUIP_CAPACITY_SHIFT 抬高)。
+      const __eqMap = new Map();          // kamiID(小写) → { n, ats, atr, names[] }
+      let __eqReadOK = false, __maxSeenEquipAts = 0;
+      try {
+        const __c = window.network?.components || window.network?.network?.components;
+        const __own = __c?.OwnsEquipID, __ii = __c?.ItemIndex || __c?.IndexItem;
+        if (__own?.values?.value && __ii?.values?.value) {
+          const __itemCache = new Map();   // itemIndex → {ats, atr, name}
+          const __readItem = (ii) => {
+            if (__itemCache.has(ii)) return __itemCache.get(ii);
+            let r = { ats: 0, atr: 0, name: '' };
+            try {
+              const it = ex.items?.getByIndex?.(Number(ii));
+              r.name = it?.name || ('item#' + ii);
+              // 物品的装备效果:优先用已水合的 effects.equip;缺失则尝试 bonuses 字段
+              const allos = it?.effects?.equip || it?.equip || it?.bonuses || [];
+              for (const a of (Array.isArray(allos) ? allos : [])) {
+                const t = String(a?.type || a?.bonusType || '').toUpperCase();
+                const v = Number(a?.value ?? a?.amount ?? 0);
+                if (!isFinite(v) || v === 0) continue;
+                // value 精度:ATK_THRESHOLD_* 客户端用 precision 3(见 shapes/Kami/bonuses.ts)
+                const vv = Math.abs(v) > 1 ? v / 1000 : v;
+                if (t.includes('ATK_THRESHOLD_SHIFT')) r.ats += vv;
+                else if (t.includes('ATK_THRESHOLD_RATIO')) r.atr += vv;
+              }
+            } catch (_) {}
+            __itemCache.set(ii, r);
+            return r;
+          };
+          for (const [ent, holder] of __own.values.value.entries()) {
+            const key = String(holder).toLowerCase();
+            const ii = __ii.values.value.get(ent);
+            if (ii == null) continue;
+            const info = __readItem(ii);
+            const cur = __eqMap.get(key) || { n: 0, ats: 0, atr: 0, names: [] };
+            cur.n++; cur.ats += info.ats; cur.atr += info.atr;
+            if (info.name) cur.names.push(info.name);
+            __eqMap.set(key, cur);
+            if (cur.ats > __maxSeenEquipAts) __maxSeenEquipAts = cur.ats;
+          }
+          __eqReadOK = true;
+          log(`🎒 [杀手扫描/装备] 全网已装备 kami ${__eqMap.size} 只;单只装备 ATS 加成最大 +${__maxSeenEquipAts.toFixed(3)}`);
+        } else {
+          log(`⚠️ [杀手扫描/装备] OwnsEquipID 组件不可用,本轮装备加成按余量兜底(不影响主流程)`);
+        }
+      } catch (e) { log(`⚠️ [杀手扫描/装备] 建映射异常(${e?.message || e}),按余量兜底`); }
       for (const k of all) {
         try {
           const d = await ex.kamis.getByIndex(Number(k.index), { stats: true, traits: true, bonus: true });
@@ -3924,8 +4010,14 @@
           const atr = d?.bonuses?.attack?.threshold?.ratio ?? 0;
           if (vio >= 20 || ats > 0 || atr > 0) {   // 只留有杀手苗头的（vio≥20 或带攻击技能）
             const hand = String(d?.traits?.hand?.affinity || '').toUpperCase();
+            const __eq = __eqMap.get(String(d?.id || '').toLowerCase()) || null;
             const rec = { index: Number(k.index), name: d?.name || '', state: String(k.state || ''),
-                          entity: d?.entity, vio, ats: +(+ats).toFixed(3), atr: +(+atr).toFixed(3) };
+                          entity: d?.entity, vio, ats: +(+ats).toFixed(3), atr: +(+atr).toFixed(3),
+                          // 🔻SYNC[1.2.8] 装备加成实值 + 件数 + 名称(供清算线精确计入与人工核对)
+                          eqN: __eq ? __eq.n : 0,
+                          eqAts: __eq ? +(+__eq.ats).toFixed(3) : 0,
+                          eqAtr: __eq ? +(+__eq.atr).toFixed(3) : 0,
+                          eqItems: __eq && __eq.names.length ? __eq.names.slice(0, 3).join('+') : '' };
             if (buckets[hand]) buckets[hand].push(rec);
             if (ats > 0.4) sentinel.push({ index: rec.index, vio, ats: rec.ats });
           }
@@ -4067,6 +4159,17 @@
     if (eff.demoted?.length) {
       out.push(`  ⏬ 已降级（主人沉寂 >${PREDATOR_INACTIVE_DAYS} 天，不参与清算线）：` + eff.demoted.map(d => `#${d.index}${d.owner ? '@' + d.owner : ''}(${d.hand},${d.idleDays}天)`).join('｜'));
     }
+    // 🔻SYNC[1.2.8] 装备加成一览:让"清算线为何这么高"可核对
+    try {
+      const eqRows = (eff.list || []).filter(p => (p.eqN || 0) > 0);
+      const capA = __equipCapacityAssumed();
+      if (eqRows.length) {
+        out.push(`  🎒 带装备的杀手（装备加成已计入清算线）：` +
+          eqRows.map(p => `${p.label}(${p.hand}) ${p.eqItems || p.eqN + '件'} → ATS+${(p.eqAts || 0).toFixed(3)}${p.eqAtr ? ' ATR+' + p.eqAtr.toFixed(3) : ''}`).join('｜'));
+      }
+      out.push(`  🎒 装备计入口径：读数 + 实际装备加成 + 剩余空格×余量（假定容量 ${capA} 件，余量 ATS+${__equipHeadroom()}／ATR+${__equipHeadroomATR()}）；` +
+               `调节：setPredatorEquipHeadroom(shift, ratio)｜setPredatorEquipCapacity(n)`);
+    } catch (_) {}
     out.push(`说明：清算线对"活跃档案"取最坏对位（主人 >${PREDATOR_INACTIVE_DAYS} 天无链上动作的自动降级；整桶沉寂则整桶保守回退）；scanTopPredators() 立即重扫；数据超 6 小时自动重扫`);
     console.log(out.join('\n'));
   }
