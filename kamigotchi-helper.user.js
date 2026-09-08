@@ -835,7 +835,7 @@
     { label: '包络EERIE手',  hand: 'EERIE',  vio: 36, ats: 0.31, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0717 #11224 实测 0.30+0.01 垫（非真实个体，对已知现实恒保守）
     { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
     { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
-    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826截图实证它另带两枚Ancient Tape(Pet+Effects各+10% shift)=+0.20 ATS,实战值≈0.58
+    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826探针实测 ats=0.30(含1枚Ancient Tape+10%的可能),我们默认0.40已更保守
   ];
   // 🔻SYNC→内部版[1.2.7 装备余量] 0826 用户实测:#12649 装备给了 +10% attack threshold(ratio)
   //   与 +10% shift。**装备是可随时穿脱的临时加成**(合约 LibEquipment.assignTemporary +
@@ -844,15 +844,22 @@
   //   统一加装备余量。ATR 默认已取满值 0.50(公式上限,装备无法再抬),故只需抬 ATS。
   //   代价:清算线整体上移约 10pp → 停采更早、gas 略增;收益:堵住"装备杀"这条系统性漏判。
   //   关掉:setPredatorEquipHeadroom(0)。
-  //   📸 0826 截图实证 + 用户复核确认(#12649 @shrike, Lvl56 normal/normal, vio34/harm12/HP170):
-  //     **Pet 槽与 Effects 槽各装一枚 Ancient Tape,两枚都是「+10.0% attack threshold shift
-  //     [til unequipped]」→ 合计 +0.20 ATS**(不含 ratio 加成;中途一度误以为一枚加 ratio,
-  //     经用户复核确认两枚同为 shift)。Head/Body/Hands 三格尚空,对方仍有继续堆的空间。
-  //     ATS 进公式是**直接加项** +(攻ATS−守DTS),故 +0.20 ≈ 清算线直接上移 20 个百分点。
-  //   ⚠️ 关键是「[til unequipped]」——装备可随时穿脱,我们的扫描只是时点快照:
-  //     杀手完全可以平时裸装(扫描读到低值)、动手前穿满。故防守侧按"对方随时穿满"计。
-  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.20;   // shift 余量:2 槽 × 10%,截图实证最大值
-  const PREDATOR_EQUIP_HEADROOM_ATR_DEFAULT = 0;      // ratio 余量:暂无发现加 ratio 的装备,旋钮留着备用
+  //   📸 0826 定案(截图 + 控制台探针实测 + 用户判读,三方会师):
+  //     · #12649 @shrike(Lvl56 NORMAL/NORMAL, vio34/harm12/HP170)与 #11224(EERIE, vio37)
+  //       各装 **1 枚 Ancient Tape**「+10.0% attack threshold shift [til unequipped]」。
+  //     · 截图里的「Effects」**不是槽位,是已装备物品的效果汇总展示**(用户判读,源码佐证:
+  //       槽位常量只有 Head/Body/Hands/Passport/Kami_Pet 五个,无 Effects)。故是 1 枚 +0.10,
+  //       不是早前误判的 2 枚 +0.20。
+  //     · 截图底部「📦 1/1」= **装备容量已满**:getEquipmentCapacity = max(1, 1+EQUIP_CAPACITY_SHIFT),
+  //       **默认容量就是 1** → 单只 kami 最多戴 1 件,装备加成上限 = +0.10 ATS(除非它提容量)。
+  //     · 探针实测当前读数:#12649 ATS=0.30 / ATR=0.50(0717 曾扫到 0.38,现回落)。
+  //   ⚠️「[til unequipped]」= 装备可随时穿脱,我们的扫描只是时点快照(可能扫到裸装)。
+  //   📐 余量取值推演(两种假设都必须安全):
+  //       假设A 读数已含装备 → 裸装 base=0.20,满装最坏 0.40,我们默认 0.40 → 需余量 0.00
+  //       假设B 读数不含装备 → base=0.30,满装最坏 0.50,我们默认 0.40 → 需余量 0.10
+  //     取 **0.10** 即可覆盖两种假设的最坏情况;早前的 0.20 属过度保守(白多停一档、多烧 gas)。
+  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.10;   // shift 余量:1 件装备上限 ×10%(容量1/1)
+  const PREDATOR_EQUIP_HEADROOM_ATR_DEFAULT = 0;      // ratio 余量:实测 ATR=0.50 已是满值,装备无法再抬
   function __equipHeadroom() {   // shift(ATS)余量
     try {
       const v = localStorage.getItem('kami_predator_equip_headroom');
