@@ -835,7 +835,7 @@
     { label: '包络EERIE手',  hand: 'EERIE',  vio: 36, ats: 0.31, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0717 #11224 实测 0.30+0.01 垫（非真实个体，对已知现实恒保守）
     { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
     { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
-    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body
+    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826截图证实它另带 2×Ancient Tape=+0.20 ATS(见下方装备余量,实战值≈0.58)
   ];
   // 🔻SYNC→内部版[1.2.7 装备余量] 0826 用户实测:#12649 装备给了 +10% attack threshold(ratio)
   //   与 +10% shift。**装备是可随时穿脱的临时加成**(合约 LibEquipment.assignTemporary +
@@ -844,7 +844,11 @@
   //   统一加装备余量。ATR 默认已取满值 0.50(公式上限,装备无法再抬),故只需抬 ATS。
   //   代价:清算线整体上移约 10pp → 停采更早、gas 略增;收益:堵住"装备杀"这条系统性漏判。
   //   关掉:setPredatorEquipHeadroom(0)。
-  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.10;
+  //   📸 0826 用户截图实证(#12649 @shrike, Lvl56 normal/normal, vio34/harm12/HP170):
+  //     Pet 槽 + Effects 槽 **各装一枚 Ancient Tape**,每枚「+10.0% attack threshold shift
+  //     [til unequipped]」→ **合计 +0.20 ATS**,且 Head/Body/Hands 三格还空着(可能还能再堆)。
+  //     故默认余量取 0.20(已观测最大值),而非最初估的 0.10。
+  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.20;
   function __equipHeadroom() {
     try {
       const v = localStorage.getItem('kami_predator_equip_headroom');
