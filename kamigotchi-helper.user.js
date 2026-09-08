@@ -835,7 +835,7 @@
     { label: '包络EERIE手',  hand: 'EERIE',  vio: 36, ats: 0.31, atr: 0.50 },   // 维度包络：vio/atr 取 0707 #11224、ats 取 0717 #11224 实测 0.30+0.01 垫（非真实个体，对已知现实恒保守）
     { label: '默认SCRAP手',  hand: 'SCRAP',  vio: 41, ats: 0.30, atr: 0.50 },
     { label: '默认INSECT手', hand: 'INSECT', vio: 36, ats: 0.26, atr: 0.50 },
-    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826截图证实它另带 2×Ancient Tape=+0.20 ATS(见下方装备余量,实战值≈0.58)
+    { label: '默认NORMAL手', hand: 'NORMAL', vio: 34, ats: 0.40, atr: 0.50 },   // 0717 #12649 实测 ats=0.38(+0.02 垫)——15死案主凶,专杀NORMAL body;0826截图实证它另带两枚Ancient Tape(Pet+Effects各+10% shift)=+0.20 ATS,实战值≈0.58
   ];
   // 🔻SYNC→内部版[1.2.7 装备余量] 0826 用户实测:#12649 装备给了 +10% attack threshold(ratio)
   //   与 +10% shift。**装备是可随时穿脱的临时加成**(合约 LibEquipment.assignTemporary +
@@ -844,23 +844,41 @@
   //   统一加装备余量。ATR 默认已取满值 0.50(公式上限,装备无法再抬),故只需抬 ATS。
   //   代价:清算线整体上移约 10pp → 停采更早、gas 略增;收益:堵住"装备杀"这条系统性漏判。
   //   关掉:setPredatorEquipHeadroom(0)。
-  //   📸 0826 用户截图实证(#12649 @shrike, Lvl56 normal/normal, vio34/harm12/HP170):
-  //     Pet 槽 + Effects 槽 **各装一枚 Ancient Tape**,每枚「+10.0% attack threshold shift
-  //     [til unequipped]」→ **合计 +0.20 ATS**,且 Head/Body/Hands 三格还空着(可能还能再堆)。
-  //     故默认余量取 0.20(已观测最大值),而非最初估的 0.10。
-  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.20;
-  function __equipHeadroom() {
+  //   📸 0826 截图实证 + 用户复核确认(#12649 @shrike, Lvl56 normal/normal, vio34/harm12/HP170):
+  //     **Pet 槽与 Effects 槽各装一枚 Ancient Tape,两枚都是「+10.0% attack threshold shift
+  //     [til unequipped]」→ 合计 +0.20 ATS**(不含 ratio 加成;中途一度误以为一枚加 ratio,
+  //     经用户复核确认两枚同为 shift)。Head/Body/Hands 三格尚空,对方仍有继续堆的空间。
+  //     ATS 进公式是**直接加项** +(攻ATS−守DTS),故 +0.20 ≈ 清算线直接上移 20 个百分点。
+  //   ⚠️ 关键是「[til unequipped]」——装备可随时穿脱,我们的扫描只是时点快照:
+  //     杀手完全可以平时裸装(扫描读到低值)、动手前穿满。故防守侧按"对方随时穿满"计。
+  const PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT = 0.20;   // shift 余量:2 槽 × 10%,截图实证最大值
+  const PREDATOR_EQUIP_HEADROOM_ATR_DEFAULT = 0;      // ratio 余量:暂无发现加 ratio 的装备,旋钮留着备用
+  function __equipHeadroom() {   // shift(ATS)余量
     try {
       const v = localStorage.getItem('kami_predator_equip_headroom');
       if (v !== null && isFinite(+v)) return Math.max(0, +v);
     } catch (_) {}
     return PREDATOR_EQUIP_HEADROOM_ATS_DEFAULT;
   }
-  window.setPredatorEquipHeadroom = function (v) {
-    if (!isFinite(+v) || +v < 0) { console.log(`用法: setPredatorEquipHeadroom(0.10) 当前=${__equipHeadroom()}(装备余量ATS,0=关闭)`); return; }
-    try { localStorage.setItem('kami_predator_equip_headroom', String(+v)); } catch (_) {}
+  function __equipHeadroomATR() {   // ratio(ATR)余量
+    try {
+      const v = localStorage.getItem('kami_predator_equip_headroom_atr');
+      if (v !== null && isFinite(+v)) return Math.max(0, +v);
+    } catch (_) {}
+    return PREDATOR_EQUIP_HEADROOM_ATR_DEFAULT;
+  }
+  window.setPredatorEquipHeadroom = function (ats, atr) {
+    if (!isFinite(+ats) || +ats < 0) {
+      console.log(`用法: setPredatorEquipHeadroom(shift, ratio) 例 setPredatorEquipHeadroom(0.10, 0.10)；0,0=全关`);
+      console.log(`当前: shift(ATS)=${__equipHeadroom()}  ratio(ATR)=${__equipHeadroomATR()}`);
+      return;
+    }
+    try {
+      localStorage.setItem('kami_predator_equip_headroom', String(+ats));
+      if (isFinite(+atr) && +atr >= 0) localStorage.setItem('kami_predator_equip_headroom_atr', String(+atr));
+    } catch (_) {}
     try { __predSelCache = null; } catch (_) {}
-    console.log(`✅ 天敌装备余量已设为 ${+v}(下次清算线计算生效,可 refreshPreciseLT() 立即重算)`);
+    console.log(`✅ 装备余量已设:shift=${__equipHeadroom()} ratio=${__equipHeadroomATR()}(refreshPreciseLT() 立即重算)`);
   };
 
 
@@ -952,11 +970,14 @@
   function __worstLTOver(preds, harmony, bodyAffinity, ratio, shift, maxhp) {
     if (!(harmony > 0) || !(maxhp > 0)) return { LT: null, LTHP: null };
     const def = { harm: harmony, body: bodyAffinity, dtr: ratio ?? 0, dts: shift ?? 0 };
-    // 🔻SYNC[1.2.7 装备余量] 对每个档案的 ATS 加装备余量后再算(见 PREDATOR_EQUIP_HEADROOM 说明)
-    const __hr = __equipHeadroom();
+    // 🔻SYNC[1.2.7 装备余量] 对每个档案同时加 shift(ATS)与 ratio(ATR)余量再算——
+    //   #12649 实证:Pet 装备加 ratio、Effects 装备加 shift,两者在公式里分别是乘项与加项。
+    const __hrS = __equipHeadroom(), __hrR = __equipHeadroomATR();
     let worst = 0;
     for (const p0 of preds) {
-      const p = __hr > 0 ? { ...p0, ats: (p0.ats || 0) + __hr } : p0;
+      const p = (__hrS > 0 || __hrR > 0)
+        ? { ...p0, ats: (p0.ats || 0) + __hrS, atr: (p0.atr || 0) + __hrR }
+        : p0;
       const lt = computePreciseLT(p, def);
       if (lt > worst) worst = lt;
     }
