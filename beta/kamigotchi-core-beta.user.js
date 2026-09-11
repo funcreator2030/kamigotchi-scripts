@@ -3608,8 +3608,16 @@
                     if (__rawGasLimit == null) {
                         try {
                             const __est = await __rawSigner.provider.estimateGas({ from: __rawAddr, to: __feedTarget, data: __data });
-                            __rawGasLimit = (BigInt(__est) * 13n) / 10n;
-                            log(`⛽ [${logPrefix}] 单笔喂食实测 ${Number(__est).toLocaleString()} gas，本批 gasLimit 取 ${Number(__rawGasLimit).toLocaleString()}（×1.3 余量）`);
+                            // 🔻SYNC[测试版1.2.35b] 0911 实测:**单笔喂食开销随食物/kami状态大幅波动**——
+                            //   同一只 kami,Ghost Gum 估 2,848,814、Gakki Cookie 估 1,872,223,差 52%。
+                            //   本批只估一次(逐只估会把救援拖慢几分钟,1.2.24 的教训),所以这一次估到的
+                            //   可能恰好是全批最便宜的那只 → 后面贵的照样 out of gas。
+                            //   故:余量提到 ×1.5,并压一条 4,000,000 的地板(盖住实测见过的最贵 2.85M)。
+                            //   给大不吃亏:链上按 gasUsed 计费,gasLimit 只是上限;单笔 4M 相对区块上限
+                            //   45,000,000 也毫无压力。
+                            const __want = (BigInt(__est) * 15n) / 10n;
+                            __rawGasLimit = __want > 4000000n ? __want : 4000000n;
+                            log(`⛽ [${logPrefix}] 单笔喂食估 ${Number(__est).toLocaleString()} gas，本批 gasLimit 取 ${Number(__rawGasLimit).toLocaleString()}（×1.5 余量，地板 4,000,000）`);
                         } catch (__ge) {
                             __rawGasLimit = 4000000n;
                             log(`⚠️ [${logPrefix}] estimateGas 失败(${(__ge?.message || __ge + '').toString().slice(0, 80)})，gasLimit 取 4,000,000 保底（按 gasUsed 计费，给大不浪费）`);
