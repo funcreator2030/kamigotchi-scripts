@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.33
+// @version      1.2.34
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/11 17:24:27
+// @x-release-date 2026/9/11 23:01:30
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1010,18 +1010,77 @@
     //   修法:每次出报告前先从 txQueue.systems[key].target 取【当前真实地址】动态并入分类表;
     //   下方硬编码表降级为【历史地址】,只用于给换代前的旧 tx 打标签(旧账仍要看得懂)。
     //   铁律见 KB §10.0.2:严禁硬编码系统合约地址,唯一安全源是运行时 target。
+    // 🔻SYNC→内部版[1.2.34 官方全量key] 0911 从官方客户端源码 packages/client/src/network/api/**.ts
+    //   里把所有 systems['...'] 字面量抓全 = 64 个，不再是手写的 11 个猜测清单。
+    //   容器路径同样按源码校准：engine/queue/create.ts 返回 { call, systems }，
+    //   所以是 window.network.txQueue.systems（生产停采路径一直用的就是它）。
+    //   注意容器是 cacheUntilReady() 包的 Proxy，没实现 ownKeys → Object.keys() 永远空，
+    //   只能拿已知 key 逐个点名，这就是要维护这张清单的原因。
     const CHAIN_SYSTEM_KEYS = [
-        ['system.harvest.start',   '部署'],
-        ['system.harvest.stop',    '停采'],
+        ['system.account.move', '移动'],
+        ['system.account.register', '注册账户'],
+        ['system.account.set.bio', '改简介'],
+        ['system.account.set.name', '改名'],
+        ['system.account.set.operator', '设operator'],
+        ['system.account.set.pfp', '改头像'],
+        ['system.account.use.item', '账户道具'],
+        ['system.auction.buy', '拍卖购买'],
+        ['system.buy.gacha.ticket', '买扭蛋券'],
+        ['system.chat', '聊天'],
+        ['system.craft', '合成'],
+        ['system.droptable.item.reveal', '开箱'],
+        ['system.echo.kamis', 'echo kamis'],
+        ['system.echo.room', 'echo room'],
+        ['system.erc20.portal', '代币桥'],
+        ['system.friend.accept', '接受好友'],
+        ['system.friend.block', '拉黑好友'],
+        ['system.friend.cancel', '取消好友'],
+        ['system.friend.request', '好友申请'],
+        ['system.goal.claim', '目标领奖'],
+        ['system.goal.contribute', '目标贡献'],
         ['system.harvest.collect', '收取'],
-        ['system.kami.use.item',   '道具使用(喂食/复活/XP)'],
-        ['system.kami.cast.item',  '法术卡'],
-        ['system.craft',           '合成'],
-        ['system.account.use.item','账户道具'],
-        ['system.kami.send',       'kami转移'],
-        ['system.item.burn',       '销毁物品'],
-        ['system.item.transfer',   '转移物品'],
-        ['system.account.move',    '移动'],
+        ['system.harvest.liquidate', '清算(攻击)'],
+        ['system.harvest.start', '部署'],
+        ['system.harvest.stop', '停采'],
+        ['system.item.burn', '销毁物品'],
+        ['system.item.transfer', '转移物品'],
+        ['system.kami.cast.item', '法术卡'],
+        ['system.kami.equip', '装备'],
+        ['system.kami.gacha.mint', '扭蛋'],
+        ['system.kami.gacha.reroll', '扭蛋重掷'],
+        ['system.kami.gacha.reveal', '扭蛋揭示'],
+        ['system.kami.level', '升级(等级)'],
+        ['system.kami.name', 'system.kami.name'],
+        ['system.kami.onyx.rename', 'ONYX改名'],
+        ['system.kami.onyx.respec', 'ONYX重置'],
+        ['system.kami.onyx.revive', 'ONYX复活'],
+        ['system.kami.sacrifice.commit', '献祭'],
+        ['system.kami.sacrifice.reveal', '献祭揭示'],
+        ['system.kami.send', 'kami转移'],
+        ['system.kami.unequip', '卸装'],
+        ['system.kami.use.item', '道具使用(喂食/复活/XP)'],
+        ['system.kami721.stake', '质押NFT'],
+        ['system.kami721.transfer', '转NFT'],
+        ['system.kami721.unstake', '赎回NFT'],
+        ['system.kamimarket.acceptoffer', '市场接价'],
+        ['system.kamimarket.buy', '市场买'],
+        ['system.kamimarket.cancel', '市场撤单'],
+        ['system.kamimarket.list', '市场挂单'],
+        ['system.kamimarket.offer', '市场报价'],
+        ['system.listing.buy', '商店购买'],
+        ['system.listing.sell', '商店出售'],
+        ['system.newbievendor.buy', '新手商店'],
+        ['system.pool', '物品池'],
+        ['system.quest.accept', '接任务'],
+        ['system.quest.complete', '交任务'],
+        ['system.relationship.advance', 'NPC好感'],
+        ['system.scavenge.claim', '拾荒(领取)'],
+        ['system.skill.respec', '技能重置'],
+        ['system.skill.upgrade', '加点(技能)'],
+        ['system.trade.cancel', '撤交易'],
+        ['system.trade.complete', '完成交易'],
+        ['system.trade.create', '挂交易'],
+        ['system.trade.execute', '成交易']
     ];
     function _liveActionMap() {
         const out = [];
@@ -1044,19 +1103,82 @@
         { sel: '0xe60f3a76', c: '0x0198d6090cf2325b958f266d70a836637bf9046f', label: '道具使用(喂食/复活/XP)' },
         { sel: '0xe60f3a76', c: '0x56fd9d735c400acd47fe2d0bfb4c12642c780f79', label: '道具使用(喂食/复活/XP)' },   // 🔻SYNC[1.2.28] 0825发现patch后新址
         { sel: '0x3e991df3', c: '0x66895964d938a98ef336811b0aaac1af437ae40e', label: '升级(等级)' },
-        // 🔻SYNC→内部版[1.2.33 0911链上考古补录] 0911 用 Rollytics 索引器把报告里 4 个"未知地址"挖了出来。
-        //   方法(可复用):首尾交易定位换代时刻——
-        //     首次使用 = /indexer/tx/v1/evm-txs/by_account/{addr}?pagination.limit=1&pagination.reverse=false
-        //     最后使用 = 同上 reverse=true;再用 /indexer/block/v1/blocks/{height} 取时间戳。
-        //   (公共 JSON-RPC 是裁剪节点,eth_getCode 查历史块一律空、eth_getBlockByNumber 查老块返回 null,
-        //    所以"二分查建合约块"这条路在 yominet 走不通,只能走索引器。)
-        //   实测结论:老停采 0x1ca193e7 全链最后一笔 2026-09-04 06:50:17(北京),
-        //   新停采 0x46f87ca39d 第一笔 2026-09-04 06:50:01 —— 16 秒热切换,坐实系统换代。
-        //   同一波还换了 合成(09-03 03:13)、升级/拾荒(09-04 02:18)。部署合约 0x0777687e 自 2026-04-16 从未换过。
-        { sel: '0xb0fa4458', c: '0x46f87ca39d467fe3aaa64552eeefd4bdc9b58146', label: '停采' },
-        { sel: '0x5c817c70', c: '0x20c0cad897a3a1a283c82858ec1cb9bce439f113', label: '合成' },
-        { sel: '0x3e991df3', c: '0x9d5e82f46ca5aad43dc8362a0ef48e6792f9792d', label: '升级/拾荒' },
-        { sel: '0xe60f3a76', c: '0x4e4399a703', label: '道具使用(喂食/复活/XP)' },   // 前缀匹配:仅从报告拿到前 10 位
+        // 🔻SYNC→内部版[1.2.34 链上真值全量表]（推翻 1.2.33 的两处误判）
+        //   0911 查到官方的权威解法（tokedo/kami-zero integration/addresses.md 记载，已实测跑通）：
+        //     World 合约 0x2729174c265dbBd8416C6449E0E813E88f43D0E7
+        //       → world.systems() 得到 SystemsRegistry 组件 0x3b9b1223d876968b8ba319cddd4b4b6739b462aa
+        //       → 组件.getEntitiesWithValue(keccak256("system.xxx")) 返回的 entity 就是系统合约地址
+        //   系统合约**不是固定地址**，MUD 允许升级后改 World 注册表，所以硬编码必然过期。
+        //   下面这张表是 0911 从链上一次性解析出来的 64 个系统真值，用途是给**历史 tx** 贴标签；
+        //   当前 tx 由上面的运行时解析优先接管，换代自动跟上。
+        //   ⚠️ 1.2.33 我把 0x4e4399a703 标成"道具使用"、0x9d5e82f46c 标成"升级/拾荒"，
+        //      链上查实是 system.skill.upgrade(加点) 和 system.kami.level(升级)，已改正。
+        //      教训:选择器 0xe60f3a76 = executeTyped(uint256,uint32)，多个系统共用同一签名，
+        //      光看选择器认不出动作，必须认地址。
+        { sel: null, c: '0xb4a931b71d251f3202c331dc72c2a0713c4b19da', label: '移动' },   // system.account.move
+        { sel: null, c: '0xacf3a71b5a513e4d20482a1ccedbd46f9bfddd1d', label: '注册账户' },   // system.account.register
+        { sel: null, c: '0x31d11872f5156ae513098e7c8739648a955df1b7', label: '改简介' },   // system.account.set.bio
+        { sel: null, c: '0xb887044e1ced5d4326722b8ce87104731177af13', label: '改名' },   // system.account.set.name
+        { sel: null, c: '0x35242ea02d423c50fd2b823ae0c7416319a68b9f', label: '设operator' },   // system.account.set.operator
+        { sel: null, c: '0x0c1acf26e18af381b842b4d621fbf32342e03e89', label: '改头像' },   // system.account.set.pfp
+        { sel: null, c: '0x34ff6e2772cbd363c7f5fa1dd05fb135bd76ccd2', label: '账户道具' },   // system.account.use.item
+        { sel: null, c: '0x9ca351d5d19a4d26551ebd5872652d7e1756be4c', label: '拍卖购买' },   // system.auction.buy
+        { sel: null, c: '0x4f495aaa4c5f11a844cba1cb0af0eba5aba82844', label: '买扭蛋券' },   // system.buy.gacha.ticket
+        { sel: null, c: '0xf9f47343e772377ce6bbea82569d058d5ac414d8', label: '聊天' },   // system.chat
+        { sel: null, c: '0x20c0cad897a3a1a283c82858ec1cb9bce439f113', label: '合成' },   // system.craft
+        { sel: null, c: '0x938a828da5f39eaf9571dee5a45901bd6d097d6b', label: '开箱' },   // system.droptable.item.reveal
+        { sel: null, c: '0x354e01702bd11dbedcec0c681abba699f3ea4256', label: 'echo kamis' },   // system.echo.kamis
+        { sel: null, c: '0x90816120b22aeb4a7ac55be780e7b149adee0c5a', label: 'echo room' },   // system.echo.room
+        { sel: null, c: '0xdac32261fcf38c5589b541b262697bcf13e42ad1', label: '代币桥' },   // system.erc20.portal
+        { sel: null, c: '0xeedd73c50fae18d2b9cd7e03b967467369fbcbc4', label: '接受好友' },   // system.friend.accept
+        { sel: null, c: '0x4a3d36b3dafd074a1e2d01d884b09d58e9e2a0d4', label: '拉黑好友' },   // system.friend.block
+        { sel: null, c: '0xd8d5a8baa8914a941f1d92474a0535a2ddb123a8', label: '取消好友' },   // system.friend.cancel
+        { sel: null, c: '0xacfec366e1f87ff3d16949d2f6fe2ad4870955b8', label: '好友申请' },   // system.friend.request
+        { sel: null, c: '0xb6b7fba239b06f79f6fc73381b1202d54d2f8506', label: '目标领奖' },   // system.goal.claim
+        { sel: null, c: '0x227871719861765f3e3a31799360189ddb9f7a9c', label: '目标贡献' },   // system.goal.contribute
+        { sel: null, c: '0xca02e4bb223450de901051bba5f00ff47d4216f6', label: '收取' },   // system.harvest.collect
+        { sel: null, c: '0x3d7cad15ab62c0da8d6e403ed51ad3d294ce3a3c', label: '清算(攻击)' },   // system.harvest.liquidate
+        { sel: null, c: '0x0777687ec9feb7349c23a19ba7d11a1fe8cd35f1', label: '部署' },   // system.harvest.start
+        { sel: null, c: '0x46f87ca39d467fe3aaa64552eeefd4bdc9b58146', label: '停采' },   // system.harvest.stop
+        { sel: null, c: '0x423e8c7fc1e144c410d5a47c482f2b6c74c066a4', label: '销毁物品' },   // system.item.burn
+        { sel: null, c: '0xe388e50975430b840b7032af56e0dc2e1f892834', label: '转移物品' },   // system.item.transfer
+        { sel: null, c: '0xad698614ce1962d166c53dbe3cc1af2ee68f889b', label: '法术卡' },   // system.kami.cast.item
+        { sel: null, c: '0x428a595a9f7d53fdc8ad78378604caa54cc187b4', label: '装备' },   // system.kami.equip
+        { sel: null, c: '0xea44f9c17a5abbc9f7c19f5b8c9e6cbda53bb95e', label: '扭蛋' },   // system.kami.gacha.mint
+        { sel: null, c: '0x23b72ca1a1219ac6c25831db1c6979e428d9d168', label: '扭蛋重掷' },   // system.kami.gacha.reroll
+        { sel: null, c: '0xf918eb92285fc311e8b2f789be9153623639a5ad', label: '扭蛋揭示' },   // system.kami.gacha.reveal
+        { sel: null, c: '0x9d5e82f46ca5aad43dc8362a0ef48e6792f9792d', label: '升级(等级)' },   // system.kami.level
+        { sel: null, c: '0x675d340b9d28bbc94653a1e46bd5900a70f2a156', label: 'system.kami.name' },   // system.kami.name
+        { sel: null, c: '0x71f0976f15e05284acc982c4bec06415f7d4163d', label: 'ONYX改名' },   // system.kami.onyx.rename
+        { sel: null, c: '0xdde96930d4c2d5ba5fab7c3f3b58419983c77fe9', label: 'ONYX重置' },   // system.kami.onyx.respec
+        { sel: null, c: '0x3b96021d3c1ff3fa23cc6255e6c9be01a11c5e6d', label: 'ONYX复活' },   // system.kami.onyx.revive
+        { sel: null, c: '0xf67fb5b3ffdd4f3fe1b73627e7957278dd565f85', label: '献祭' },   // system.kami.sacrifice.commit
+        { sel: null, c: '0x1dc246dcbeaf1cb1569f73e05b1e0c06fe88c3d5', label: '献祭揭示' },   // system.kami.sacrifice.reveal
+        { sel: null, c: '0x8f83727cf5f63ec6dcbd7cec70b8742240d6c878', label: 'kami转移' },   // system.kami.send
+        { sel: null, c: '0xa50d41d91abe871e2765453d3bae3ba129e45297', label: '卸装' },   // system.kami.unequip
+        { sel: null, c: '0x56fd9d735c400acd47fe2d0bfb4c12642c780f79', label: '道具使用(喂食/复活/XP)' },   // system.kami.use.item
+        { sel: null, c: '0xef06ed23d0c0ebc656f8f876fc1abd91ceab31aa', label: '质押NFT' },   // system.kami721.stake
+        { sel: null, c: '0xf3ae08a140c815345341a8a356cfc17a8446e68e', label: '转NFT' },   // system.kami721.transfer
+        { sel: null, c: '0x3ce9827b2ce3d551143248b140e31b98016e990b', label: '赎回NFT' },   // system.kami721.unstake
+        { sel: null, c: '0xadc6db5d07a931cb9592c682ae383d59a58417a3', label: '市场接价' },   // system.kamimarket.acceptoffer
+        { sel: null, c: '0x31caa73a9c831267d6621defc35c4e9f340808ed', label: '市场买' },   // system.kamimarket.buy
+        { sel: null, c: '0x7c599a95e068cd64c7c375e0f4106f9964ce9ce3', label: '市场撤单' },   // system.kamimarket.cancel
+        { sel: null, c: '0x76ce0251081ee4e12c16e9c4d31a1857ac7e27e2', label: '市场挂单' },   // system.kamimarket.list
+        { sel: null, c: '0x8726ae49cd8449d1e05a2dac183ac53bbd56fefc', label: '市场报价' },   // system.kamimarket.offer
+        { sel: null, c: '0x472d95e0a80ab8730e31c4fee9b67a96b015eb41', label: '商店购买' },   // system.listing.buy
+        { sel: null, c: '0x1cfb7d248571f91ada451c8029f03a115358506e', label: '商店出售' },   // system.listing.sell
+        { sel: null, c: '0xf7bdf0524b599751eedbf2ca7a78d4fcb7affc54', label: '新手商店' },   // system.newbievendor.buy
+        { sel: null, c: '0xae922d0ccb59e49ba526ff7fd4745fa6b569a0e0', label: '物品池' },   // system.pool
+        { sel: null, c: '0xbaf81839ec3ebd6d7c8182dbac91fc0776ec0196', label: '接任务' },   // system.quest.accept
+        { sel: null, c: '0xab6051608d1f1614fef290005999f295d79d8735', label: '交任务' },   // system.quest.complete
+        { sel: null, c: '0x4794ea3d3fbc6ecde2d1acaef24cf0ba301c760a', label: 'NPC好感' },   // system.relationship.advance
+        { sel: null, c: '0x86b4de85a33866704fea31de48ea483b1c18f3bc', label: '拾荒(领取)' },   // system.scavenge.claim
+        { sel: null, c: '0xd7f028a6328f1fd68575bc288a6d1e3dcc4bcc4c', label: '技能重置' },   // system.skill.respec
+        { sel: null, c: '0x4e4399a703d8be016110c977e6b9da3b3038c8d2', label: '加点(技能)' },   // system.skill.upgrade
+        { sel: null, c: '0x0c8c7820ca9ff5be8728649a58866cb045552a94', label: '撤交易' },   // system.trade.cancel
+        { sel: null, c: '0x7fbe515bf54f6ccda7cebe64d3da54a734798f6d', label: '完成交易' },   // system.trade.complete
+        { sel: null, c: '0x67e8073e3f38f7953ff73057f5f8a26de2fdd270', label: '挂交易' },   // system.trade.create
+        { sel: null, c: '0xfc0996092cf6e672d7e686b57c308ef6483cec39', label: '成交易' },   // system.trade.execute
         { sel: '0xe60f3a76', c: '0x3201f72d1e2a993aee04f5d013bab89fa744ca48', label: '加点(技能)' },
         { sel: '0x3e991df3', c: '0xd2d740df8a', label: '拾荒(重掷)' },   // 前缀匹配,0717 04:35 日志对时认领
         { sel: '0x72de78c2', c: '0x309bd8c598', label: '拾荒(领取)' },   // 同上
@@ -1071,8 +1193,15 @@
             }
             for (const m of __liveMapCache) { if (c.indexOf(m.c) === 0) return m.label; }
         } catch (_) {}
-        // ② 再用历史硬编码表(换代前的旧 tx 靠它认领)
-        for (const m of CHAIN_ACTION_MAP) { if (m.sel === sel && c.indexOf(m.c) === 0) return m.label; }
+        // ② 再用硬编码表(换代前的旧 tx 靠它认领)
+        //   🔻SYNC[1.2.34] sel === null 的条目是 0911 链上真值表，**只比地址不比选择器**——
+        //   因为同一个选择器(如 0xe60f3a76 = executeTyped(uint256,uint32))被多个系统共用，
+        //   光比选择器会张冠李戴(1.2.33 就这么把加点标成了道具使用)。
+        //   带 sel 的老条目保持"选择器+地址"双条件，维持原有行为不变。
+        for (const m of CHAIN_ACTION_MAP) {
+            if (m.sel === null) { if (c.indexOf(m.c) === 0) return m.label; }
+            else if (m.sel === sel && c.indexOf(m.c) === 0) return m.label;
+        }
         return '未知 ' + sel + '@' + c.slice(0, 12) + '…';
     }
     const ADDR_GAS_24H_CACHE_KEY = 'kami_addr_gas_24h_cache_v3';   // v3:结构加了分类桶,换key防旧结构串味
@@ -1570,7 +1699,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.33';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.34';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1745,7 +1874,7 @@
     setTimeout(() => {
         clog('');
         clog('══════════════════════════════════════════════════════════════');
-        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.33 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.34 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
