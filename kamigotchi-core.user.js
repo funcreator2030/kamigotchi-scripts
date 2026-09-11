@@ -3,12 +3,12 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.31
+// @version      1.2.32
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/8 16:49:00
-// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31)
+// @x-release-date 2026/9/11 17:05:48
+// @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.31                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.32                  ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -537,7 +537,7 @@
 
         window.showFrontendSensor = function () {
             const now = Date.now();
-            console.log('[前端传感器]', {
+            clog('[前端传感器]', {
                 已订阅: _subscribed, 当前块: _lastBlock,
                 区块停滞秒: _lastBlockAdvanceAt > 0 ? Math.round((now - _lastBlockAdvanceAt) / 1000) : null,
                 frozen: window.__frontendFrozen
@@ -574,6 +574,67 @@
         }).join(' ');
         window.__kamiLogBuffer.push(`${prefix} ${plainText}`);
     }
+
+    // ============================================================
+    // 【板块：控制台输出也进日志（clog / ctable）】
+    // ------------------------------------------------------------
+    // ▍为什么有这个东西：
+    //   log() 会同时写控制台和 __kamiLogBuffer（存档用），但脚本里还有 200+ 处
+    //   是直接 console.log 的——启动命令清单、gas 规则表、gas 真值账本报告、
+    //   模式/通道切换回执、清算线告警…… 这些在控制台看得见，保存出来的日志文件里
+    //   却一行都没有，事后完全没法复盘。
+    //   0911 实盘坐实：showGasReport() 被自动定时触发了 164 次，日志文件里零条记录。
+    // ▍做法（用户 0911 定案：「我要都走日志，方便事后检查日志」）：
+    //   把所有自有 console.log → clog、console.table → ctable。
+    //   控制台输出一字不变（%c 彩色样式照常），额外把纯文本副本写进缓冲区。
+    // ▍细节：
+    //   - %c 样式标记和它配套的 CSS 参数会被剥掉，日志里只留可读文本；
+    //   - 多行文本按行拆开逐行入库，每行都带时间戳，方便 grep；
+    //   - 全程 try 包住——日志功能绝不能反过来把主流程搞挂。
+    // 🔻SYNC→内部版[1.2.32 全量输出入日志]
+    // ============================================================
+    function __plainArgs(args) {
+        const parts = [];
+        let cssLeft = 0;   // 首参里有几个 %c，后面就有几个 CSS 字符串要跳过
+        for (let i = 0; i < args.length; i++) {
+            const a = args[i];
+            if (i === 0 && typeof a === 'string') {
+                cssLeft = (a.match(/%c/g) || []).length;
+                parts.push(a.replace(/%c/g, ''));
+                continue;
+            }
+            if (cssLeft > 0 && typeof a === 'string') { cssLeft--; continue; }
+            if (typeof a === 'string') { parts.push(a); continue; }
+            try { parts.push(JSON.stringify(a)); } catch (_) { parts.push(String(a)); }
+        }
+        return parts.join(' ');
+    }
+
+    function clog(...args) {
+        console.log(...args);   // 控制台原样输出，样式不受影响
+        try {
+            if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+            const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+            for (const __line of String(__plainArgs(args)).split('\n')) {
+                window.__kamiLogBuffer.push(`[核心脚本][${__t}] ${__line}`);
+            }
+        } catch (_) {}
+    }
+
+    function ctable(rows) {
+        try { console.table(rows); } catch (_) { console.log(rows); }
+        try {
+            if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+            const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+            const __list = Array.isArray(rows) ? rows : [rows];
+            window.__kamiLogBuffer.push(`[核心脚本][${__t}] （表格 ${__list.length} 行）`);
+            for (const __r of __list) {
+                let __s; try { __s = JSON.stringify(__r); } catch (_) { __s = String(__r); }
+                window.__kamiLogBuffer.push(`[核心脚本][${__t}]   ${__s}`);
+            }
+        } catch (_) {}
+    }
+
 
     // ============================================================
     // 手动调用标记：区分"脚本自动触发"vs"用户控制台手敲"
@@ -668,11 +729,11 @@
         if (typeof meth !== 'number' || meth >= __LOW_BALANCE_THRESHOLD_METH) return;
         const banner = `⚠️ 账户 ${acc} 余额仅剩 ${raw}，低于 ${__LOW_BALANCE_THRESHOLD_METH} mETH 警戒线，请尽快充值！⚠️`;
         // 控制台高亮（带样式）：红底 + 白字 + 加粗 + 16px
-        console.log(
+        clog(
             `%c${banner}`,
             'background:#c0392b;color:#fff;font-weight:bold;font-size:16px;padding:4px 10px;border-radius:4px;'
         );
-        console.log(
+        clog(
             `%c💸 充值提醒：${stage === 'start' ? '脚本启动时' : '刷新前'}检测到余额不足，可能很快用尽，请立即给账户 ${acc} 充值 mETH！`,
             'color:#c0392b;font-weight:bold;font-size:14px;'
         );
@@ -944,6 +1005,39 @@
     //   映射表按 (选择器, 合约前缀小写) 匹配;认领依据:部署/停采/道具=0713 探针,
     //   升级/加点/拾荒=0717 日志时间戳对照认领(拾荒=重掷+领取两步连招,升级→15s→加点同kami连招)。
     //   未匹配的进"未知"桶并显示指纹,见一个认领一个(改这张表即可)。
+    // 🔻SYNC→内部版[1.2.32 分类表运行时自愈] 0911 实盘:gas 报告里 48% 的开销落进"未知"——
+    //   停采合约已从 0x1ca193e7 换代到 0x46f87ca39d,而本表是硬编码的,patch 后必然腐烂。
+    //   修法:每次出报告前先从 txQueue.systems[key].target 取【当前真实地址】动态并入分类表;
+    //   下方硬编码表降级为【历史地址】,只用于给换代前的旧 tx 打标签(旧账仍要看得懂)。
+    //   铁律见 KB §10.0.2:严禁硬编码系统合约地址,唯一安全源是运行时 target。
+    const CHAIN_SYSTEM_KEYS = [
+        ['system.harvest.start',   '部署'],
+        ['system.harvest.stop',    '停采'],
+        ['system.harvest.collect', '收取'],
+        ['system.kami.use.item',   '道具使用(喂食/复活/XP)'],
+        ['system.kami.cast.item',  '法术卡'],
+        ['system.craft',           '合成'],
+        ['system.account.use.item','账户道具'],
+        ['system.kami.send',       'kami转移'],
+        ['system.item.burn',       '销毁物品'],
+        ['system.item.transfer',   '转移物品'],
+        ['system.account.move',    '移动'],
+    ];
+    function _liveActionMap() {
+        const out = [];
+        try {
+            const sys = window.network?.txQueue?.systems || window.network?.network?.txQueue?.systems;
+            if (!sys) return out;
+            for (const [key, label] of CHAIN_SYSTEM_KEYS) {
+                try {
+                    const t = sys[key]?.target;
+                    if (typeof t === 'string' && t.length >= 10) out.push({ sel: null, c: t.toLowerCase(), label });
+                } catch (_) {}
+            }
+        } catch (_) {}
+        return out;
+    }
+
     const CHAIN_ACTION_MAP = [
         { sel: '0x68f37c94', c: '0x0777687ec9feb7349c23a19ba7d11a1fe8cd35f1', label: '部署' },
         { sel: '0xb0fa4458', c: '0x1ca193e7b9a698c1a9b7fd48e9c5948514293c72', label: '停采' },
@@ -954,8 +1048,17 @@
         { sel: '0x3e991df3', c: '0xd2d740df8a', label: '拾荒(重掷)' },   // 前缀匹配,0717 04:35 日志对时认领
         { sel: '0x72de78c2', c: '0x309bd8c598', label: '拾荒(领取)' },   // 同上
     ];
+    let __liveMapCache = null, __liveMapAt = 0;
     function _chainActionLabel(sel, contract) {
         const c = String(contract || '').toLowerCase();
+        // 🔻SYNC[1.2.32] ① 先用【运行时真实地址】匹配(只比地址,选择器可能一址多用),patch 后自动跟上
+        try {
+            if (!__liveMapCache || Date.now() - __liveMapAt > 10 * 60 * 1000) {
+                __liveMapCache = _liveActionMap(); __liveMapAt = Date.now();
+            }
+            for (const m of __liveMapCache) { if (c.indexOf(m.c) === 0) return m.label; }
+        } catch (_) {}
+        // ② 再用历史硬编码表(换代前的旧 tx 靠它认领)
         for (const m of CHAIN_ACTION_MAP) { if (m.sel === sel && c.indexOf(m.c) === 0) return m.label; }
         return '未知 ' + sel + '@' + c.slice(0, 12) + '…';
     }
@@ -1179,7 +1282,7 @@
             const ownerWinWei = {};   // label -> BigInt（供合计段）
             for (const w of windows) ownerWinWei[w.label] = 0n;
             if (ownerAddr) {
-                try { console.log('⏳ 拉取 owner 手动 tx gas（Rollytics 索引器，可能几秒）…'); } catch (_) {}
+                try { clog('⏳ 拉取 owner 手动 tx gas（Rollytics 索引器，可能几秒）…'); } catch (_) {}
                 let ownerRes = null;
                 try { ownerRes = await _fetchOwnerGas(ownerAddr, windows); } catch (e) { ownerRes = { ok: false, error: (e && e.message) || String(e) }; }
                 if (ownerRes && ownerRes.ok) {
@@ -1298,9 +1401,9 @@
                 }
                 fmt.push('%c' + line); args.push(st);
             }
-            console.log(fmt.join('\n'), ...args);
+            clog(fmt.join('\n'), ...args);
         } catch (_) {
-            console.log(L.join('\n'));   // 美化失败原样输出,数据永远可读
+            clog(L.join('\n'));   // 美化失败原样输出,数据永远可读
         }
     };
 
@@ -1425,7 +1528,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.31 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.32 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1454,7 +1557,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.31';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.32';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1627,108 +1730,108 @@
     //   行为见其所属板块的说明块。
     // ============================================================
     setTimeout(() => {
-        console.log('');
-        console.log('══════════════════════════════════════════════════════════════');
-        console.log('%c🎮 Kamigotchi核心脚本-公开版 v1.2.31 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
-        console.log('══════════════════════════════════════════════════════════════');
-        console.log('');
-        console.log('───────── 🛑 紧急控制 ─────────');
-        console.log('// 紧急停采 HP 触及停采线（≤ 停采线+1%）+ 所有 STARVING 的 kami；健康的不动');
-        console.log('%cemergencyStopHarvest()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 一键批量停采当前地块所有 HARVESTING 的 kami（按 HP 危险优先，方便切换地块）');
-        console.log('%cstopCurrentRoom()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 一键批量停采所有 minority 中 HARVESTING 的 kami（方便手动转移到其他账户）');
-        console.log('// 依赖辅助脚本；杀手 kami 自动跳过；先调 kamiAnalyze() 看分布再决定要不要停');
-        console.log('%cstopMinorityForTransfer()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 上面两个停采命令完成后会自动暂停自动部署 10 分钟（转移窗口）；提前恢复用这个');
-        console.log('%cresumeDeploy()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('───────── 🔀 模式切换 ─────────');
-        console.log('// 切换到贪婪模式（极限停采线 5%；检测到杀手会自动切回安全线；旧名 \'starving\' 仍兼容）');
-        console.log("setKamiMode('greedy')");
-        console.log('');
-        console.log('// 切换到正常模式（安全停采线，清算线 + 3%）');
-        console.log("setKamiMode('normal')");
-        console.log('');
-        console.log('// 查看当前模式状态');
-        console.log('getKamiMode()');
-        console.log('');
-        console.log('───────── 📋 黑名单管理 ─────────');
-        console.log('// 查看部署黑名单（被排除不部署的 kami）');
-        console.log('showBlockedKamis()');
-        console.log('');
-        console.log('// 查看停采黑名单（停采失败被冷却的 kami）');
-        console.log('showStopBlockedKamis()');
-        console.log('');
-        console.log('// 清除所有黑名单（部署 + 停采）');
-        console.log('clearBlockedKamis()');
-        console.log('');
-        console.log('// 仅清除停采黑名单');
-        console.log('clearStopBlockedKamis()');
-        console.log('');
-        console.log('───────── 🍽️ 喂食重置 ─────────');
-        console.log('// 清除喂食失败冷却记录（失败 kami 立即可重喂）');
-        console.log('clearFeedFails()');
-        console.log('');
-        console.log('// 清除 STARVING 喂食卡住黑名单（链上卡住的 kami 允许重试）');
-        console.log('clearStarvingStuck()');
-        console.log('');
-        console.log('// 清除 XP Potion 喂食记录（允许重新喂食 XP Potion）');
-        console.log('clearXPPotionFed()');
-        console.log('');
-        console.log('// 清除 Fortified 喂食记录（允许重新喂食 Fortified）');
-        console.log('clearFortifiedFed()');
-        console.log('');
-        console.log('// 立即触发一次 XP Potion 喂食（只喂不合成；LT>70% + RESTING 的 kami）');
-        console.log('%cfeedXPPotionNow()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 查看我的杀手 kami 清单（XP Potion 喂食时自动跳过这些 kami）');
-        console.log('showMyKillers()');
-        console.log('');
-        console.log('───────── ⛽ Gas / TX 状态 ─────────');
-        console.log('// 查看 Gas 消耗规则（各动作的 gas 单价配置）');
-        console.log('showGasRules()');
-        console.log('');
-        console.log('// 查看当前 TX 锁状态（紧急锁 / 普通锁）');
-        console.log('getTxLockStatus()');
-        console.log('');
-        console.log('// 切换停采发送通道：mud=MUD队列(默认,统一nonce) / raw=原始签名器(回退)；不填参数查当前');
-        console.log("setStopTxChannel('mud'|'raw')");
-        console.log('');
-        console.log('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点HP文本/状态图标(白名单锚定,非随机);真人操作自动让路)；默认on');
-        console.log("setKeepAlive('on'|'off')");
-        console.log('');
-        console.log('───────── 💰 Gas 真值账本 ─────────');
-        console.log('// 链上真值 gas 报告：按动作分类(部署/停采/喂食/复活/拾荒/XP) + 24h/3d/7d/30d + 日均 + revert白烧 + 余额续航（最强大）⭐');
-        console.log('%cshowGasReport()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('───────── 📦 数据库 ─────────');
-        console.log('// 手动增量同步精简数据库（diff 账户当前 kami list，只补不删，自动持久化）');
-        console.log('%csyncKamiDb()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 查看当前数据库（17 字段，含 LT/level/harmony 等）');
-        console.log('window.kami_core_db');
-        console.log('');
-        console.log('───────── 💾 日志 / 调试 ─────────');
-        console.log('// 手动保存当前日志到文件（不刷新页面）');
-        console.log('%csaveKamiLogs()', 'color: red; font-size: 14px;');
-        console.log('');
-        console.log('// 开启调试日志（会刷新页面，flags 可选 parse/start/stop/api/dom/feed）');
-        console.log('kamiDebugOn({ parse: true })');
-        console.log('');
-        console.log('// 关闭调试日志（会刷新页面）');
-        console.log('kamiDebugOff()');
-        console.log('');
-        console.log('══════════════════════════════════════════════════════════════');
-        console.log('💡 切换地块前批量停采 → stopCurrentRoom()');
-        console.log('🗺️ 多账户分工策略 → 先 kamiAnalyze()【辅助】看分类，再 stopMinorityForTransfer() 停采 → 手动转移到对应账户');
-        console.log('📦 账户新增 kami → syncKamiDb()（启动时自动跑一次，新增 kami 自动入库）');
-        console.log('💰 查看账户 gas 消耗速率(链上真值,按动作分类) → showGasReport()');
-        console.log('══════════════════════════════════════════════════════════════');
-        console.log('');
+        clog('');
+        clog('══════════════════════════════════════════════════════════════');
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.32 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('══════════════════════════════════════════════════════════════');
+        clog('');
+        clog('───────── 🛑 紧急控制 ─────────');
+        clog('// 紧急停采 HP 触及停采线（≤ 停采线+1%）+ 所有 STARVING 的 kami；健康的不动');
+        clog('%cemergencyStopHarvest()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 一键批量停采当前地块所有 HARVESTING 的 kami（按 HP 危险优先，方便切换地块）');
+        clog('%cstopCurrentRoom()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 一键批量停采所有 minority 中 HARVESTING 的 kami（方便手动转移到其他账户）');
+        clog('// 依赖辅助脚本；杀手 kami 自动跳过；先调 kamiAnalyze() 看分布再决定要不要停');
+        clog('%cstopMinorityForTransfer()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 上面两个停采命令完成后会自动暂停自动部署 10 分钟（转移窗口）；提前恢复用这个');
+        clog('%cresumeDeploy()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('───────── 🔀 模式切换 ─────────');
+        clog('// 切换到贪婪模式（极限停采线 5%；检测到杀手会自动切回安全线；旧名 \'starving\' 仍兼容）');
+        clog("setKamiMode('greedy')");
+        clog('');
+        clog('// 切换到正常模式（安全停采线，清算线 + 3%）');
+        clog("setKamiMode('normal')");
+        clog('');
+        clog('// 查看当前模式状态');
+        clog('getKamiMode()');
+        clog('');
+        clog('───────── 📋 黑名单管理 ─────────');
+        clog('// 查看部署黑名单（被排除不部署的 kami）');
+        clog('showBlockedKamis()');
+        clog('');
+        clog('// 查看停采黑名单（停采失败被冷却的 kami）');
+        clog('showStopBlockedKamis()');
+        clog('');
+        clog('// 清除所有黑名单（部署 + 停采）');
+        clog('clearBlockedKamis()');
+        clog('');
+        clog('// 仅清除停采黑名单');
+        clog('clearStopBlockedKamis()');
+        clog('');
+        clog('───────── 🍽️ 喂食重置 ─────────');
+        clog('// 清除喂食失败冷却记录（失败 kami 立即可重喂）');
+        clog('clearFeedFails()');
+        clog('');
+        clog('// 清除 STARVING 喂食卡住黑名单（链上卡住的 kami 允许重试）');
+        clog('clearStarvingStuck()');
+        clog('');
+        clog('// 清除 XP Potion 喂食记录（允许重新喂食 XP Potion）');
+        clog('clearXPPotionFed()');
+        clog('');
+        clog('// 清除 Fortified 喂食记录（允许重新喂食 Fortified）');
+        clog('clearFortifiedFed()');
+        clog('');
+        clog('// 立即触发一次 XP Potion 喂食（只喂不合成；LT>70% + RESTING 的 kami）');
+        clog('%cfeedXPPotionNow()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 查看我的杀手 kami 清单（XP Potion 喂食时自动跳过这些 kami）');
+        clog('showMyKillers()');
+        clog('');
+        clog('───────── ⛽ Gas / TX 状态 ─────────');
+        clog('// 查看 Gas 消耗规则（各动作的 gas 单价配置）');
+        clog('showGasRules()');
+        clog('');
+        clog('// 查看当前 TX 锁状态（紧急锁 / 普通锁）');
+        clog('getTxLockStatus()');
+        clog('');
+        clog('// 切换停采发送通道：mud=MUD队列(默认,统一nonce) / raw=原始签名器(回退)；不填参数查当前');
+        clog("setStopTxChannel('mud'|'raw')");
+        clog('');
+        clog('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点HP文本/状态图标(白名单锚定,非随机);真人操作自动让路)；默认on');
+        clog("setKeepAlive('on'|'off')");
+        clog('');
+        clog('───────── 💰 Gas 真值账本 ─────────');
+        clog('// 链上真值 gas 报告：按动作分类(部署/停采/喂食/复活/拾荒/XP) + 24h/3d/7d/30d + 日均 + revert白烧 + 余额续航（最强大）⭐');
+        clog('%cshowGasReport()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('───────── 📦 数据库 ─────────');
+        clog('// 手动增量同步精简数据库（diff 账户当前 kami list，只补不删，自动持久化）');
+        clog('%csyncKamiDb()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 查看当前数据库（17 字段，含 LT/level/harmony 等）');
+        clog('window.kami_core_db');
+        clog('');
+        clog('───────── 💾 日志 / 调试 ─────────');
+        clog('// 手动保存当前日志到文件（不刷新页面）');
+        clog('%csaveKamiLogs()', 'color: red; font-size: 14px;');
+        clog('');
+        clog('// 开启调试日志（会刷新页面，flags 可选 parse/start/stop/api/dom/feed）');
+        clog('kamiDebugOn({ parse: true })');
+        clog('');
+        clog('// 关闭调试日志（会刷新页面）');
+        clog('kamiDebugOff()');
+        clog('');
+        clog('══════════════════════════════════════════════════════════════');
+        clog('💡 切换地块前批量停采 → stopCurrentRoom()');
+        clog('🗺️ 多账户分工策略 → 先 kamiAnalyze()【辅助】看分类，再 stopMinorityForTransfer() 停采 → 手动转移到对应账户');
+        clog('📦 账户新增 kami → syncKamiDb()（启动时自动跑一次，新增 kami 自动入库）');
+        clog('💰 查看账户 gas 消耗速率(链上真值,按动作分类) → showGasReport()');
+        clog('══════════════════════════════════════════════════════════════');
+        clog('');
     }, 3000);
 
 
@@ -1774,7 +1877,7 @@
     function dlog(tag, ...args){
         if (!__DBG_ON) return;
         if (tag && __DBG[tag] === false) return;
-        console.log(...args);
+        clog(...args);
     }
 
     //=====简易等待工具：delay(ms) 返回 ms 毫秒后 resolve 的 Promise，供全脚本 await 使用=====
@@ -2111,7 +2214,7 @@
     if (__kamiMode === 'starving') {
         __kamiMode = 'greedy';
         localStorage.setItem('kami_mode', 'greedy');
-        console.log(`ℹ️ [模式迁移] 检测到旧版模式设置 'starving'，已自动迁移为 'greedy'（含义不变，仅改名，无杀手时贪婪采集）`);
+        clog(`ℹ️ [模式迁移] 检测到旧版模式设置 'starving'，已自动迁移为 'greedy'（含义不变，仅改名，无杀手时贪婪采集）`);
     }
     window.__kamiMode = __kamiMode;
     window.__killerDetected = false;      // 杀手检测标记（由轻量杀手监控脚本写入）
@@ -2141,18 +2244,18 @@
     // 接受 'normal' / 'greedy'，以及向后兼容别名 'starving'（自动归一化为 'greedy'）
     window.setKamiMode = (mode) => {
         if (mode !== 'normal' && mode !== 'greedy' && mode !== 'starving') {
-            console.log('❌ 无效模式，请使用 "normal" 或 "greedy"（旧版 "starving" 仍可用作别名）');
-            console.log('   normal:   安全模式，使用清算线+3%停采（上限80%）');
-            console.log('   greedy:   贪婪模式，无杀手时用5%停采，有杀手自动切安全线');
+            clog('❌ 无效模式，请使用 "normal" 或 "greedy"（旧版 "starving" 仍可用作别名）');
+            clog('   normal:   安全模式，使用清算线+3%停采（上限80%）');
+            clog('   greedy:   贪婪模式，无杀手时用5%停采，有杀手自动切安全线');
             return;
         }
         const normalizedMode = (mode === 'starving') ? 'greedy' : mode;
         localStorage.setItem('kami_mode', normalizedMode);
-        console.log(`%c✅ 模式已切换为: ${normalizedMode.toUpperCase()}`, 'color: green; font-weight: bold; font-size: 14px;');
+        clog(`%c✅ 模式已切换为: ${normalizedMode.toUpperCase()}`, 'color: green; font-weight: bold; font-size: 14px;');
         if (mode === 'starving') {
-            console.log(`ℹ️ 'starving' 是 'greedy' 的向后兼容别名，已按 'greedy' 写入`);
+            clog(`ℹ️ 'starving' 是 'greedy' 的向后兼容别名，已按 'greedy' 写入`);
         }
-        console.log('⚡ 刷新页面后生效...');
+        clog('⚡ 刷新页面后生效...');
         // 模式常量在脚本加载时固化，必须刷新页面才能全量生效
         setTimeout(() => location.reload(), 1500);
     };
@@ -2165,20 +2268,20 @@
         // 恢复倒计时：距上次发现杀手满 SAFE_COOLDOWN_MS 后归零，归零即恢复贪婪极限线
         const cooldownRemain = killer ? Math.max(0, SAFE_COOLDOWN_MS - (Date.now() - lastKill)) : 0;
 
-        console.log('═══════════════════════════════════════════════════');
-        console.log(`🎮 当前模式: ${mode.toUpperCase()} ${mode === 'greedy' ? '🍖' : '🛡️'}`);
+        clog('═══════════════════════════════════════════════════');
+        clog(`🎮 当前模式: ${mode.toUpperCase()} ${mode === 'greedy' ? '🍖' : '🛡️'}`);
         if (mode === 'greedy') {
-            console.log(`🔪 杀手状态: ${killer ? '⚠️ 已发现杀手！使用安全线' : '✅ 安全，使用极限线'}`);
+            clog(`🔪 杀手状态: ${killer ? '⚠️ 已发现杀手！使用安全线' : '✅ 安全，使用极限线'}`);
             if (killer) {
-                console.log(`⏱️ 恢复倒计时: ${Math.ceil(cooldownRemain / 60000)} 分钟后自动恢复贪婪模式`);
+                clog(`⏱️ 恢复倒计时: ${Math.ceil(cooldownRemain / 60000)} 分钟后自动恢复贪婪模式`);
             }
-            console.log(`📊 当前停采线: ${killer ? `安全线(LT+${LT_STOP_MARGIN}%，上限80%)` : '极限线(5%)'}`);
+            clog(`📊 当前停采线: ${killer ? `安全线(LT+${LT_STOP_MARGIN}%，上限80%)` : '极限线(5%)'}`);
         } else {
-            console.log(`📊 停采线: 安全线(LT+${LT_STOP_MARGIN}%，上限80%)`);
+            clog(`📊 停采线: 安全线(LT+${LT_STOP_MARGIN}%，上限80%)`);
         }
-        console.log(`📋 默认值: normal body=${DEFAULT_THRESHOLD_NORMAL}%, 非normal=${DEFAULT_THRESHOLD_OTHER}%`);
-        console.log('═══════════════════════════════════════════════════');
-        console.log('💡 切换模式: setKamiMode("greedy") 或 setKamiMode("normal")（旧名 "starving" 仍兼容）');
+        clog(`📋 默认值: normal body=${DEFAULT_THRESHOLD_NORMAL}%, 非normal=${DEFAULT_THRESHOLD_OTHER}%`);
+        clog('═══════════════════════════════════════════════════');
+        clog('💡 切换模式: setKamiMode("greedy") 或 setKamiMode("normal")（旧名 "starving" 仍兼容）');
         return { mode, killerDetected: killer, cooldownRemain };
     };
 
@@ -2939,9 +3042,9 @@
     const STUCK_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
     // 🔻SYNC→内部版[1.2.27 raw并行喂食] 救援喂食通道:默认 raw(绕开MUD队列串行);可秒回退
     window.setStarvingFeedChannel = function (v) {
-        if (v !== 'raw' && v !== 'queue') { console.log("用法: setStarvingFeedChannel('raw'|'queue') 当前=" + (localStorage.getItem('kami_starving_feed_channel') || 'queue') + "(默认queue=api稳;raw=连发快,测试通过前勿全网开)"); return; }
+        if (v !== 'raw' && v !== 'queue') { clog("用法: setStarvingFeedChannel('raw'|'queue') 当前=" + (localStorage.getItem('kami_starving_feed_channel') || 'queue') + "(默认queue=api稳;raw=连发快,测试通过前勿全网开)"); return; }
         try { localStorage.setItem('kami_starving_feed_channel', v); } catch (_) {}
-        console.log(`✅ 饿死救援喂食通道已切为 ${v}(下轮救援生效)`);
+        clog(`✅ 饿死救援喂食通道已切为 ${v}(下轮救援生效)`);
     };
     window.__stuck24hTried = window.__stuck24hTried || new Map();   // kamiId -> 上次尝试喂食的时刻
     // 保护2: 兜底 — 喂过还是STARVING的kami，累计次数达阈值则跳过
@@ -3489,7 +3592,7 @@
             const elapsed = blockedAt ? Math.round((Date.now() - blockedAt) / 1000 / 60) : '?';
             list.push({ index: record?.index || '?', kamiId: kamiId.slice(0, 10) + '...', blockedMinutesAgo: elapsed });
         }
-        console.table(list);
+        ctable(list);
         return list;
     };
 
@@ -3533,90 +3636,90 @@
 
     // 显示Gas消耗规则（静态说明文本，不发 tx）
     window.showGasRules = function() {
-        console.log('═══════════════════════════════════════════════════════════════');
-        console.log('%c⚡ Gas消耗规则 - 哪些错误消耗Gas？', 'color: #00aaff; font-weight: bold; font-size: 16px;');
-        console.log('═══════════════════════════════════════════════════════════════');
-        console.log('');
-        console.log('%c✅ 不消耗Gas（链下/预检阶段）：', 'color: #00ff00; font-weight: bold;');
-        console.log('   • estimateGas失败 - 预检，模拟执行不上链');
-        console.log('   • RPC连接错误 - 交易没发出去');
-        console.log('   • 签名失败 - 钱包拒绝');
-        console.log('   • 参数错误 - API层面拒绝');
-        console.log('   • 预检CALL_EXCEPTION - 预检机制捕获');
-        console.log('');
-        console.log('%c❌ 消耗Gas（交易已上链）：', 'color: #ff0000; font-weight: bold;');
-        console.log('   • 交易revert - 上链后执行失败，已扣gas');
-        console.log('   • 超时但成功 - 交易上链了，只是等确认超时');
-        console.log('   • Nonce冲突 - 超时后重试，两笔都上链');
-        console.log('   • 重复操作 - kami已停采/已部署还重复操作');
-        console.log('');
-        console.log('%c💡 省Gas秘诀（批量打包同类操作）：', 'color: #ffaa00; font-weight: bold;');
-        console.log('');
-        console.log('   测试方法：同一账户连续 N=1..12 实测，间隔 1.5s，cooldown 3min');
-        console.log('');
-        console.log('%c📊 [部署 deploy] — 实测 gasUsed (M = 百万 gas)：', 'color: #ffaa00; font-weight: bold;');
-        console.log('   N     单 tx 总 gas    每只摊销      省比 vs N=1');
-        console.log('   ───   ───────────     ──────────    ───────────');
-        console.log('   1     1.35M           1.35M         0%');
-        console.log('   2     2.03M           1.01M         25%');
-        console.log('   3     2.74M           0.91M         33%');
-        console.log('   4     3.43M           0.86M         37%');
-        console.log('   5     4.15M           0.83M         39%');
-        console.log('   6     4.81M           0.80M         41%');
-        console.log('   7     5.51M           0.79M         42%');
-        console.log('   8     6.22M           0.78M         43%');
-        console.log('   9     6.89M           0.77M         44%');
-        console.log('   10    7.58M           0.76M         44%');
-        console.log('   11    8.26M           0.75M         45%');
-        console.log('   12    8.97M           0.75M         45%');
-        console.log('');
-        console.log('   👉 部署：N=1→2 跳变最大（省 25%），到 N=10 后基本稳定（~45%）');
-        console.log('   👉 边际成本 ≈ 0.69M / 个；固定开销 ≈ 0.66M / tx');
-        console.log('');
-        console.log('%c📊 [停采 stop] — 实测 gasUsed：', 'color: #ffaa00; font-weight: bold;');
-        console.log('   N     单 tx 总 gas    每只摊销      省比 vs N=1');
-        console.log('   ───   ───────────     ──────────    ───────────');
-        console.log('   1     2.43M           2.43M         0%');
-        console.log('   2     3.82M           1.91M         21%');
-        console.log('   3     5.16M           1.72M         29%');
-        console.log('   4     6.53M           1.63M         33%');
-        console.log('   5     7.93M           1.59M         35%');
-        console.log('   6     9.25M           1.54M         37%');
-        console.log('   7     10.59M          1.51M         38%');
-        console.log('   8     12.15M          1.52M         38%');
-        console.log('   9     13.43M          1.49M         39%');
-        console.log('   10    14.70M          1.47M         40%');
-        console.log('   11    16.15M          1.47M         40%');
-        console.log('   12    17.40M          1.45M         40%');
-        console.log('');
-        console.log('   👉 停采：N=1→2 省 21%，N=1→12 省 40%，节省曲线比部署平缓');
-        console.log('   👉 边际成本 ≈ 1.36M / 个；固定开销 ≈ 1.07M / tx');
-        console.log('');
-        console.log('%c💰 关键结论（与直觉相反！）：', 'color: #ff6600; font-weight: bold;');
-        console.log('   ⚠️ 停采反而比部署贵：');
-        console.log('      • 同 N=1：停采 2.43M vs 部署 1.35M（停采贵 80%）');
-        console.log('      • 同 N=10：停采 1.47M vs 部署 0.76M（停采贵 94%）');
-        console.log('   原因推测：停采涉及收益结算 + 状态清理 + 事件 emit，写操作更多。');
-        console.log('   省 gas 优先级：');
-        console.log('      ① 减少不必要的停采（精挑 HP 危险线，别停健康 kami）');
-        console.log('      ② 停采时尽量批量（N=10 比 N=1 省 40%）');
-        console.log('      ③ 部署批量（N=10 比 N=1 省 44%；但部署本身便宜，权重低于①②）');
-        console.log('');
-        console.log('%c🔧 当前脚本的省Gas优化：', 'color: #aa00ff; font-weight: bold;');
-        console.log('   • 紧急停采：每批随机 6-10 个（大批量在 gas 飙升时失败率更高）');
-        console.log('   • 紧急停采：预检过滤已死/已停 kami，避免无效交易');
-        console.log('   • 紧急停采：动态等待时间，避免重复发送（重发会双倍 gas）');
-        console.log('   • 一键停采：每批 6-10 随机（同上策略）');
-        console.log('   • 喂食：每批 3 个（喂食合约稍贵，批小一点更稳）');
-        console.log('   • 喂食：4 层预检 + 失败冷却，避免反复失败消耗 gas');
-        console.log('   • 部署：estimateGas 预检，失败不上链；优先批量发送');
-        console.log('   • 默认 API 批量，避免 DOM 逐个');
-        console.log('');
-        console.log('%c⚠️ 注意：', 'color: #ff0000; font-weight: bold;');
-        console.log('   • 上面 gasUsed 数据为单账户单次实测，不同账户/时段会有偏差，');
-        console.log('     但批量节省比例（省比）相对稳定。');
-        console.log('   • cooldown / 失败 revert / nonce 冲突会显著拉高真实成本。');
-        console.log('═══════════════════════════════════════════════════════════════');
+        clog('═══════════════════════════════════════════════════════════════');
+        clog('%c⚡ Gas消耗规则 - 哪些错误消耗Gas？', 'color: #00aaff; font-weight: bold; font-size: 16px;');
+        clog('═══════════════════════════════════════════════════════════════');
+        clog('');
+        clog('%c✅ 不消耗Gas（链下/预检阶段）：', 'color: #00ff00; font-weight: bold;');
+        clog('   • estimateGas失败 - 预检，模拟执行不上链');
+        clog('   • RPC连接错误 - 交易没发出去');
+        clog('   • 签名失败 - 钱包拒绝');
+        clog('   • 参数错误 - API层面拒绝');
+        clog('   • 预检CALL_EXCEPTION - 预检机制捕获');
+        clog('');
+        clog('%c❌ 消耗Gas（交易已上链）：', 'color: #ff0000; font-weight: bold;');
+        clog('   • 交易revert - 上链后执行失败，已扣gas');
+        clog('   • 超时但成功 - 交易上链了，只是等确认超时');
+        clog('   • Nonce冲突 - 超时后重试，两笔都上链');
+        clog('   • 重复操作 - kami已停采/已部署还重复操作');
+        clog('');
+        clog('%c💡 省Gas秘诀（批量打包同类操作）：', 'color: #ffaa00; font-weight: bold;');
+        clog('');
+        clog('   测试方法：同一账户连续 N=1..12 实测，间隔 1.5s，cooldown 3min');
+        clog('');
+        clog('%c📊 [部署 deploy] — 实测 gasUsed (M = 百万 gas)：', 'color: #ffaa00; font-weight: bold;');
+        clog('   N     单 tx 总 gas    每只摊销      省比 vs N=1');
+        clog('   ───   ───────────     ──────────    ───────────');
+        clog('   1     1.35M           1.35M         0%');
+        clog('   2     2.03M           1.01M         25%');
+        clog('   3     2.74M           0.91M         33%');
+        clog('   4     3.43M           0.86M         37%');
+        clog('   5     4.15M           0.83M         39%');
+        clog('   6     4.81M           0.80M         41%');
+        clog('   7     5.51M           0.79M         42%');
+        clog('   8     6.22M           0.78M         43%');
+        clog('   9     6.89M           0.77M         44%');
+        clog('   10    7.58M           0.76M         44%');
+        clog('   11    8.26M           0.75M         45%');
+        clog('   12    8.97M           0.75M         45%');
+        clog('');
+        clog('   👉 部署：N=1→2 跳变最大（省 25%），到 N=10 后基本稳定（~45%）');
+        clog('   👉 边际成本 ≈ 0.69M / 个；固定开销 ≈ 0.66M / tx');
+        clog('');
+        clog('%c📊 [停采 stop] — 实测 gasUsed：', 'color: #ffaa00; font-weight: bold;');
+        clog('   N     单 tx 总 gas    每只摊销      省比 vs N=1');
+        clog('   ───   ───────────     ──────────    ───────────');
+        clog('   1     2.43M           2.43M         0%');
+        clog('   2     3.82M           1.91M         21%');
+        clog('   3     5.16M           1.72M         29%');
+        clog('   4     6.53M           1.63M         33%');
+        clog('   5     7.93M           1.59M         35%');
+        clog('   6     9.25M           1.54M         37%');
+        clog('   7     10.59M          1.51M         38%');
+        clog('   8     12.15M          1.52M         38%');
+        clog('   9     13.43M          1.49M         39%');
+        clog('   10    14.70M          1.47M         40%');
+        clog('   11    16.15M          1.47M         40%');
+        clog('   12    17.40M          1.45M         40%');
+        clog('');
+        clog('   👉 停采：N=1→2 省 21%，N=1→12 省 40%，节省曲线比部署平缓');
+        clog('   👉 边际成本 ≈ 1.36M / 个；固定开销 ≈ 1.07M / tx');
+        clog('');
+        clog('%c💰 关键结论（与直觉相反！）：', 'color: #ff6600; font-weight: bold;');
+        clog('   ⚠️ 停采反而比部署贵：');
+        clog('      • 同 N=1：停采 2.43M vs 部署 1.35M（停采贵 80%）');
+        clog('      • 同 N=10：停采 1.47M vs 部署 0.76M（停采贵 94%）');
+        clog('   原因推测：停采涉及收益结算 + 状态清理 + 事件 emit，写操作更多。');
+        clog('   省 gas 优先级：');
+        clog('      ① 减少不必要的停采（精挑 HP 危险线，别停健康 kami）');
+        clog('      ② 停采时尽量批量（N=10 比 N=1 省 40%）');
+        clog('      ③ 部署批量（N=10 比 N=1 省 44%；但部署本身便宜，权重低于①②）');
+        clog('');
+        clog('%c🔧 当前脚本的省Gas优化：', 'color: #aa00ff; font-weight: bold;');
+        clog('   • 紧急停采：每批随机 6-10 个（大批量在 gas 飙升时失败率更高）');
+        clog('   • 紧急停采：预检过滤已死/已停 kami，避免无效交易');
+        clog('   • 紧急停采：动态等待时间，避免重复发送（重发会双倍 gas）');
+        clog('   • 一键停采：每批 6-10 随机（同上策略）');
+        clog('   • 喂食：每批 3 个（喂食合约稍贵，批小一点更稳）');
+        clog('   • 喂食：4 层预检 + 失败冷却，避免反复失败消耗 gas');
+        clog('   • 部署：estimateGas 预检，失败不上链；优先批量发送');
+        clog('   • 默认 API 批量，避免 DOM 逐个');
+        clog('');
+        clog('%c⚠️ 注意：', 'color: #ff0000; font-weight: bold;');
+        clog('   • 上面 gasUsed 数据为单账户单次实测，不同账户/时段会有偏差，');
+        clog('     但批量节省比例（省比）相对稳定。');
+        clog('   • cooldown / 失败 revert / nonce 冲突会显著拉高真实成本。');
+        clog('═══════════════════════════════════════════════════════════════');
     };
 
     // ============================================================
@@ -5317,9 +5420,9 @@
         try { return localStorage.getItem('kami_stop_tx_channel') === 'mud' ? 'mud' : 'raw'; } catch (e) { return 'raw'; }
     }
     window.setStopTxChannel = function (ch) {
-        if (ch !== 'mud' && ch !== 'raw') { console.log("用法: setStopTxChannel('mud'|'raw')  当前=" + _getStopTxChannel()); return; }
+        if (ch !== 'mud' && ch !== 'raw') { clog("用法: setStopTxChannel('mud'|'raw')  当前=" + _getStopTxChannel()); return; }
         try { localStorage.setItem('kami_stop_tx_channel', ch); } catch (e) {}
-        console.log(`✅ 停采发送通道已切为 ${ch}（mud=MUD队列统一nonce/raw=原始签名器旧路），即刻生效`);
+        clog(`✅ 停采发送通道已切为 ${ch}（mud=MUD队列统一nonce/raw=原始签名器旧路），即刻生效`);
     };
 
     // ============ [停采回执适配 v1.1.21] MUD 队列 resolve 的可能是 tx(带wait) 也可能直接是 receipt ============
@@ -7206,7 +7309,7 @@
             } catch (e) { /* 忽略 */ }
 
             log('========== 🪶 账户信息 ==========');
-            console.log(
+            clog(
                 `%c👤 账户名: %c${name}`,
                 'color:white;font-weight:bold;background:#444;padding:2px 6px;border-radius:4px;',
                 'color:#ff4d4f;font-weight:bold;'
@@ -7215,7 +7318,7 @@
             log(`🧠 Operator: ${operator}`);
             // 会话启动时检查一次账户余额是否低于警戒线（失败静默忽略，不影响主流程；旧余额差 gas 统计已于 1.2.7 删除，改用 showGasReport 链上真值账本）
             try { checkLowBalanceOnce(name || '(unknown)', 'start'); } catch {}
-            console.log(
+            clog(
                 `%c📦 Kami 总数: %c${kamiCount}`,
                 'color:white;font-weight:bold;background:#444;padding:2px 6px;border-radius:4px;',
                 'color:#ff4d4f;font-weight:bold;'
@@ -7274,26 +7377,26 @@
                 highLT.sort((a, b) => b.LT - a.LT);
 
                 if (highLT.length > 0) {
-                    console.log(
+                    clog(
                         `%c🚨 警告：${highLT.length} 个 Kami 清算线超过 65%，请优先维护升级！`,
                         'color:red; font-size:16px; font-weight:bold; background:#fff0f0; padding:4px;'
                     );
-                    console.log(
+                    clog(
                         `%c   停采线上限仅 80%，这些 Kami 缓冲空间极小，极易被清算！`,
                         'color:red; font-weight:bold;'
                     );
-                    console.log(
+                    clog(
                         `%c   建议：优先升级 harmony / 重置技能加 defense，从清算线最高的开始处理`,
                         'color:red; font-weight:bold;'
                     );
                     highLT.forEach((k, i) => {
-                        console.log(
+                        clog(
                             `%c   ${i + 1}. #${k.index}（LT=${k.LT}%） body=${k.body || '?'} state=${k.state}`,
                             'color:red; font-weight:bold; font-size:13px;'
                         );
                     });
                 } else if (coreDb.length > 0) {
-                    console.log(
+                    clog(
                         `%c✅ 账户内所有已收录 Kami 清算线均 ≤ 80%，状态良好`,
                         'color:green; font-size:14px; font-weight:bold;'
                     );
@@ -7301,7 +7404,7 @@
 
                 if (missing.length > 0) {
                     const idList = missing.map(k => `#${k.index}`).join(', ');
-                    console.log(
+                    clog(
                         `%c⚠️ 数据库未收录 ${missing.length} 只 Kami（${idList}），建议刷新页面重新运行精简数据库脚本以更新`,
                         'color:orange; font-size:14px; font-weight:bold; background:#fffbe6; padding:4px;'
                     );
@@ -10903,7 +11006,7 @@
     window.clearXPPotionFed = window.clearFortifiedFed = function() {
         const s = _getXPPotionFedSet();
         localStorage.removeItem(XP_POTION_FED_KEY);
-        console.log(`✅ 已清除 ${s.size} 条 XP Potion 喂食记录（Fortified+Greater通用）`);
+        clog(`✅ 已清除 ${s.size} 条 XP Potion 喂食记录（Fortified+Greater通用）`);
     };
 
     const ITEM_FORTIFIED_XP = 11411;  // Fortified XP Potion
@@ -10954,13 +11057,13 @@
     window.showMyKillers = function() {
         const list = [...(window.MY_KILLER_KAMIS || [])];
         if (list.length === 0) {
-            console.log('🛡️ 当前未配置杀手 kami（XP Potion 喂食对所有 kami 生效）');
+            clog('🛡️ 当前未配置杀手 kami（XP Potion 喂食对所有 kami 生效）');
             return;
         }
-        console.log(`🛡️ 我的杀手清单（共 ${list.length} 只，XP Potion 喂食自动跳过）：`);
-        console.log('   ' + list.map(i => `#${i}`).join(', '));
-        console.log('   💡 修改方法：在控制台执行 window.MY_KILLER_KAMIS.add(数字) 或 .delete(数字)');
-        console.log('   ⚠️ 长期生效需同步修改核心脚本 + 辅助脚本两处常量');
+        clog(`🛡️ 我的杀手清单（共 ${list.length} 只，XP Potion 喂食自动跳过）：`);
+        clog('   ' + list.map(i => `#${i}`).join(', '));
+        clog('   💡 修改方法：在控制台执行 window.MY_KILLER_KAMIS.add(数字) 或 .delete(数字)');
+        clog('   ⚠️ 长期生效需同步修改核心脚本 + 辅助脚本两处常量');
     };
 
     // ============================================================
@@ -11944,9 +12047,9 @@
 
             const _kaOn = () => { try { return localStorage.getItem('kami_keepalive') !== 'off'; } catch (e) { return true; } };
             window.setKeepAlive = function (v) {
-                if (v !== 'on' && v !== 'off') { console.log("用法: setKeepAlive('on'|'off') 当前=" + (_kaOn() ? 'on' : 'off')); return; }
+                if (v !== 'on' && v !== 'off') { clog("用法: setKeepAlive('on'|'off') 当前=" + (_kaOn() ? 'on' : 'off')); return; }
                 try { localStorage.setItem('kami_keepalive', v); } catch (e) {}
-                console.log(`✅ 活动保活已切为 ${v}`);
+                clog(`✅ 活动保活已切为 ${v}`);
             };
             // 真人活动监听（capture+passive，isTrusted 才算）
             for (const ev of ['mousedown', 'keydown', 'wheel', 'mousemove', 'pointerdown', 'touchstart']) {

@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-公开版 (helper)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.8
+// @version      1.2.9
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/8 16:53:26
+// @x-release-date 2026/9/11 17:05:48
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -178,6 +178,60 @@
     } catch (_) { /* buffer 不可用就忽略，不影响控制台输出 */ }
   }
 
+  // ============================================================
+  // 【板块：控制台输出也进日志（clog / ctable）】
+  // ------------------------------------------------------------
+  // ▍log() 会同时写控制台和 __kamiLogBuffer（存档用），但脚本里还有一批直接
+  //   console.log 的地方——启动命令清单、参数设置回执、调试行、表格…… 这些在
+  //   控制台看得见，保存出来的日志文件里却一行没有，事后没法复盘。
+  // ▍用户 0911 定案：「我要都走日志，方便事后检查日志」→ 自有 console.log 全部
+  //   改走 clog，console.table 改走 ctable。控制台输出一字不变（%c 彩色照常），
+  //   额外把纯文本副本写进共享缓冲区。
+  // ▍%c 及其配套 CSS 参数剥掉；多行按行拆开逐行入库；全程 try 包住绝不影响主流程。
+  // 🔻SYNC→内部版[全量输出入日志]
+  // ============================================================
+  function __plainArgs(args) {
+      const parts = [];
+      let cssLeft = 0;   // 首参里有几个 %c，后面就有几个 CSS 字符串要跳过
+      for (let i = 0; i < args.length; i++) {
+          const a = args[i];
+          if (i === 0 && typeof a === 'string') {
+              cssLeft = (a.match(/%c/g) || []).length;
+              parts.push(a.replace(/%c/g, ''));
+              continue;
+          }
+          if (cssLeft > 0 && typeof a === 'string') { cssLeft--; continue; }
+          if (typeof a === 'string') { parts.push(a); continue; }
+          try { parts.push(JSON.stringify(a)); } catch (_) { parts.push(String(a)); }
+      }
+      return parts.join(' ');
+  }
+
+  function clog(...args) {
+      console.log(...args);   // 控制台原样输出，样式不受影响
+      try {
+          if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+          const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+          for (const __line of String(__plainArgs(args)).split('\n')) {
+              window.__kamiLogBuffer.push(`[辅助脚本][${__t}] ${__line}`);
+          }
+      } catch (_) {}
+  }
+
+  function ctable(rows) {
+      try { console.table(rows); } catch (_) { console.log(rows); }
+      try {
+          if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+          const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+          const __list = Array.isArray(rows) ? rows : [rows];
+          window.__kamiLogBuffer.push(`[辅助脚本][${__t}] （表格 ${__list.length} 行）`);
+          for (const __r of __list) {
+              let __s; try { __s = JSON.stringify(__r); } catch (_) { __s = String(__r); }
+              window.__kamiLogBuffer.push(`[辅助脚本][${__t}]   ${__s}`);
+          }
+      } catch (_) {}
+  }
+
   //=====提示脚本启动======
   log('%c✅ Kamigotchi辅助脚本-公开版 v1.2.8 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
@@ -185,7 +239,7 @@
   // 🔻SYNC→内部版[1.1.21 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
   (function versionCheck() {
       const SELF_NAME = '辅助脚本';
-      const SELF_VERSION = '1.2.8';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+      const SELF_VERSION = '1.2.9';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
       const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.meta.js';
       let firstSeen = null;
       try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -879,10 +933,10 @@
     return PREDATOR_EQUIP_CAPACITY_DEFAULT;
   }
   window.setPredatorEquipCapacity = function (n) {
-    if (!isFinite(+n) || +n < 0) { console.log(`用法: setPredatorEquipCapacity(1) 当前=${__equipCapacityAssumed()}(假定杀手装备容量)`); return; }
+    if (!isFinite(+n) || +n < 0) { clog(`用法: setPredatorEquipCapacity(1) 当前=${__equipCapacityAssumed()}(假定杀手装备容量)`); return; }
     try { localStorage.setItem('kami_predator_equip_capacity', String(Math.floor(+n))); } catch (_) {}
     try { __predSelCache = null; } catch (_) {}
-    console.log(`✅ 假定装备容量已设为 ${Math.floor(+n)}(refreshPreciseLT() 立即重算)`);
+    clog(`✅ 假定装备容量已设为 ${Math.floor(+n)}(refreshPreciseLT() 立即重算)`);
   };
 
   function __equipHeadroomATR() {   // ratio(ATR)余量
@@ -894,8 +948,8 @@
   }
   window.setPredatorEquipHeadroom = function (ats, atr) {
     if (!isFinite(+ats) || +ats < 0) {
-      console.log(`用法: setPredatorEquipHeadroom(shift, ratio) 例 setPredatorEquipHeadroom(0.10, 0.10)；0,0=全关`);
-      console.log(`当前: shift(ATS)=${__equipHeadroom()}  ratio(ATR)=${__equipHeadroomATR()}`);
+      clog(`用法: setPredatorEquipHeadroom(shift, ratio) 例 setPredatorEquipHeadroom(0.10, 0.10)；0,0=全关`);
+      clog(`当前: shift(ATS)=${__equipHeadroom()}  ratio(ATR)=${__equipHeadroomATR()}`);
       return;
     }
     try {
@@ -903,7 +957,7 @@
       if (isFinite(+atr) && +atr >= 0) localStorage.setItem('kami_predator_equip_headroom_atr', String(+atr));
     } catch (_) {}
     try { __predSelCache = null; } catch (_) {}
-    console.log(`✅ 装备余量已设:shift=${__equipHeadroom()} ratio=${__equipHeadroomATR()}(refreshPreciseLT() 立即重算)`);
+    clog(`✅ 装备余量已设:shift=${__equipHeadroom()} ratio=${__equipHeadroomATR()}(refreshPreciseLT() 立即重算)`);
   };
 
 
@@ -2212,7 +2266,7 @@
         await delay(100);
       }
 
-      console.table(results.map(r => ({
+      ctable(results.map(r => ({
         '#': r.index,
         '名称': r.name?.slice(0, 15),
         '状态': r.state,
@@ -2378,54 +2432,54 @@
 
   // 启动 banner：延迟 3 秒打印可用命令清单（简洁样式），等各模块启动日志先刷完
   setTimeout(() => {
-    console.log('');
-    console.log('════════════════════════════════════');
-    console.log('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.8 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
-    console.log('════════════════════════════════════');
-    console.log('');
-    console.log('  📋 checkAllKamiSkills()');
-    console.log('     检查所有Kami的技能分配，找出非标准技能');
-    console.log('');
-    console.log('  ⬆️  %cupgradekamis()', 'color: red; font-size: 14px;');
-    console.log('     一键升级所有休息中的Kami（等级+技能），采集中的Kami无法操作');
-    console.log('');
-    console.log('  💊 getRespecPotionCount()');
-    console.log('     查询当前 Respec Potion 数量');
-    console.log('');
-    console.log('  🗡️  %cfindKillerCandidates()', 'color: red; font-size: 14px;');
-    console.log('     扫描所有 kami 找杀手候选（base 属性筛选：vio≥23 ∧ harm≥15 ∧ pow≤12）');
-    console.log('     自定义阈值：findKillerCandidates({ vio: 25, harm: 17, pow: 10 })');
-    console.log('     %c⚡ db-first：先在 kami_core_db 内存里筛 → 再 1 个 API 验证账户归属 → 仅候选查动态数据', 'color: red;');
-    console.log('     %c⚠️ 需配合【精简数据库脚本】重建 db；老 db 自动降级到全 API 扫描', 'color: red;');
-    console.log('');
-    console.log('  🗡️ %cscanTopPredators()', 'color: red; font-size: 14px;');
-    console.log('     全网扫描最强杀手（四桶帕累托前沿+主人+哨兵，20~60秒）；结果供精确清算线使用，6小时自动重扫');
-    console.log('  📐 showTopPredators() / refreshPreciseLT()');
-    console.log('  📊 compareLT()           - 对照 兜底线(数据库初值) vs 实战线(现役档案+活跃度) 的清算线差异，compareLT(true) 全量');
-    console.log('     查看当前威胁档案 / 手动按档案重算全库精确清算线');
-    console.log('  🩺 %cshowHealth()', 'color: red; font-size: 14px;');
-    console.log('     代码健康看板：哪个模块该跑没跑一目了然（每30分钟自检，有问题自动打看板）');
-    console.log('');
-    console.log('  🔧 autoCraft()');
-    console.log('     手动触发一次自动合成（步长≥80时合成物品）');
-    console.log('');
-    console.log('  📏 getStaminaFromDOM()');
-    console.log('     从DOM获取实时步长');
-    console.log('');
-    console.log('  📊 window.kami_core_db');
-    console.log('     查看精简数据库内容');
-    console.log('');
-    console.log('══════════════════════════════════');
-    console.log('⏰ 自动升级将在游戏加载完成后自动执行');
-    console.log('⏰ 自动合成将在脚本启动 5 分钟后首次检测，之后每 30 分钟检测');
-    console.log('⏰ UI更新（LT显示+标红）每 5 分钟执行一次');
-    console.log('%c📝 辅助脚本日志已接入 saveKamiLogs() — 可保存升级/重置/合成完整记录', 'color: #00ff66;');
-    console.log('%c   grep "技能重置摘要" 即可查看所有 Respec 重置事件', 'color: #00ff66;');
-    console.log('%c🗡️ findKillerCandidates 改为 db-first 流程，启动自动跑一次（几秒级）', 'color: red; font-weight: bold;');
-    console.log('%c🔗 升级/reset 同时检查 window.MY_KILLER_KAMIS（监控脚本会自动注册自家 kami）', 'color: cyan; font-weight: bold;');
-    console.log('%c🩹 LT 显示改 CSS 伪元素方案，永不被 React 洗掉；调试用 window.__refreshLT()', 'color: red; font-weight: bold;');
-    console.log('═════════════════════════════════');
-    console.log('');
+    clog('');
+    clog('════════════════════════════════════');
+    clog('%c🎮 Kamigotchi辅助脚本-公开版 v1.2.9 可用命令', 'color: green; font-weight: bold;');   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
+    clog('════════════════════════════════════');
+    clog('');
+    clog('  📋 checkAllKamiSkills()');
+    clog('     检查所有Kami的技能分配，找出非标准技能');
+    clog('');
+    clog('  ⬆️  %cupgradekamis()', 'color: red; font-size: 14px;');
+    clog('     一键升级所有休息中的Kami（等级+技能），采集中的Kami无法操作');
+    clog('');
+    clog('  💊 getRespecPotionCount()');
+    clog('     查询当前 Respec Potion 数量');
+    clog('');
+    clog('  🗡️  %cfindKillerCandidates()', 'color: red; font-size: 14px;');
+    clog('     扫描所有 kami 找杀手候选（base 属性筛选：vio≥23 ∧ harm≥15 ∧ pow≤12）');
+    clog('     自定义阈值：findKillerCandidates({ vio: 25, harm: 17, pow: 10 })');
+    clog('     %c⚡ db-first：先在 kami_core_db 内存里筛 → 再 1 个 API 验证账户归属 → 仅候选查动态数据', 'color: red;');
+    clog('     %c⚠️ 需配合【精简数据库脚本】重建 db；老 db 自动降级到全 API 扫描', 'color: red;');
+    clog('');
+    clog('  🗡️ %cscanTopPredators()', 'color: red; font-size: 14px;');
+    clog('     全网扫描最强杀手（四桶帕累托前沿+主人+哨兵，20~60秒）；结果供精确清算线使用，6小时自动重扫');
+    clog('  📐 showTopPredators() / refreshPreciseLT()');
+    clog('  📊 compareLT()           - 对照 兜底线(数据库初值) vs 实战线(现役档案+活跃度) 的清算线差异，compareLT(true) 全量');
+    clog('     查看当前威胁档案 / 手动按档案重算全库精确清算线');
+    clog('  🩺 %cshowHealth()', 'color: red; font-size: 14px;');
+    clog('     代码健康看板：哪个模块该跑没跑一目了然（每30分钟自检，有问题自动打看板）');
+    clog('');
+    clog('  🔧 autoCraft()');
+    clog('     手动触发一次自动合成（步长≥80时合成物品）');
+    clog('');
+    clog('  📏 getStaminaFromDOM()');
+    clog('     从DOM获取实时步长');
+    clog('');
+    clog('  📊 window.kami_core_db');
+    clog('     查看精简数据库内容');
+    clog('');
+    clog('══════════════════════════════════');
+    clog('⏰ 自动升级将在游戏加载完成后自动执行');
+    clog('⏰ 自动合成将在脚本启动 5 分钟后首次检测，之后每 30 分钟检测');
+    clog('⏰ UI更新（LT显示+标红）每 5 分钟执行一次');
+    clog('%c📝 辅助脚本日志已接入 saveKamiLogs() — 可保存升级/重置/合成完整记录', 'color: #00ff66;');
+    clog('%c   grep "技能重置摘要" 即可查看所有 Respec 重置事件', 'color: #00ff66;');
+    clog('%c🗡️ findKillerCandidates 改为 db-first 流程，启动自动跑一次（几秒级）', 'color: red; font-weight: bold;');
+    clog('%c🔗 升级/reset 同时检查 window.MY_KILLER_KAMIS（监控脚本会自动注册自家 kami）', 'color: cyan; font-weight: bold;');
+    clog('%c🩹 LT 显示改 CSS 伪元素方案，永不被 React 洗掉；调试用 window.__refreshLT()', 'color: red; font-weight: bold;');
+    clog('═════════════════════════════════');
+    clog('');
   }, 3000);
 
   // ============================================================
@@ -4171,7 +4225,7 @@
                `调节：setPredatorEquipHeadroom(shift, ratio)｜setPredatorEquipCapacity(n)`);
     } catch (_) {}
     out.push(`说明：清算线对"活跃档案"取最坏对位（主人 >${PREDATOR_INACTIVE_DAYS} 天无链上动作的自动降级；整桶沉寂则整桶保守回退）；scanTopPredators() 立即重扫；数据超 6 小时自动重扫`);
-    console.log(out.join('\n'));
+    clog(out.join('\n'));
   }
 
   // ── 清算线对照：兜底线（精确公式 + 内置包络档案 = 数据库建库/重建写入的初值口径）

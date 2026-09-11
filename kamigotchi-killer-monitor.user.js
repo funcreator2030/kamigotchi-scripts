@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.5
+// @version      1.2.6
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/11 16:37:35
+// @x-release-date 2026/9/11 17:05:48
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -314,13 +314,67 @@
         }
     }
 
-    log('%c✅ 轻量杀手监控-公开版 v1.2.2 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
+    // ============================================================
+    // 【板块：控制台输出也进日志（clog / ctable）】
+    // ------------------------------------------------------------
+    // ▍log() 会同时写控制台和 __kamiLogBuffer（存档用），但脚本里还有一批直接
+    //   console.log 的地方——启动命令清单、参数设置回执、调试行、表格…… 这些在
+    //   控制台看得见，保存出来的日志文件里却一行没有，事后没法复盘。
+    // ▍用户 0911 定案：「我要都走日志，方便事后检查日志」→ 自有 console.log 全部
+    //   改走 clog，console.table 改走 ctable。控制台输出一字不变（%c 彩色照常），
+    //   额外把纯文本副本写进共享缓冲区。
+    // ▍%c 及其配套 CSS 参数剥掉；多行按行拆开逐行入库；全程 try 包住绝不影响主流程。
+    // 🔻SYNC→内部版[全量输出入日志]
+    // ============================================================
+    function __plainArgs(args) {
+        const parts = [];
+        let cssLeft = 0;   // 首参里有几个 %c，后面就有几个 CSS 字符串要跳过
+        for (let i = 0; i < args.length; i++) {
+            const a = args[i];
+            if (i === 0 && typeof a === 'string') {
+                cssLeft = (a.match(/%c/g) || []).length;
+                parts.push(a.replace(/%c/g, ''));
+                continue;
+            }
+            if (cssLeft > 0 && typeof a === 'string') { cssLeft--; continue; }
+            if (typeof a === 'string') { parts.push(a); continue; }
+            try { parts.push(JSON.stringify(a)); } catch (_) { parts.push(String(a)); }
+        }
+        return parts.join(' ');
+    }
+
+    function clog(...args) {
+        console.log(...args);   // 控制台原样输出，样式不受影响
+        try {
+            if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+            const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+            for (const __line of String(__plainArgs(args)).split('\n')) {
+                window.__kamiLogBuffer.push(`[杀手监控][${__t}] ${__line}`);
+            }
+        } catch (_) {}
+    }
+
+    function ctable(rows) {
+        try { console.table(rows); } catch (_) { console.log(rows); }
+        try {
+            if (!Array.isArray(window.__kamiLogBuffer)) window.__kamiLogBuffer = [];
+            const __t = new Date(Date.now() + __TZ_OFFSET_MS).toISOString().replace('T', ' ').substring(0, 19);
+            const __list = Array.isArray(rows) ? rows : [rows];
+            window.__kamiLogBuffer.push(`[杀手监控][${__t}] （表格 ${__list.length} 行）`);
+            for (const __r of __list) {
+                let __s; try { __s = JSON.stringify(__r); } catch (_) { __s = String(__r); }
+                window.__kamiLogBuffer.push(`[杀手监控][${__t}]   ${__s}`);
+            }
+        } catch (_) {}
+    }
+
+    log('%c✅ 轻量杀手监控-公开版 v1.2.6 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -451,6 +505,16 @@
 
         // 先拿自己的 accountId + name，用于后面对比每只 kami 的 owner
         let myAccId = null, myAccName = null;
+        // 🔻SYNC→内部版[1.2.6 账户未就绪重试]（用户 0911 定案）：账户数据在页面刚加载时常常还没水合,
+        //   直接放弃会让整轮映射失去自检依据。改为【带退避的重试】:最多 5 次、间隔 2/4/6/8s
+        //   (累计约 20 秒),任一轮拿到非空 id 或 name 即成功。比"拿不到就算了"主动得多,
+        //   也比无限等待安全——5 次仍失败才走下方的"本轮不落地、下轮重建"保守路径。
+        const __ACC_RETRY = [0, 2000, 4000, 6000, 8000];
+        for (let __try = 0; __try < __ACC_RETRY.length; __try++) {
+        if (__ACC_RETRY[__try] > 0) {
+            log(`⏳ [映射] 账户数据尚未就绪,${__ACC_RETRY[__try] / 1000}s 后重试(第 ${__try + 1}/${__ACC_RETRY.length} 次)…`);
+            await new Promise(r => setTimeout(r, __ACC_RETRY[__try]));
+        }
         try {
             const addr = window.network?.network?.connectedAddress?.value_
                       || window.network?.network?.connectedAddress?.value;
@@ -468,7 +532,9 @@
                 log(`👤 当前账户: ${myAccName || '(unknown)'} (id=${myAccId || '?'})`);
             }
         } catch (e) {
-            log(`⚠️ 无法获取自己 accountId，自检跳过：${e?.message || e}`);
+            log(`⚠️ 获取自己 accountId 失败(第 ${__try + 1} 次)：${e?.message || e}`);
+        }
+        if (myAccId || myAccName) break;   // 🔻SYNC[1.2.6] 拿到任一有效身份即停止重试
         }
 
         __killerPlayerMap = {};
@@ -1300,29 +1366,29 @@
     //   内容与上面"控制台命令挂载"板块一致。
     // ▍触发时机：脚本加载立即输出（早于 150 秒的延迟自动启动）。
     // ============================================================
-    console.log('═══════════════════════════════');
-    console.log('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.2.2 已加载', 'color: green; font-weight: bold;');
-    console.log('');
-    console.log('【杀手监控优化】');
-    console.log('  启动时建立 kami→player 映射，每次检测只查 player 位置');
-    console.log('  API请求按玩家聚合查询，大幅减少（实际次数见运行日志）');
-    console.log('%c  自家 kami 用 harvest.roomIndex 单独追踪 + 同步到 MY_KILLER_KAMIS', 'color: cyan;');
-    console.log('%c    需配合核心脚本与辅助脚本使用，才能完整跳过部署/升级/reset', 'color: cyan;');
-    console.log('');
-    console.log('【API 杀手位置监控】（自动启动）');
-    console.log('  startKillerMonitor()   - 启动');
-    console.log('  stopKillerMonitor()    - 停止');
-    console.log('  checkKillerPositions() - 手动检测');
-    console.log('  rebuildKillerMap()     - 重建映射');
-    console.log('');
-    console.log('【Feed 监控】（已停用的历史功能）');
-    console.log('  startFeedMonitor()     - 启动');
-    console.log('  stopFeedMonitor()      - 停止');
-    console.log('');
-    console.log('【杀手列表】');
-    console.log('  addKiller(12345)       - 添加');
-    console.log('  removeKiller(12345)    - 移除');
-    console.log('  listKillers()          - 查看');
-    console.log('══════════════════════════════');
+    clog('═══════════════════════════════');
+    clog('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.2.6 已加载', 'color: green; font-weight: bold;');
+    clog('');
+    clog('【杀手监控优化】');
+    clog('  启动时建立 kami→player 映射，每次检测只查 player 位置');
+    clog('  API请求按玩家聚合查询，大幅减少（实际次数见运行日志）');
+    clog('%c  自家 kami 用 harvest.roomIndex 单独追踪 + 同步到 MY_KILLER_KAMIS', 'color: cyan;');
+    clog('%c    需配合核心脚本与辅助脚本使用，才能完整跳过部署/升级/reset', 'color: cyan;');
+    clog('');
+    clog('【API 杀手位置监控】（自动启动）');
+    clog('  startKillerMonitor()   - 启动');
+    clog('  stopKillerMonitor()    - 停止');
+    clog('  checkKillerPositions() - 手动检测');
+    clog('  rebuildKillerMap()     - 重建映射');
+    clog('');
+    clog('【Feed 监控】（已停用的历史功能）');
+    clog('  startFeedMonitor()     - 启动');
+    clog('  stopFeedMonitor()      - 停止');
+    clog('');
+    clog('【杀手列表】');
+    clog('  addKiller(12345)       - 添加');
+    clog('  removeKiller(12345)    - 移除');
+    clog('  listKillers()          - 查看');
+    clog('══════════════════════════════');
 
 })();
