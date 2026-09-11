@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/8 16:49:00
+// @x-release-date 2026/9/11 16:37:35
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -320,7 +320,7 @@
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.2.4';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.5';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -456,8 +456,15 @@
                       || window.network?.network?.connectedAddress?.value;
             if (addr) {
                 const myAcc = await window.network.explorer.accounts.getByOperator(addr);
-                myAccId = myAcc?.id ?? null;
-                myAccName = myAcc?.name ?? null;
+                // 🔻SYNC→内部版[1.2.5 自家杀手误判修复] 0911 实盘 bug:`??` 只替换 null/undefined,
+                //   不管空字符串。账户未就绪时 myAccName='',而查不到名字的敌方 owner 也是 '',
+                //   两个空串相等 → 敌方杀手被误判成"自家杀手"移出监控,整个会话对该玩家失明
+                //   (实录:CZ 15:17 会话把 shrike 名下 12649/11224/6245 全判成自家,监控玩家数 23→21,
+                //    shrike 该会话完全隐形;同时"我的位置"读成 deadzone 房间0)。
+                //   修法:空串一律当"没拿到",宁可全部按外部杀手处理(fail-safe 方向)。
+                const __rawId = myAcc?.id, __rawName = myAcc?.name;
+                myAccId   = (typeof __rawId   === 'string' && __rawId.length   > 0) ? __rawId   : null;
+                myAccName = (typeof __rawName === 'string' && __rawName.length > 0) ? __rawName : null;
                 log(`👤 当前账户: ${myAccName || '(unknown)'} (id=${myAccId || '?'})`);
             }
         } catch (e) {
@@ -479,8 +486,9 @@
                 const playerName = ownerAccount.name;
 
                 // 自检：owner 是不是自己？双重比对（id + name 任一匹配即算，防某一字段缺失漏判）
-                const isSelfById   = myAccId   != null && playerId   === myAccId;
-                const isSelfByName = myAccName != null && playerName === myAccName;
+                // 🔻SYNC[1.2.5] 真值判断:空串/0/undefined 一律不参与自检,避免"两个空值相等"的误判
+                const isSelfById   = !!myAccId   && !!playerId   && playerId   === myAccId;
+                const isSelfByName = !!myAccName && !!playerName && playerName === myAccName;
                 if (isSelfById || isSelfByName) {
                     __selfOwnedKillerList.push(kamiIndex);
                     log(`  🛡️ Kami ${kamiIndex} 是自己(${_killerLabel(playerName, playerId)})名下 → 移入"自家杀手"单独追踪（用 harvest.roomIndex 而非账户位置）`);
@@ -505,6 +513,16 @@
         }
 
         const playerCount = Object.keys(__killerPlayerMap).length;
+        // 🔻SYNC→内部版[1.2.5 身份未就绪不落地映射] 若连自己是谁都没查到,这轮映射的"自家/敌方"
+        //   分类本就不可信,且往往伴随位置读成 deadzone。此时不标记 mappingBuilt,
+        //   让下一轮 checkKillerPositions 的兜底逻辑重建——宁可多建一次,也不要带病跑一整个会话。
+        if (!myAccId && !myAccName) {
+            log(`%c⚠️ [映射] 未能识别当前账户(账户数据尚未就绪) → 本轮映射不落地,下一轮自动重建;期间全部 kami 按【外部杀手】处理(保守)`,
+                'color: orange; font-weight: bold;');
+            __mappingBuilt = false;
+            try { window.__killerMonitorState.mappingBuilt = false; } catch (_) {}
+            return;
+        }
         __mappingBuilt = true;
         window.__killerMonitorState.mappingBuilt = true;
 
