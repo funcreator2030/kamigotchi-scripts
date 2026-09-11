@@ -3483,11 +3483,23 @@
         let __rawMode = __feedChan === 'raw' && typeof __rawSigner?.sendTransaction === 'function'
                         && typeof __rawSigner?.provider?.getTransactionCount === 'function';
         let __rawNonce = null;
+        // 🔻SYNC→内部版[测试版1.2.35 gasLimit 实测修复] 0911 实盘 DO_SEND 真发一笔坐实：
+        //   estimateGas 干跑说要 2,848,814 gas，而下面发送写死 gasLimit: 2000000 →
+        //   链上 gasUsed=1,998,856（烧到只剩 1,144）、0 条日志、status=0x0 = out of gas。
+        //   （EIP-150 的 63/64 规则：内层把分到的 gas 用尽，外层拿剩下的 1/64 回滚，
+        //     所以 gasUsed 会略小于 gasLimit 而不是正好相等——别误判成业务 revert。）
+        //   这是**写死常量腐烂**的又一例：合约升级后单笔开销涨过 2M，这条路就整条废了。
+        //   改法：每批估一次真实值 ×1.3 缓存复用（不逐只估——1.2.24 的教训是逐只
+        //   estimateGas 会把救援拖慢 3 分钟）；估不出来给 4M 保底。
+        //   给大不浪费：链上按 gasUsed 计费，gasLimit 只是上限。
+        let __rawAddr = null;
+        let __rawGasLimit = null;
         let __weSetEmergency = false;
         let __rawSent = 0;
         if (__rawMode) {
             try {
                 const __addr = await __rawSigner.getAddress();
+                __rawAddr = __addr;   // 🔻SYNC[测试版1.2.35] 留给下面估 gas 用
                 __rawNonce = await __rawSigner.provider.getTransactionCount(__addr, 'pending');
                 // 🔻SYNC[1.2.28] 运行时解析当前 use.item 系统合约地址(patch后地址会变,硬编码必腐烂)
                 const __feedSys = (window.network?.txQueue?.systems || window.network?.network?.txQueue?.systems || {})['system.kami.use.item'];
@@ -3592,7 +3604,18 @@
                     // raw直发:手拼calldata+显式nonce,submit即返回(不等确认),真正连发
                     const __n = __rawNonce;
                     const __data = FEED_RAW_SELECTOR + __pad32(info.kamiId) + __pad32(chosen.index);
-                    __feedTx = await __rawSigner.sendTransaction({ to: __feedTarget, data: __data, nonce: __n, gasLimit: 2000000 });
+                    // 🔻SYNC[测试版1.2.35] 本批第一笔先估一次真实 gas，之后全批复用（×1.3 余量）
+                    if (__rawGasLimit == null) {
+                        try {
+                            const __est = await __rawSigner.provider.estimateGas({ from: __rawAddr, to: __feedTarget, data: __data });
+                            __rawGasLimit = (BigInt(__est) * 13n) / 10n;
+                            log(`⛽ [${logPrefix}] 单笔喂食实测 ${Number(__est).toLocaleString()} gas，本批 gasLimit 取 ${Number(__rawGasLimit).toLocaleString()}（×1.3 余量）`);
+                        } catch (__ge) {
+                            __rawGasLimit = 4000000n;
+                            log(`⚠️ [${logPrefix}] estimateGas 失败(${(__ge?.message || __ge + '').toString().slice(0, 80)})，gasLimit 取 4,000,000 保底（按 gasUsed 计费，给大不浪费）`);
+                        }
+                    }
+                    __feedTx = await __rawSigner.sendTransaction({ to: __feedTarget, data: __data, nonce: __n, gasLimit: __rawGasLimit });
                     __rawNonce++;   // 🔻SYNC[1.2.28] 发送**成功后**才消耗nonce——失败不烧号,杜绝空洞(0825实锤:168482空洞卡死后续101笔)
                     __rawSent++;
                     log(`🍔 [${logPrefix}] 喂食 #${kami.dbIndex} → ${chosen.name}(+${chosen.hp}HP) [raw#${__rawSent} nonce=${__n}] tx=${(__feedTx?.hash || '').slice(0, 10)}…`);
