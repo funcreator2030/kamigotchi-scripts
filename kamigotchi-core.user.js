@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.32
+// @version      1.2.33
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/11 17:05:48
+// @x-release-date 2026/9/11 17:24:27
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1044,6 +1044,19 @@
         { sel: '0xe60f3a76', c: '0x0198d6090cf2325b958f266d70a836637bf9046f', label: '道具使用(喂食/复活/XP)' },
         { sel: '0xe60f3a76', c: '0x56fd9d735c400acd47fe2d0bfb4c12642c780f79', label: '道具使用(喂食/复活/XP)' },   // 🔻SYNC[1.2.28] 0825发现patch后新址
         { sel: '0x3e991df3', c: '0x66895964d938a98ef336811b0aaac1af437ae40e', label: '升级(等级)' },
+        // 🔻SYNC→内部版[1.2.33 0911链上考古补录] 0911 用 Rollytics 索引器把报告里 4 个"未知地址"挖了出来。
+        //   方法(可复用):首尾交易定位换代时刻——
+        //     首次使用 = /indexer/tx/v1/evm-txs/by_account/{addr}?pagination.limit=1&pagination.reverse=false
+        //     最后使用 = 同上 reverse=true;再用 /indexer/block/v1/blocks/{height} 取时间戳。
+        //   (公共 JSON-RPC 是裁剪节点,eth_getCode 查历史块一律空、eth_getBlockByNumber 查老块返回 null,
+        //    所以"二分查建合约块"这条路在 yominet 走不通,只能走索引器。)
+        //   实测结论:老停采 0x1ca193e7 全链最后一笔 2026-09-04 06:50:17(北京),
+        //   新停采 0x46f87ca39d 第一笔 2026-09-04 06:50:01 —— 16 秒热切换,坐实系统换代。
+        //   同一波还换了 合成(09-03 03:13)、升级/拾荒(09-04 02:18)。部署合约 0x0777687e 自 2026-04-16 从未换过。
+        { sel: '0xb0fa4458', c: '0x46f87ca39d467fe3aaa64552eeefd4bdc9b58146', label: '停采' },
+        { sel: '0x5c817c70', c: '0x20c0cad897a3a1a283c82858ec1cb9bce439f113', label: '合成' },
+        { sel: '0x3e991df3', c: '0x9d5e82f46ca5aad43dc8362a0ef48e6792f9792d', label: '升级/拾荒' },
+        { sel: '0xe60f3a76', c: '0x4e4399a703', label: '道具使用(喂食/复活/XP)' },   // 前缀匹配:仅从报告拿到前 10 位
         { sel: '0xe60f3a76', c: '0x3201f72d1e2a993aee04f5d013bab89fa744ca48', label: '加点(技能)' },
         { sel: '0x3e991df3', c: '0xd2d740df8a', label: '拾荒(重掷)' },   // 前缀匹配,0717 04:35 日志对时认领
         { sel: '0x72de78c2', c: '0x309bd8c598', label: '拾荒(领取)' },   // 同上
@@ -1557,7 +1570,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.32';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.33';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1732,7 +1745,7 @@
     setTimeout(() => {
         clog('');
         clog('══════════════════════════════════════════════════════════════');
-        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.32 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.33 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
