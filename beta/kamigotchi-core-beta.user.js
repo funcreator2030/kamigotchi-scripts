@@ -3221,7 +3221,8 @@
     // 🔻SYNC[1.2.22 卡链先试一次] 判定卡链后的"尝试喂食"重试冷却:同一 kami 6 小时内只试一次,
     //   避免对真卡死的 kami 每轮反复烧食物与 gas;跨刷新用 window 级 Map(会话内有效,刷新后重来一次可接受)
     const STUCK_RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-    // 🔻SYNC→内部版[1.2.27 raw并行喂食] 救援喂食通道:默认 raw(绕开MUD队列串行);可秒回退
+    // 🔻SYNC→内部版[1.2.27 raw并行喂食] 救援喂食通道开关。⚠️注释曾写"默认raw",1.2.29 起**默认已是 queue(api)**,
+    //   raw 需显式 setStarvingFeedChannel('raw') 才开;以 localStorage 读取处(默认 'queue')为准
     window.setStarvingFeedChannel = function (v) {
         if (v !== 'raw' && v !== 'queue') { clog("用法: setStarvingFeedChannel('raw'|'queue') 当前=" + (localStorage.getItem('kami_starving_feed_channel') || 'queue') + "(默认queue=api稳;raw=连发快,测试通过前勿全网开)"); return; }
         try { localStorage.setItem('kami_starving_feed_channel', v); } catch (_) {}
@@ -3471,6 +3472,9 @@
         const FEED_RAW_SELECTOR_ONLY = true;   // 地址不再硬编码,见下方 __feedTarget 运行时解析
         const FEED_RAW_SELECTOR = '0xe60f3a76';                                   // executeTyped(uint256,uint32)
         const __pad32 = (v) => BigInt(v).toString(16).padStart(64, '0');
+        // 🔻SYNC→内部版[测试版1.2.35 失败重试走api]（用户 0911 定案：「api 的方式我们已经跑很久了，
+        //   至少也要把 api 作为备选呀」）。收集本轮发送抛错的 kami，循环跑完统一用 api 再试一次。
+        const __feedFailed = [];
         // 🔻SYNC[1.2.29 默认回归api] 用户0825定案:raw当晚两翻车(旧地址/nonce空洞),**默认走api队列
         //   (地址永远对,慢但稳)**;raw留作测试开关,单机 setStarvingFeedChannel('raw') 实测
         //   喂后复查"已确认喂活"≈发送数后,再考虑转正为默认。
@@ -3493,8 +3497,15 @@
                     log(`⚠️ [${logPrefix}] 无法运行时解析 use.item 合约地址(txQueue.systems 不可用),本轮回退MUD队列(绝不打硬编码地址)`);
                 }
                 if (!hasEmergencyLock()) { setEmergencyLock(); __weSetEmergency = true; }
-                log(`%c🚀 [${logPrefix}] raw直发模式:合约=${__feedTarget}(运行时解析),nonce起点=${__rawNonce},救援持紧急锁独占tx通道;回退命令: setStarvingFeedChannel('queue')`,
-                    'color: #42a5f5; font-weight: bold;');
+                // 🔻SYNC[测试版1.2.35] 0911 审计:上面若解析不到地址已把 __rawMode 置 false,这里却照打
+                //   "raw直发模式" 还带 合约=null,读日志的人会以为在走 raw。改成按真实状态打。
+                if (__rawMode) {
+                    log(`%c🚀 [${logPrefix}] raw直发模式:合约=${__feedTarget}(运行时解析),nonce起点=${__rawNonce},救援持紧急锁独占tx通道;回退命令: setStarvingFeedChannel('queue')`,
+                        'color: #42a5f5; font-weight: bold;');
+                } else {
+                    log(`%c📮 [${logPrefix}] 走 MUD 队列(api)通道逐笔发送（raw 未启用或地址解析失败）`,
+                        'color: #42a5f5; font-weight: bold;');
+                }
             } catch (e) {
                 __rawMode = false;
                 log(`⚠️ [${logPrefix}] raw直发初始化失败(${e?.message || e}),本轮回退MUD队列逐笔发送`);
@@ -3567,13 +3578,17 @@
                     ? window.network?.api?.player?.pet?.item?.cast
                     : window.network?.api?.player?.pet?.item?.use;
                 const apiName = isPaeonSpell ? 'cast' : 'use';
-                if (typeof apiFn !== 'function') {
+                // 🔻SYNC[测试版1.2.35] 0911 审计:原来这个守卫无条件挡在 raw 分支前面——raw 根本不用
+                //   apiFn,却因为 apiFn 缺失把这只 kami 直接跳过,白白放弃一次本来能发出去的救援。
+                //   改成:只有**这一只确实要走 api**时才检查 apiFn。
+                const __willUseRaw = __rawMode && !isPaeonSpell;
+                if (!__willUseRaw && typeof apiFn !== 'function') {
                     log(`❌ [${logPrefix}] #${kami.dbIndex} api.player.pet.item.${apiName} 不可用，跳过`);
                     continue;
                 }
 
                 let __feedTx;
-                if (__rawMode && !isPaeonSpell) {
+                if (__willUseRaw) {
                     // raw直发:手拼calldata+显式nonce,submit即返回(不等确认),真正连发
                     const __n = __rawNonce;
                     const __data = FEED_RAW_SELECTOR + __pad32(info.kamiId) + __pad32(chosen.index);
@@ -3608,6 +3623,8 @@
                 else { await delay(300); }
             } catch (e) {
                 log(`❌ [${logPrefix}] #${kami.dbIndex} 喂食tx发送失败: ${(e?.message || e + '').toString().slice(0, 160)}`);
+                // 🔻SYNC[测试版1.2.35] 登记失败,循环跑完用 api 通道统一补一次(见下方补救段)
+                try { __feedFailed.push({ kami, info, chosen }); } catch (_) {}
                 // 🔻SYNC[1.2.28] raw发送失败(池满/nonce错位等)→与链上重新对账nonce,防空洞/防重号
                 if (__rawMode) {
                     try {
@@ -3617,6 +3634,61 @@
                     } catch (_) {}
                 }
             }
+        }
+
+        // ============================================================
+        // 🔻SYNC→内部版[测试版1.2.35 失败补救·走 api 通道]
+        // ------------------------------------------------------------
+        // ▍0911 审计实锤的洞：上面循环的 catch 只打了条日志就滑到下一只，
+        //   发送抛错的那只 kami 本轮不再有任何尝试，也不换通道。
+        //   它不会被永久丢掉——__starvingFedRecord 是**发送成功后**才写的，
+        //   失败的没记账，下一轮饿死救援还会再捞它。丢的是这一轮的时间。
+        //   但用户 0825 定过规矩：「饿死的不能等下一轮，否则杀手来了就被杀」——
+        //   0 血 kami 停不了采也躲不开，一轮就可能是生死线。
+        // ▍修法（用户 0911 定案：「至少也要把 api 作为备选」）：
+        //   把失败的攒起来，循环跑完后用 **api 通道**——跑了几个月、地址永远对的
+        //   那条老路——每只补发一次。只补救已经失败的，不碰成功路径；
+        //   补发再失败就真交给下一轮，不无限重试。
+        // ▍为什么补救一律走 api 而不是再 raw 一次：raw 失败多半是 nonce 错位或
+        //   交易池满，同一条路立刻重试大概率同样死；api 走 MUD 队列，nonce 由
+        //   队列统一管，正好绕开 raw 的那两个老伤。
+        // ============================================================
+        if (__feedFailed.length > 0) {
+            log(`%c🔁 [${logPrefix}] ${__feedFailed.length} 只发送失败，改用 api 通道逐只补发一次（api 是跑了几个月的稳定路径）`,
+                'color: #ffa726; font-weight: bold;');
+            let __retryOk = 0, __retryFail = 0;
+            for (const f of __feedFailed) {
+                try {
+                    const __isPaeon = f.chosen.index === 11305;
+                    const __fn = __isPaeon
+                        ? window.network?.api?.player?.pet?.item?.cast
+                        : window.network?.api?.player?.pet?.item?.use;
+                    if (typeof __fn !== 'function') {
+                        __retryFail++;
+                        log(`   ❌ #${f.kami.dbIndex} 补发失败：api.player.pet.item.${__isPaeon ? 'cast' : 'use'} 不可用`);
+                        continue;
+                    }
+                    // 补发前再查一次：万一刚才那笔其实发出去了、或别的路径已经喂过，别重复花钱
+                    const __rec = __starvingFedRecord.get(f.info.kamiId);
+                    if (__rec && (Date.now() - __rec.lastFeedTime) < STARVING_STUCK_COOLDOWN_MS) {
+                        log(`   ⏭️ #${f.kami.dbIndex} 期间已被喂过，跳过补发`);
+                        continue;
+                    }
+                    const __tx = await __fn(f.info.kamiId, f.chosen.index);
+                    _gasLedgerRecord('feed', [f.info.kamiId], __tx);
+                    fedCount++;
+                    __retryOk++;
+                    const __prev = __starvingFedRecord.get(f.info.kamiId) || { count: 0, lastFeedTime: 0 };
+                    __starvingFedRecord.set(f.info.kamiId, { count: __prev.count + 1, lastFeedTime: Date.now() });
+                    log(`   ✅ #${f.kami.dbIndex} 补发成功 → ${f.chosen.name}(+${f.chosen.hp}HP) [api]`);
+                    await delay(300);
+                } catch (e2) {
+                    __retryFail++;
+                    log(`   ❌ #${f.kami.dbIndex} 补发仍失败（交下一轮救援重试）: ${(e2?.message || e2 + '').toString().slice(0, 120)}`);
+                }
+            }
+            log(`%c🔁 [${logPrefix}] 补发完成：成功 ${__retryOk} 只，仍失败 ${__retryFail} 只`,
+                __retryFail > 0 ? 'color: red; font-weight: bold;' : 'color: #66bb6a; font-weight: bold;');
         }
 
         // 🔻SYNC→内部版[1.2.27 喂后复查·当场转停]（用户设计②）:等确认窗后读链上检查点HP
@@ -5888,7 +5960,11 @@
         if (ids.length === 0) {
             return { items, sentAt, error: '无harvestId', useFallback: false };
         }
-        if (!system?.interface || !signer) {
+        // 🔻SYNC[测试版1.2.35] 0911 审计:这个守卫只看 .interface 不看 .target。
+        //   raw 分支下一步就是 sendTransaction({ to: system.target, ... })——
+        //   句柄有 interface 却没 target 时,守卫放行,结果发出一笔 to=undefined 的交易
+        //   (等于部署合约),而不是老老实实回退 api。补上 .target 检查,让它走 api。
+        if (!system?.interface || !system?.target || !signer) {
             return { items, sentAt, error: null, useFallback: true };
         }
 
@@ -7769,8 +7845,12 @@
     async function _allowFailureStop(harvestIds, fmtListForLog) {
         const system = window.network?.txQueue?.systems?.["system.harvest.stop"];
         const signer = window.network?.network?.signer;
-        if (!system?.interface || !signer) {
-            log(`⚠️ [AllowFailure停采] system或signer不可用，回退到api.stop`);
+        // 🔻SYNC[测试版1.2.35] 0911 审计:这个守卫只看 .interface 不看 .target。
+        //   raw 分支下一步就是 sendTransaction({ to: system.target, ... })——
+        //   句柄有 interface 却没 target 时,守卫放行,结果发出一笔 to=undefined 的交易
+        //   (等于部署合约),而不是老老实实回退 api。补上 .target 检查,让它走 api。
+        if (!system?.interface || !system?.target || !signer) {
+            log(`⚠️ [AllowFailure停采] system/target/signer 不可用，回退到 api.stop`);
             return _apiStopOnceFallback(harvestIds, fmtListForLog);
         }
         log(`🧾 [AllowFailure停采] ${harvestIds.length} 个 → ${fmtListForLog}`);
