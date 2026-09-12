@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.40
+// @version      1.2.41
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 10:30:12
+// @x-release-date 2026/9/12 11:24:13
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1733,7 +1733,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.40';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.41';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
         let firstSeen = null;
@@ -1911,9 +1911,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.40 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog('%c🧪 测试版核心运行中 v1.2.41 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.40 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.41 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -4263,8 +4263,17 @@
                 if (ok) {
                     totalOk += batch.length;
                 } else {
-                    log(`%c🔄 [一键停采/批 ${bi+1}] 整批失败，等 5 秒后核查状态并重试...`, 'color: orange; font-weight: bold;');
-                    await delay(5000);
+                    // 🔻SYNC[测试版1.2.41 ③] 同一个三态问题：raw 主通道下 ok 恒非 true，
+                    //   这里每批都会走"整批失败"分支。else 里的核查逻辑本身是对的
+                    //   （只重发仍 HARVESTING 的），错在 5 秒沉降太短——索引器确认滞后实测 17~99s，
+                    //   5 秒后状态必然还没翻面，于是把已停的又发一遍。
+                    //   ok === null（已上链待确认）时给足 UI_SETTLE_MS；真失败(false)仍用 5 秒。
+                    const __settle = (ok === null) ? UI_SETTLE_MS : 5000;
+                    log(ok === null
+                        ? `%c🟡 [一键停采/批 ${bi+1}] 已上链待确认，等 ${__settle / 1000} 秒沉降后核查...`
+                        : `%c🔄 [一键停采/批 ${bi+1}] 整批失败，等 ${__settle / 1000} 秒后核查状态并重试...`,
+                        'color: orange; font-weight: bold;');
+                    await delay(__settle);
                     // 核查：只保留仍 HARVESTING 的（第一次 tx 可能部分成功，不重发已停的避免浪费 gas）
                     const stillNeed = [];
                     for (const d of batch) {
@@ -7105,9 +7114,13 @@
     //   - 整体 try/catch，异常时返回 {added:0, total:0, skippedFail:0}，
     //     调用方无需额外容错
     // ▍可调参数：
-    //   V_CONST = 41 — 清算线公式常数。必须与数据库构建脚本使用同一
-    //     公式、同一常数：否则新补 Kami 的 LT 与旧数据口径不一致，
-    //     下游停采决策会错乱。除非构建脚本同步改动，否则不要单独修改
+    //   V_CONST = 41 — 旧"假想满配杀手"公式的常数，**仅用作入库初值**。
+    //     ⚠️ 0912 更正：此前这里写着"必须与数据库构建脚本使用同一公式、同一常数"——
+    //     这句是**假的**。数据库脚本 1.2.3 里根本没有 V_CONST，它走
+    //     DB_TOP_PREDATORS 四档取最坏；辅助的现役口径还额外含装备余量。
+    //     三者算同一只 kami 得三个数（实测 66.13 / 62.75 / 72.75）。
+    //     真正的对齐手段是下面写回前那段：新增记录一律改用辅助的
+    //     computePreciseLTForRecord 重算，这里的初值只是它拿不到时的兜底。
     //   就绪等待上限 10000ms / 探测间隔 200ms — 对页面慢加载的容忍度
     //   列表重试 3 次、详情重试 3 次 — 调大更抗网络抖动，但失败场景
     //     下整体耗时更长
@@ -7202,6 +7215,9 @@
 
             // 4. 串行调 kamis.getByIndex 增富（量小不需要并发，省去复杂度）
             let added = 0, skippedFail = 0;
+            // 🔻SYNC→内部版[测试版1.2.42 ⑤ 清算线统一] 记下本次**新增**的记录引用，
+            //   稍后只对它们用辅助的现役精确入口重算，老记录一个字节不动。
+            const __newRecs = [];
             for (const k of missing) {
                 let res = null, t = 0;
                 while (t < 3) {
@@ -7250,7 +7266,7 @@
                     LT = r.LT; LTHP = r.LTHP;
                 }
 
-                db.push({
+                const __rec = {
                     index: res.index,
                     imgNumber,
                     kamiId: res.id,
@@ -7260,7 +7276,9 @@
                     harmony, maxhp, body, hand,
                     ratio, shift, LT, LTHP,
                     vioBase, harmBase, powBase
-                });
+                };
+                db.push(__rec);
+                __newRecs.push(__rec);   // 🔻SYNC[1.2.42 ⑤] 同一个对象引用，下面就地改 LT
                 added++;
                 log(`%c➕ [DB增量] #${k.index} (${res.name || '?'}) Lv.${res.progress?.level} LT=${LT}% 已入库`,
                     'color: green;');
@@ -7268,6 +7286,53 @@
 
             // 5. 写回 localStorage（持久化，刷新后保留）
             window.kami_core_db = db;
+
+            // ============================================================
+            // 🔻SYNC→内部版[测试版1.2.42 ⑤ 新增 kami 用最新清算线算法]（用户 0912 定案）
+            // ------------------------------------------------------------
+            // ▍问题：上面 __computeLT 是"假想满配杀手"旧公式（V 写死 41、体质二分、
+            //   攻方 shift 硬编码 0.4 夹零），**不读现役杀手档案、不含装备余量**。
+            //   0912 用两边源码原样复算实测：同一守方 harmony=22/NORMAL/DTR=0.4/DTS=0.12
+            //   → 旧公式 66.13，现役精确口径 72.75。细网格扫描（harmony 5~120 步0.25，
+            //   DTR 0~0.5 / DTS 0~0.4 步0.02）结论是 **NORMAL 最大低估 −9.52pp、最大高估 +0.00pp**
+            //   —— 只会偏低，从不偏高。而 LT 偏低 → 停采线跟着偏低 → **漏停被清算**。
+            //   实测出的隐形死亡带：NORMAL、DTR=DTS=0、harmony=45 → 旧 71.48 → 停采线 74.48，
+            //   而真清算线 76.49 —— **停采线设在了真清算线下面 2pp**，还没停就已经能被杀。
+            // ▍为什么不能靠辅助的每小时重算兜住：同一次页面加载里辅助的启动重算在 ≈95s
+            //   （API 就绪 + delay 90s），核心 syncKamiDb 在 ≈120s+，**辅助永远比核心早**，
+            //   本次加载新补的 kami 绝不可能被这次重算修好；而整页刷新每 45+0~5 分钟一次，
+            //   通常赶在辅助那个每小时 setInterval 之前。窗口 ≈45~55 分钟，结构上必然非零。
+            //   只装核心 / 辅助标签页挂了 → **永久带病**。
+            // ▍为什么只重算新增的、不调 refreshPreciseLT 全库重刷：
+            //   refreshPreciseLT 会用 getEffectivePredators() 重算**整个库**。若此刻
+            //   kami_top_predators 缺失或四桶全空（例如辅助正在强制全网重扫），它会回落内置
+            //   默认档案，算出的 LT 可能**低于**扫描档案的值 → 把全库 LT 压低 → 正是漏停方向。
+            //   辅助自己有 __usable 有效性 + 6 小时 TTL 闸门挡这一下，核心这边一道都没有。
+            //   所以只对**本次新增的那几条**重算：面最小，且天然免疫反向压低。
+            // ▍走的是 computePreciseLTForRecord —— 辅助运行期每小时用的同一个入口
+            //   （现役档案 + 装备余量 + 沉寂降级），属于"统一到已验证的入口"，不是新推公式。
+            // ============================================================
+            if (__newRecs.length > 0) {
+                if (typeof window.computePreciseLTForRecord === 'function') {
+                    let __fixed = 0, __fail = 0;
+                    for (const rec of __newRecs) {
+                        try {
+                            const r = window.computePreciseLTForRecord(rec.harmony, rec.body, rec.ratio, rec.shift, rec.maxhp);
+                            if (r && r.LT != null) {
+                                if (rec.LT !== r.LT) __fixed++;
+                                rec.LT = r.LT; rec.LTHP = r.LTHP;
+                            }
+                        } catch (_) { __fail++; }
+                    }
+                    log(`%c📐 [DB增量] 新增 ${__newRecs.length} 条已改用现役精确清算线重算（修正 ${__fixed} 条${__fail ? `，${__fail} 条失败保留旧值` : ''}）`,
+                        'color: #42a5f5; font-weight: bold;');
+                } else {
+                    log(`%c⚠️ [DB增量] 未检测到辅助脚本的 computePreciseLTForRecord —— 本次新增的 ${__newRecs.length} 条用的是旧公式初值。` +
+                        `实测该公式**只会低估、从不高估**（NORMAL 最大 −9.5pp），停采线会跟着偏低、有漏停风险。请确认辅助脚本已启用。`,
+                        'background:#c0392b;color:#fff;font-weight:bold;padding:3px 8px;border-radius:3px;');
+                }
+            }
+
             try {
                 localStorage.setItem('kami_core_db', JSON.stringify(db));
                 log(`%c💾 [DB增量] 完成：新增 ${added} 条（失败占位 ${skippedFail} 条），DB 现有 ${db.length} 条`,
@@ -7891,6 +7956,30 @@
         } catch (_) { return false; }
     }
 
+    /**
+     * 🔻SYNC→内部版[测试版1.2.41 ③配套] **确证**这只 kami 的卡片显示"已停采"。
+     * 与 _isCardHarvestingByImg 的区别只有一个，但很关键：
+     *   _isCardHarvestingByImg 在【卡片找不到】【读不到状态图标】【抛异常】时都返回 false，
+     *   也就是把"不确定"当成"没在采集"——这是 fail-open。
+     *   用它做筛选（跳过重试）没问题：最坏是少重试一只，下轮再捞。
+     *   但用它去 **recordAction 打"已停"标记**就危险了：一次 DOM 抖动就会把
+     *   一只**其实还在采集**的 kami 锁住，锁期内不再处理 → 漏停 → 被清算。
+     * 所以本函数把三种"不确定"全部判成 false（不算已停），只有
+     *   卡片找得到 + 状态图标读得到 + 图标不是 harvesting
+     * 三条同时成立才返回 true。宁可少打一个标记（下轮重新处理），不可误锁。
+     * 符合业主的风险不对称律：停采侧宁发勿漏。
+     */
+    function _cardStopConfirmed(imgNumber) {
+        try {
+            const card = Array.from(document.querySelectorAll('div#party>div>div:nth-of-type(3)>div:nth-of-type(2)>div:nth-of-type(2)>div'))
+            .find(div => getimgNumber(div) === String(imgNumber));
+            if (!card) return false;                       // 卡片找不到 = 不确定
+            const stateImg = card.querySelector('img[src*="/assets/kami_"]');
+            if (!stateImg || !stateImg.src) return false;   // 读不到状态图标 = 不确定
+            return !String(stateImg.src).includes('kami_harvesting');
+        } catch (_) { return false; }                      // 异常 = 不确定
+    }
+
     // AllowFailure 底层停采：绕过游戏封装，直接调用停采 System 合约的 executeBatchedAllowFailure
     // 普通批量调用只要有一只失败就会整批回滚（连坐）；AllowFailure 让合约自动跳过失败个体，其余照常停采
     async function _allowFailureStop(harvestIds, fmtListForLog) {
@@ -8140,8 +8229,21 @@
                 break;
             }
 
-            if (ok) {
-                log(`✅ [批量停止/API链上确认成功] 共 ${ids.length} 个 → ${fmt}`);
+            // 🔻SYNC→内部版[测试版1.2.41 ③ 停采三态修复]（ChatGPT 审计 A11 + 0912 复核）
+            //   _allowFailureStop 返回三态 true/false/null，而这里原来是二态 `if (ok)`。
+            //   要命的是：**raw 主通道下它根本不会返回 true** —— 函数里 8 个 return 只有
+            //   false 和 null，唯一的 `return true` 在 api 回退分支（system/signer 全不可用才走到）。
+            //   而"一批全部真停成功"的标准结果恰恰是 null（每只≈1.5M gas ≥ 阈值 1.2M，
+            //   走 gas 观察分支 → pendingVerify）。
+            //   于是这个成功分支在实盘上是**死代码**：每一次停采、包括全部成功的那些，
+            //   都掉进下面的 else「API失败」，5 秒后回队重发 → 无条件白烧 gas，最多重发 4 次。
+            //   修法只需把二态判断改成三态：null（待确认）走这条，只有 false（真失败）才走 else。
+            //   这条分支需要的逻辑（等 25s 沉降 → 链上+DOM 双复核 → 只把仍 HARVESTING 的回队）
+            //   下面 8141-8184 早就完整写好了，一直被挡在门外，不用新写任何东西。
+            if (ok !== false) {
+                log(ok === true
+                    ? `✅ [批量停止/API链上确认成功] 共 ${ids.length} 个 → ${fmt}`
+                    : `🟡 [批量停止/待确认] 共 ${ids.length} 个已上链(gas 特征像全执行)，等 ${UI_SETTLE_MS / 1000}s 沉降后复核 → ${fmt}`);
                 await delay(UI_SETTLE_MS);
                 // 交易确认后复核：链上 + DOM 双重确认哪些还没真正停下
                 const stillHarvesting = [];
@@ -8160,7 +8262,12 @@
                 }
 
                 // DOM 已不显示"采集中"的视为停采成功，登记动作记录，防止本周期内被重复处理
-                const stoppedByApi = chunkItems.filter(x => !_isCardHarvestingByImg(x.imgNumber));
+                // 🔻SYNC[测试版1.2.41 ③配套·防误锁] 原来用 `!_isCardHarvestingByImg(...)`——
+                //   那个函数在"卡片找不到/读不到图标/抛异常"时都返回 false，取反就成了 true，
+                //   等于把**不确定**当成**已停**去 recordAction 打标锁住。上面 `if (ok)` 是死代码时
+                //   这段从不执行、问题被掩盖；现在三态修复把它激活了，必须同时换成确证判据，
+                //   否则一次 DOM 抖动就锁住一只其实还在采集的 kami → 漏停被清算。
+                const stoppedByApi = chunkItems.filter(x => _cardStopConfirmed(x.imgNumber));
                 for (const it of stoppedByApi) {
                     try {
                         recordAction(it.imgNumber, 'stopHarvest');
