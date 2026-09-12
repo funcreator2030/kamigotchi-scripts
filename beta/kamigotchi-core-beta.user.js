@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.42
+// @version      1.2.43
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 11:25:09
+// @x-release-date 2026/9/12 12:02:42
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1733,7 +1733,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.42';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.43';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
         let firstSeen = null;
@@ -1911,9 +1911,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.42 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog('%c🧪 测试版核心运行中 v1.2.43 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.42 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.43 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -2677,7 +2677,15 @@
         GAS_REVERT_BASE: 100000,          // 混合批估算基线：(gasUsed − 该值) / 单只基准 ≈ 执行只数
         SEND_STAGGER_MIN_MS: 800,         // 同轮各批背靠背发送时的随机间隔下限（防 RPC 限流）
         SEND_STAGGER_MAX_MS: 1500,
-        INVOCATION_HARD_CAP_MS: 180000,   // 单次 emergencyStopHarvest 调用硬上限：到点强制收尾释放锁，未完成交下一轮
+        INVOCATION_HARD_CAP_MS: 180000,   // 停采阶段硬上限：到点强制收尾释放锁，未完成交下一轮（1.2.43 起从"喂食结束"起算，见 __stopPhaseStart）
+        // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] 饿死救援喂食阶段的时间上限。
+        //   默认通道(queue)下 `await apiFn()` 要等 MUD 队列把 tx 打包上链才 resolve
+        //   （v1.1.30 实测停采批 9528ms），N 只 STARVING 就是 N×~10s，且原来没有任何上限。
+        //   断网夜一次性攒出十几二十只 STARVING 时，喂食能把整个 180s 预算吃光，
+        //   停采循环第一轮都进不去 → 一只都没停成。90s 保证至少 ~9 只能喂到，
+        //   剩下的交下一轮（喂食失败不写 __starvingFedRecord，下轮必被重新捞起）。
+        FEED_PHASE_CAP_MS: 90000,
+        FEED_TAIL_GRACE_MS: 30000,        // api 补发段的额外宽限：主循环被截断后仍给补发留一点时间（喂食阶段总上限 = 90+30 = 120s）
         CIRCUIT_BREAK_STREAK: 2,          // 连续 N 批"全revert/estimateGas全部不可停" → 本次调用熔断，不再发新tx
         INDEX_LAG_POLL_MS: [3000, 6000, 12000, 24000, 45000],  // 索引器滞后诊断的自适应轮询间隔（纯观测，不改判）
         INDEX_LAG_POLL_CAP_MS: 90000,     // 索引器滞后诊断轮询上限，超时只警告不改判
@@ -3249,7 +3257,7 @@
      * @param {string} logPrefix - 日志前缀（区分紧急/普通）
      * @returns {number} 成功发送 tx 的数量（fire-and-forget，不保证链上成功）
      */
-    async function _starvingFeedKamis(kamiList, logPrefix) {
+    async function _starvingFeedKamis(kamiList, logPrefix, opts) {
         if (!kamiList.length) return 0;
         // 🔻SYNC→内部版[1.2.23 救援互斥]：普通停采与紧急停采两条路径会各自调用本函数处理**同一份**
         //   STARVING 名单。0825 实盘:两路并发跑,#8460/#9755/#10604 各被重复喂食一次(白烧食物+gas),
@@ -3262,11 +3270,15 @@
         }
         window.__starvingFeedRunning = true;
         try {
-        return await _starvingFeedKamisInner(kamiList, logPrefix);
+        return await _starvingFeedKamisInner(kamiList, logPrefix, opts);
         } finally { window.__starvingFeedRunning = false; }
     }
 
-    async function _starvingFeedKamisInner(kamiList, logPrefix) {
+    async function _starvingFeedKamisInner(kamiList, logPrefix, opts) {
+        // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] opts.deadlineMs = 本次喂食阶段的绝对截止时刻(Date.now()口径)。
+        //   只有紧急停采那条路会传（它后面还压着停采循环，必须留预算）；
+        //   日常救援不传 → __feedDeadline = Infinity → 行为逐字节不变。
+        const __feedDeadline = (opts && Number.isFinite(opts.deadlineMs)) ? opts.deadlineMs : Infinity;
 
         // 【Step 1】单次库存查询：一次取回账户全部道具余额，避免逐只 kami 重复查询
         const addr = window.network?.network?.connectedAddress?.value_;
@@ -3499,9 +3511,26 @@
         let __rawAddr = null;
         let __rawGasLimit = null;
         let __weSetEmergency = false;
+        let __emergencyLockToken = null;   // 🔻SYNC[测试版1.2.43 ② F3] 锁归属令牌，见下方释放处
         let __rawSent = 0;
         if (__rawMode) {
             try {
+                // 🔻SYNC[测试版1.2.43 ② F2 nonce 读取窗口] 顺序从"读nonce → 加锁"改成"加锁 → 排空 → 读nonce"。
+                //   BEFORE：先 getTransactionCount(pending) 拿到起点 N，再去设紧急锁。这中间是**裸窗口**——
+                //           普通操作（部署/日常喂食，走 MUD 队列）此刻还没被紧急锁挡住，完全可以塞进一笔，
+                //           把 N 占掉。等我们按 N 连发 raw，第一笔就撞号，后面整串跟着错位
+                //           （0710 已定案过同型事故：停采批走原始签名器绕开 MUD 队列 nonce 通道 → 双通道分叉，46 次冲突）。
+                //   AFTER ：先设紧急锁把普通通道关死，再等在飞的普通操作跑完（紧急停采那条路一直是这么做的），
+                //           最后才读 nonce —— 读到的那一刻起就没人能再抢号了。
+                if (!hasEmergencyLock()) {
+                    setEmergencyLock();
+                    __weSetEmergency = true;
+                    __emergencyLockToken = window.__txEmergencyLock;   // 🔻SYNC[测试版1.2.43 ② F3]
+                }
+                if (window.__txNormalLock) {
+                    log(`[TX锁] ⏳ [${logPrefix}] 等待普通操作 [${window.__txNormalLock.script}/${window.__txNormalLock.operation}] 让出通道后再读 nonce...`);
+                    try { await waitForNormalLockRelease(30000); } catch (_) {}
+                }
                 const __addr = await __rawSigner.getAddress();
                 __rawAddr = __addr;   // 🔻SYNC[测试版1.2.35] 留给下面估 gas 用
                 __rawNonce = await __rawSigner.provider.getTransactionCount(__addr, 'pending');
@@ -3512,7 +3541,7 @@
                     __rawMode = false;
                     log(`⚠️ [${logPrefix}] 无法运行时解析 use.item 合约地址(txQueue.systems 不可用),本轮回退MUD队列(绝不打硬编码地址)`);
                 }
-                if (!hasEmergencyLock()) { setEmergencyLock(); __weSetEmergency = true; }
+                // 🔻SYNC[测试版1.2.43 ② F2] 加锁已提到本 try 开头（读 nonce 之前），此处不再重复
                 // 🔻SYNC[测试版1.2.35] 0911 审计:上面若解析不到地址已把 __rawMode 置 false,这里却照打
                 //   "raw直发模式" 还带 合约=null,读日志的人会以为在走 raw。改成按真实状态打。
                 if (__rawMode) {
@@ -3533,6 +3562,14 @@
         let skippedCount = 0;
         let skippedCooldown = 0;  // 【v1.1.11 冷却公式预筛】冷却期跳过计数，单独统计不计入失败
         for (let idx = 0; idx < enriched.length; idx++) {
+            // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] 到点截断：把剩下的交给下一轮，
+            //   不让喂食把紧急停采的时间预算吃光。已发出去的那些照常走完下面的补发/汇总。
+            if (Date.now() > __feedDeadline) {
+                const __left = enriched.length - idx;
+                log(`%c⏰ [${logPrefix}] 喂食阶段已到时间上限，本轮先喂 ${fedCount} 只，剩余 ${__left} 只交下一轮（未发送的没记账，下轮会被重新捞起）`,
+                    'color: orange; font-weight: bold;');
+                break;
+            }
             const info = enriched[idx];
             const kami = info.kami;
             if (info.skipReason) {
@@ -3580,9 +3617,15 @@
                 }
             }
 
-            // 🔻SYNC[1.2.22 卡链先试一次]：登记尝试时刻 + 明确告知用户"这是抢救性尝试"
+            // 🔻SYNC[1.2.22 卡链先试一次]：明确告知用户"这是抢救性尝试"
+            // 🔻SYNC[测试版1.2.43 ④(b) 6小时封锁错杀] 登记时刻已挪到**发送确实成功之后**（见下方 try 内）。
+            //   BEFORE：这里先 set 再进 try 发送。发送本身抛错（raw nonce 错位 / 交易池满 /
+            //           api 入口不可用 / RPC 超时）时没人撤销这个登记 —— 这只 kami 一口食物没吃到、
+            //           一分 gas 没花，却被判"6 小时内已试过"，接下来六个小时的每一轮都直接
+            //           skipReason='stuck24h' 跳过。断网夜整批发送失败 = 整批饿着锁死六小时。
+            //   AFTER ：只有真的把 tx 交出去了才登记。发送失败 = 什么都没发生 = 下一轮照常再试
+            //           （重试不烧 gas 也不烧食物，因为根本没发出去）。
             if (info.stuck24hTrying) {
-                try { window.__stuck24hTried.set(info.kamiId, Date.now()); } catch (_) {}
                 log(`%c🩺 [${logPrefix}] #${kami.dbIndex} 链上已 ${info.stuckHours} 小时无 tx（疑似卡链），先尝试喂食一次抢救；若本次无效，6 小时内不再重试，请手动处理`,
                     'color: #ffa726; font-weight: bold;');
             }
@@ -3597,6 +3640,18 @@
                 // 🔻SYNC[测试版1.2.35] 0911 审计:原来这个守卫无条件挡在 raw 分支前面——raw 根本不用
                 //   apiFn,却因为 apiFn 缺失把这只 kami 直接跳过,白白放弃一次本来能发出去的救援。
                 //   改成:只有**这一只确实要走 api**时才检查 apiFn。
+                // 🔻SYNC[测试版1.2.43 ② F1 同批不混通道] raw 批里遇到 Paeon 法术卡(11305)不再当场走 api。
+                //   BEFORE：Paeon 只有 cast 入口、没有 raw 路径，于是在一串 raw 直发中间插一笔 MUD 队列 tx。
+                //           两条通道各管各的 nonce（raw 用 getTransactionCount(pending) 自增，MUD 队列走自己的计数器），
+                //           一交错就是 0710 那次 46 起冲突的同款分叉。
+                //   AFTER ：把它登记进 __feedFailed，跟"发送失败待补发"的那些一起，在整个 raw 批发完之后
+                //           由批尾那段**连续的 api 补发**统一发出去 —— 同一批里不再交错两条通道。
+                //           它没被丢掉：补发段就在下面几行，同一次调用内一定会走到。
+                if (__rawMode && isPaeonSpell) {
+                    log(`↩️ [${logPrefix}] #${kami.dbIndex} 选中 ${chosen.name}(法术卡,只有 api 入口)，挪到批尾 api 段统一发，避免与 raw 混用 nonce`);
+                    try { __feedFailed.push({ kami, info, chosen }); } catch (_) {}
+                    continue;
+                }
                 const __willUseRaw = __rawMode && !isPaeonSpell;
                 if (!__willUseRaw && typeof apiFn !== 'function') {
                     log(`❌ [${logPrefix}] #${kami.dbIndex} api.player.pet.item.${apiName} 不可用，跳过`);
@@ -3639,6 +3694,24 @@
                 _gasLedgerRecord('feed', [info.kamiId], __feedTx);   // 🔻SYNC[1.2.7 gas真值账本]
 
                 fedCount++;
+                // 🔻SYNC[测试版1.2.43 ④(a) 喂后复查] 记下本笔 hash，供下方复查判定"tx 到底落没落地"
+                try { info.__feedTxHash = __feedTx && __feedTx.hash ? String(__feedTx.hash) : null; } catch (_) { info.__feedTxHash = null; }
+
+                // 🔻SYNC[测试版1.2.43 ④(b) 6小时封锁错杀] 登记"本轮已抢救过"——只在这里登记，
+                //   即发送确实成功之后。另外：queue 通道的 await 要等上链才 resolve，拿到的是
+                //   receipt 形（v1.1.30 实测），能直接看出 status；status 明确为 0 = 链上 revert =
+                //   这只 kami 并没吃到东西，那就不该登记，下一轮还得再救。
+                //   只在"明确为 0"时才不登记：raw 通道 resolve 出来的是 tx 形（没有 status），
+                //   拿不到判据一律按老行为登记，宁可保守也不放开 6h 内反复烧 gas 的口子。
+                if (info.stuck24hTrying) {
+                    let __chainReverted = false;
+                    try { __chainReverted = (__feedTx != null && Number(__feedTx.status) === 0); } catch (_) {}
+                    if (__chainReverted) {
+                        log(`⚠️ [${logPrefix}] #${kami.dbIndex} 抢救喂食的 tx 链上 revert，不登记 6h 冷却，下一轮继续救`);
+                    } else {
+                        try { window.__stuck24hTried.set(info.kamiId, Date.now()); } catch (_) {}
+                    }
+                }
 
                 // 记录喂食次数（供保护2熔断判定；达阈值即提示后续将跳过）
                 const prev = __starvingFedRecord.get(info.kamiId) || { count: 0, lastFeedTime: 0 };
@@ -3689,10 +3762,16 @@
         //   队列统一管，正好绕开 raw 的那两个老伤。
         // ============================================================
         if (__feedFailed.length > 0) {
-            log(`%c🔁 [${logPrefix}] ${__feedFailed.length} 只发送失败，改用 api 通道逐只补发一次（api 是跑了几个月的稳定路径）`,
+            log(`%c🔁 [${logPrefix}] ${__feedFailed.length} 只待 api 补发（发送失败的 + raw 批里挪过来的法术卡），逐只补发一次（api 是跑了几个月的稳定路径）`,
                 'color: #ffa726; font-weight: bold;');
             let __retryOk = 0, __retryFail = 0;
+            const __tailDeadline = Number.isFinite(__feedDeadline)
+                ? __feedDeadline + EMERGENCY_CONFIG.FEED_TAIL_GRACE_MS : Infinity;   // 🔻SYNC[测试版1.2.43 ①]
             for (const f of __feedFailed) {
+                if (Date.now() > __tailDeadline) {   // 🔻SYNC[测试版1.2.43 ①] 补发段也要有上限
+                    log(`⏰ [${logPrefix}] api 补发已到宽限上限，剩余 ${__feedFailed.length - __retryOk - __retryFail} 只交下一轮`);
+                    break;
+                }
                 try {
                     const __isPaeon = f.chosen.index === 11305;
                     const __fn = __isPaeon
@@ -3713,6 +3792,16 @@
                     _gasLedgerRecord('feed', [f.info.kamiId], __tx);
                     fedCount++;
                     __retryOk++;
+                    // 🔻SYNC[测试版1.2.43 ④(a)] 补发的也要留 hash，否则喂后复查一律判"未落地"，
+                    //   转停覆盖率会随 ②F1 把法术卡挪进来而变差
+                    try { f.info.__feedTxHash = __tx && __tx.hash ? String(__tx.hash) : null; } catch (_) {}
+                    // 🔻SYNC[测试版1.2.43 ④(b)] 主循环失败、这里补发成功的 stuck24h kami 同样要登记 6h，
+                    //   否则真卡死的 kami 会每轮被重救一次（主循环那边已改成"发送成功后才登记"）
+                    if (f.info.stuck24hTrying) {
+                        let __rev = false;
+                        try { __rev = (__tx != null && Number(__tx.status) === 0); } catch (_) {}
+                        if (!__rev) { try { window.__stuck24hTried.set(f.info.kamiId, Date.now()); } catch (_) {} }
+                    }
                     const __prev = __starvingFedRecord.get(f.info.kamiId) || { count: 0, lastFeedTime: 0 };
                     __starvingFedRecord.set(f.info.kamiId, { count: __prev.count + 1, lastFeedTime: Date.now() });
                     log(`   ✅ #${f.kami.dbIndex} 补发成功 → ${f.chosen.name}(+${f.chosen.hp}HP) [api]`);
@@ -3730,15 +3819,34 @@
         //   (喂食tx落地会把 stats.health.sync 刷新为真实HP,KB§18.12——此刻sync可信);
         //   喂活且仍在停采线下的→翻isStarving+更新delta,紧随其后的停采批自然带走(复用全部现有停采机器);
         //   喂活且血量健康的→delta>1,被下游过滤,继续采集;tx未落地的→保持只喂不停,下轮再救。
+        // 🔻SYNC[测试版1.2.43 ④(a) 喂后复查误判] 上面那句"tx未落地的→保持只喂不停"原来并没有实现:
+        //   代码只看 sync>0，而 sync 是**上一次 tx 时的检查点**（KB§18.12）。0 血 kami 的旧检查点
+        //   完全可能是满血——部署时 100，之后一路流干到 0，链上 sync 仍写着 100。
+        //   于是 tx 还堵在池子里没上链时，这里读到 sync=100 → 判"喂活" → isStarving 翻 false →
+        //   delta 也跟着算出来 → 紧随其后的停采批把这只 0 血 kami 一起带走 → 链上必 revert
+        //   （0825 实测 10/10 CALL_EXCEPTION，1.2.26 建停采名单剔除就是为了防这个）。
+        //   修法：先按 hash 查 receipt 拿链上实锤，status===1 才允许信 sync；
+        //   查不到 receipt / status=0 / 没有 hash → 一律保持 isStarving，交下一轮，
+        //   即"宁可多饿一轮，也不把 0 血 kami 塞进停采批"。
         if (__rawMode && fedCount > 0) {
             try {
                 const __postWaitMs = 20000;
                 log(`⏳ [${logPrefix}] 已连发 ${fedCount} 笔,等待 ${__postWaitMs / 1000}s 确认后复查血量...`);
                 await delay(__postWaitMs);
-                let __alive = 0, __toStop = 0, __still0 = 0;
+                const __rcProvider = _gasLedgerProvider();   // 🔻SYNC[测试版1.2.43 ④(a)] 只读 provider，绝不发 tx
+                let __alive = 0, __toStop = 0, __still0 = 0, __notLanded = 0;
                 for (const info of enriched) {
                     if (!info || !info.plannedFood || info.skipReason) continue;
                     try {
+                        // 🔻SYNC[测试版1.2.43 ④(a)]【落地实锤】没 hash / 查不到 receipt / status≠1 → 这笔没成，sync 不可信
+                        let __landed = false;
+                        if (info.__feedTxHash && __rcProvider && typeof __rcProvider.getTransactionReceipt === 'function') {
+                            try {
+                                const __rc = await __rcProvider.getTransactionReceipt(info.__feedTxHash);
+                                __landed = !!(__rc && Number(__rc.status) === 1);
+                            } catch (_) { __landed = false; }
+                        }
+                        if (!__landed) { __notLanded++; continue; }   // 保持 isStarving，只喂不停，下轮再救
                         const st = await window.network.explorer.kamis.getByIndex(info.kami.dbIndex, { stats: true });
                         const hs = st?.stats?.health;
                         const sync = Number(hs?.sync), total = Number(hs?.total);
@@ -3755,11 +3863,26 @@
                         } else { __still0++; }
                     } catch (_) {}
                 }
+                if (__notLanded > 0) {   // 🔻SYNC[测试版1.2.43 ④(a)]
+                    log(`⏳ [${logPrefix}] 喂后复查:${__notLanded} 只的喂食tx ${__postWaitMs / 1000}s 内未见 receipt 实锤，保持只喂不停（不进停采批），下轮再救`);
+                }
                 log(`%c🩺 [${logPrefix}] 喂后复查:${__alive} 只已确认喂活(${__toStop} 只在停采线下,转入本轮停采),${__still0} 只确认未到账(继续只喂不停,下轮自动再救)`,
                     'color: #66bb6a; font-weight: bold;');
             } catch (e) { log(`⚠️ [${logPrefix}] 喂后复查异常(${e?.message || e}),不影响已发喂食;未复查的下轮扫描自然处理`); }
         }
-        if (__weSetEmergency) { try { releaseEmergencyLock(); } catch (_) {} }
+        // 🔻SYNC[测试版1.2.43 ② F3 锁归属] 只释放**我们自己设的那把**锁。
+        //   BEFORE：只看 __weSetEmergency 这个布尔。如果我们持锁期间锁被别人释放又重设
+        //           （比如 720s 强制释放兜底触发后紧急停采重新取锁），这里会把别人正在用的锁掐掉。
+        //   AFTER ：比对取锁时留下的对象引用，不是同一把就不动它（并留一条日志，便于事后查）。
+        if (__weSetEmergency) {
+            try {
+                if (!__emergencyLockToken || window.__txEmergencyLock === __emergencyLockToken) {
+                    releaseEmergencyLock();
+                } else {
+                    log(`[TX锁] ⚠️ [${logPrefix}] 紧急锁已被他人重设，本轮不释放（避免掐掉别人的锁）`);
+                }
+            } catch (_) {}
+        }
 
         // 【v1.1.11 冷却公式预筛】汇总里补一段冷却跳过统计，方便和 API 验证跳过区分开复盘
         const cooldownPart = skippedCooldown > 0 ? `，冷却预筛跳过${skippedCooldown}个（下轮重试）` : '';
@@ -4997,12 +5120,28 @@
                     'color: orange; font-weight: bold;');
 
                 // 使用公共喂食函数，支持11种HP恢复食物（按库存自动选择）
-                const fedCount = await _starvingFeedKamis(starvingList, '紧急/饿死救援');
+                // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] 传 deadlineMs 给喂食阶段封顶：
+                //   0 血 kami 只有喂食能救（停采链上必 revert，1.2.26 已把它们剔出停采名单），
+                //   所以喂食仍然排在停采前面、一秒都不推迟——用户 0825 定的
+                //   「饿死的不能等下一轮」原样保留。这里封的只是**尾巴**：
+                //   喂不完的交下一轮，换来后面停采循环一定拿得到自己的预算。
+                const fedCount = await _starvingFeedKamis(starvingList, '紧急/饿死救援',
+                    { deadlineMs: Date.now() + EMERGENCY_CONFIG.FEED_PHASE_CAP_MS });
 
                 if (fedCount > 0) {
                     log(`✅ [饿死救援] 已喂食 ${fedCount} 个kami，直接进入停采流程`);
                 }
             }
+
+            // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] 停采阶段独立时钟。
+            //   BEFORE：下面两处硬上限都拿 startTime 比，喂食花掉的时间直接从停采预算里扣，
+            //           喂食超过 180s 时停采 while 循环第一次判定就 break —— 一批 tx 都没发出去，
+            //           日志上只留一句"达到硬上限"，看起来像正常收尾，实际是整轮停采被吞了。
+            //   AFTER ：喂食阶段自己有 FEED_PHASE_CAP_MS 封顶（≤120s 含补发宽限），
+            //           停采阶段从这里重新起算，无论喂了多久都拿得到完整 180s。
+            //   锁占用上界：120(喂) + 180(停) + 93(cooldown补停) ≈ 393s，仍远低于紧急锁 720s 强制释放线。
+            //   注意：日志汇总里的"总耗时"仍用 startTime，保持真实口径不变。
+            const __stopPhaseStart = Date.now();
 
             // 🔻SYNC→内部版[1.2.26 STARVING只喂不停]（用户 0825 定案+链上实证）：0血kami停采
             //   链上必revert(0825实测10/10 CALL_EXCEPTION)——停采名单必须剔除STARVING。
@@ -5060,7 +5199,7 @@
                 // 🔻SYNC→内部版[1.1.12 停采确认解耦+gas判级+estimateGas裁决]
                 // 整次调用硬上限（Change D）：到点强制收尾，让 finally 释放紧急锁，
                 // 未完成的剩余交下一次 runAutomation 触发的新一轮 emergencyStopHarvest
-                const elapsedSoFar = Date.now() - startTime;
+                const elapsedSoFar = Date.now() - __stopPhaseStart;   // 🔻SYNC[测试版1.2.43 ①] 从喂食结束起算
                 if (elapsedSoFar > EMERGENCY_CONFIG.INVOCATION_HARD_CAP_MS) {
                     log(`%c⏰ [停采诊断] 本次调用已耗时 ${elapsedSoFar}ms，达到硬上限 ${EMERGENCY_CONFIG.INVOCATION_HARD_CAP_MS}ms，强制收尾（剩余 ${remaining.length} 个交下一轮）`,
                         'color: red; font-weight: bold;');
@@ -5225,8 +5364,8 @@
             // 🔻SYNC→内部版[1.1.12 停采确认解耦+gas判级+estimateGas裁决]
             // 180s 硬上限在这里也补一道：cooldown 定时补停最长可等 93s，叠加前面
             // 多轮耗时有可能整体超时，超时则放弃 cooldown 收尾、直接进 finally 释放锁
-            if (cooldownDeferred.size > 0 && (Date.now() - startTime) > EMERGENCY_CONFIG.INVOCATION_HARD_CAP_MS) {
-                log(`%c⏰ [停采诊断] 本次调用已耗时 ${Date.now() - startTime}ms，达到硬上限，跳过 cooldown 收尾（${cooldownDeferred.size} 个交下一轮）`,
+            if (cooldownDeferred.size > 0 && (Date.now() - __stopPhaseStart) > EMERGENCY_CONFIG.INVOCATION_HARD_CAP_MS) {   // 🔻SYNC[测试版1.2.43 ①] 同上，从喂食结束起算
+                log(`%c⏰ [停采诊断] 停采阶段已耗时 ${Date.now() - __stopPhaseStart}ms（本次调用总 ${Date.now() - startTime}ms），达到硬上限，跳过 cooldown 收尾（${cooldownDeferred.size} 个交下一轮）`,
                     'color: red; font-weight: bold;');
             } else if (cooldownDeferred.size > 0) {
                 // 🔻SYNC→内部版[1.1.14 停采闭环ABCD:阈值收紧+成功集驱动remaining+cooldown解耦+classify冷却分支]
