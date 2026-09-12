@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.34
+// @version      1.2.35
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/11 23:01:30
+// @x-release-date 2026/9/12 12:37:35
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.32                  ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.35                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -55,6 +55,45 @@
 // ║  4. 脚本会代替你发送真实链上交易并消耗 gas（mETH）。首次使用建议先小规模        ║
 // ║     观察几个循环，确认行为符合预期后再长期挂机。                               ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
+
+// ============================================================
+// 【安装 · 更新 · 回退】—— 控制台输入  安装说明()  可随时打印本段
+// ------------------------------------------------------------
+// ⚠️ 仓库里还有个 beta/ 目录，那是维护者自用的测试线，**普通用户不要装**。
+//    它和本脚本 @name 不同，篡改猴会当成两个脚本同时跑，双份发交易。
+//
+// ▍四件套必须装齐（核心 / 辅助 / 精简数据库 / 轻量杀手监控）
+//     缺辅助     → 合成读不到实时步长、转移停采等命令不可用
+//     缺数据库   → 没有清算线数据，首次需要它全量建库
+//     缺杀手监控 → 检测不到杀手活动，不会自动切安全停采线
+//
+// ▍安装
+//   1) 装 Tampermonkey 扩展
+//   2) Chrome 打开「允许用户脚本」：chrome://extensions → 篡改猴 → 详情
+//      → 打开「允许用户脚本」（新版 Chrome 也可能叫「开发者模式」）。
+//      ⚠️ 这一步最容易漏，漏了脚本装上也不会运行。
+//   3) 逐个点开下面四条链接，篡改猴会自动弹安装页：
+//       核心脚本      https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
+//       辅助脚本      https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js
+//       精简数据库    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js
+//       轻量杀手监控  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
+//   4) 打开游戏页，控制台看到启动横幅即成功。
+//      ⚠️ 别拿「[版本检查] 已是最新」当判据——游戏页有 CSP，脚本 fetch 不到
+//         GitHub，这行**基本不会出现**，看不到属正常。以启动横幅和篡改猴面板
+//         里的版本号为准。
+//
+// ▍更新：不用重装。@name 固定不带版本号，篡改猴会自动拉新版。
+//   想立刻更新：篡改猴面板 → 实用工具 → 检查用户脚本的更新。
+//
+// ▍回退：篡改猴**没有**自动回退。两条路：
+//   a) 从 Releases 页装历史快照：https://github.com/funcreator2030/kamigotchi-scripts/releases
+//      ⚠️ 快照资产里的 @downloadURL 仍然指向 main。装完必须逐个脚本
+//         关掉「检查更新」（面板 → 点脚本 → 设置 → 更新 → 关），
+//         否则下个检查周期会被静默升回最新版，回退等于没做。
+//   b) 联系维护者发一版「旧内容 + 更高 @version」，全网秒回滚。
+//
+// ▍仓库首页（完整说明书 / FAQ / 参数表）：https://github.com/funcreator2030/kamigotchi-scripts
+// ============================================================
 
 // ============================================================
 // 【新手必读：术语速查】
@@ -1670,7 +1709,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.32 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.35 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1699,7 +1738,8 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.34';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.35';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        try { window.__kamiCoreVersion = SELF_VERSION; } catch (_) {}   // 供 安装说明() 打印，避免多出一处版本仪式
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -1874,7 +1914,7 @@
     setTimeout(() => {
         clog('');
         clog('══════════════════════════════════════════════════════════════');
-        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.34 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.35 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -1971,7 +2011,12 @@
         clog('💡 切换地块前批量停采 → stopCurrentRoom()');
         clog('🗺️ 多账户分工策略 → 先 kamiAnalyze()【辅助】看分类，再 stopMinorityForTransfer() 停采 → 手动转移到对应账户');
         clog('📦 账户新增 kami → syncKamiDb()（启动时自动跑一次，新增 kami 自动入库）');
+        clog('───────── 📦 安装 / 更新 / 回退 ─────────');
+        clog('// 四件套安装链接、更新机制、回退办法（含 Releases 回退的坑）');
+        clog('安装说明()');
+        clog('');
         clog('💰 查看账户 gas 消耗速率(链上真值,按动作分类) → showGasReport()');
+        clog('📦 安装/更新/回退说明（把链接发给别人也用它） → 安装说明()');
         clog('══════════════════════════════════════════════════════════════');
         clog('');
     }, 3000);
@@ -3777,6 +3822,59 @@
     // ============================================================
 
     // 显示Gas消耗规则（静态说明文本，不发 tx）
+
+    // ============================================================
+    // 【板块：安装与更新说明 安装说明()】
+    // ------------------------------------------------------------
+    // ▍功能：打印四件套的安装链接、配套规则、更新机制、回退办法。
+    // ▍触发时机：用户在控制台手动调用 安装说明() 或 showKamiInstall()。
+    // ▍依赖：无。函数体全是硬编码字符串——**不能改成 fetch 远端**，
+    //   游戏页 SPA 运行时注入 CSP，raw.githubusercontent.com 在游戏页
+    //   永久拉不到（脚本自带的 [版本检查] 就是这么废掉的）。
+    // ▍边界与保护：只读不发 tx，随时可安全调用。
+    // ============================================================
+    window['安装说明'] = window.showKamiInstall = function () {
+        clog('══════════════════════════════════════════════════════════════');
+        clog('%c📦 Kamigotchi 脚本 · 安装 / 更新 / 回退', 'color: #1e90ff; font-weight: bold; font-size: 15px;');
+        clog('   当前这份：公开版 核心 v' + (window.__kamiCoreVersion || '?'));
+        clog('══════════════════════════════════════════════════════════════');
+        clog('');
+        clog('%c⚠️ 仓库 beta/ 目录是维护者自用测试线，普通用户不要装（会和本脚本双份发交易）', 'color: #e67e22;');
+        clog('');
+        clog('%c【四件套必须装齐】', 'font-weight: bold;');
+        clog('   核心 / 辅助 / 精简数据库 / 轻量杀手监控，缺一个都会少一块功能：');
+        clog('   缺辅助 → 合成读不到实时步长、转移停采等命令不可用');
+        clog('   缺数据库 → 没有清算线数据，首次需要它全量建库');
+        clog('   缺杀手监控 → 检测不到杀手活动，不会自动切安全停采线');
+        clog('');
+        clog('%c【安装】', 'font-weight: bold;');
+        clog('   1) 装 Tampermonkey 扩展');
+        clog('   2) chrome://extensions → 篡改猴 → 详情 → 打开「允许用户脚本」');
+        clog('      ⚠️ 这一步最容易漏，漏了脚本装上也不会运行');
+        clog('   3) 逐个点开下面四条链接，篡改猴会自动弹安装页：');
+        clog('      核心脚本      https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js');
+        clog('      辅助脚本      https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js');
+        clog('      精简数据库    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js');
+        clog('      轻量杀手监控  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js');
+        clog('   4) 打开游戏页，控制台看到启动横幅即成功');
+        clog('      ⚠️ 别拿「[版本检查] 已是最新」当判据 —— 游戏页 CSP 拦外联，');
+        clog('         这行基本不会出现，看不到属正常');
+        clog('');
+        clog('%c【更新】', 'font-weight: bold;');
+        clog('   不用重装。@name 固定不带版本号，篡改猴自动拉新版。');
+        clog('   想立刻更新：篡改猴面板 → 实用工具 → 检查用户脚本的更新');
+        clog('');
+        clog('%c【回退】篡改猴没有自动回退', 'font-weight: bold;');
+        clog('   a) 历史快照：https://github.com/funcreator2030/kamigotchi-scripts/releases');
+        clog('      %c⚠️ 快照资产的 @downloadURL 仍指向 main，装完必须逐个脚本关掉', 'color: #e74c3c; font-weight: bold;');
+        clog('         「检查更新」(面板 → 点脚本 → 设置 → 更新 → 关)，否则会被静默升回去');
+        clog('   b) 联系维护者发「旧内容 + 更高 @version」，全网秒回滚');
+        clog('');
+        clog('%c【完整说明书 / FAQ / 参数表】', 'font-weight: bold;');
+        clog('   https://github.com/funcreator2030/kamigotchi-scripts');
+        clog('══════════════════════════════════════════════════════════════');
+    };
+
     window.showGasRules = function() {
         clog('═══════════════════════════════════════════════════════════════');
         clog('%c⚡ Gas消耗规则 - 哪些错误消耗Gas？', 'color: #00aaff; font-weight: bold; font-size: 16px;');
