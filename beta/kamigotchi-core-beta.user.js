@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.37
+// @version      1.2.38
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 10:09:26
+// @x-release-date 2026/9/12 10:22:07
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1733,7 +1733,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.37';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.38';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
         let firstSeen = null;
@@ -1911,9 +1911,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.37 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog('%c🧪 测试版核心运行中 v1.2.38 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.37 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.38 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -8598,6 +8598,13 @@
         const MIN_GAP_BURGER = 50;          // cheeseburger最小缺口
         const MIN_GAP_HONEY = 75;           // 蜜露鳞最小缺口
         const MIN_GAP_APPLE = 150;          // 金苹果最小缺口
+        // 🔻SYNC[测试版1.2.38] 候选收集门槛 = 清单里**最小**食物档位（现为 25，旧码写死 50）。
+        //   旧门槛跟"最小食物是 +50"绑定；现在认 10 种食物、最小 +25，缺口 25~49 的 kami
+        //   若还用 50 收集就永远进不了候选，后面的修改再对也没用（同一个 bug 的上一层）。
+        //   收集放宽、由下面的"档位预筛"按**实际有货**再过滤——预筛本就是为了不空转持锁而存在的。
+        //   ⚠️ 行为变化：缺口 25~49 的 kami 现在会成为喂食候选（此前从不喂），
+        //     手上有 +25/+35 档食物时会多出一些喂食 tx。不想要就把这里改回 MIN_GAP_BURGER。
+        const DAILY_FOOD_MIN_HP = Math.min(...STARVING_FOOD_LIST.filter(f => f.index !== 11305).map(f => f.hp));
         const BATCH_SIZE = 3;               // 每批喂食数量
         const FAIL_THRESHOLD = 2;           // 一批中失败≥2个就熔断
 
@@ -8635,7 +8642,7 @@
                 const hpGap = maxhp - currentHp;
 
                 // 基本条件：RESTING + 缺口≥50HP（最小食物cheeseburger恢复50HP）
-                if (stateText !== 'RESTING' || isNaN(hpPercent) || hpGap < MIN_GAP_BURGER) continue;
+                if (stateText !== 'RESTING' || isNaN(hpPercent) || hpGap < DAILY_FOOD_MIN_HP) continue;
 
                 // 检查失败冷却：失败达 FEED_MAX_FAILS 次且未过冷却期的静默跳过；期满自动清除记录
                 if (kamiId && __feedFailedKamis.has(kamiId)) {
@@ -8656,44 +8663,69 @@
             }
         }
 
-        if (feedCandidates.length === 0) {
-            log(`✅ 喂食完成，无需喂食`);
-            return;
-        }
-
-        // ========= 阶段2: 查询库存 =========
+        // ========= 阶段2: 查询库存（提到"无候选早退"之前）=========
+        // 🔻SYNC→内部版[测试版1.2.38 每轮盘点食物]（用户 0912 提出："每轮我记得都会盘点库存的呀"）
+        //   实情：脚本确实有食物盘点日志，但**只在饿死救援函数里**（_starvingFeedKamisInner）。
+        //   0912 那晚 STARVING 全是启动 DOM 假阳性、被 5 秒重扫压掉 → 救援没跑 →
+        //   **整晚一条库存记录都没有**。后果很实在：事后查日志看不到账户到底有什么食物，
+        //   我据此给出了"补汉堡/蜜露鳞"的错误建议——而账户里本来就有 +25/+50/+100，
+        //   只是旧版日常喂食只认 3 种 SKU、看不见它们。
+        //   修法：库存读取提到"无候选早退"之前，**每轮无条件打一行盘点**（本地 ECS 同步读，零成本）。
         const addr = window.network?.network?.connectedAddress?.value_;
         if (!addr) {
             log(`⚠️ [喂食] 无法获取钱包地址`);
             return;
         }
 
-        let balBurger = 0, balHoney = 0, balApple = 0;
+        // 🔻SYNC→内部版[测试版1.2.38 日常喂食认全部食物]（0912 实盘事故）
+        //   旧码只读 3 种：汉堡(11302,+50)、蜜露鳞(11312,+75)、金苹果(11313,+150)，写死。
+        //   而饿死救援认 11 种。结果：账户明明有 +25/+35/+100 的食物，日常喂食**完全看不见**，
+        //   只看到金苹果 → minGapAvailable=150 → 缺口 50~71 的候选全被过滤 → 整轮跳过。
+        //   0912 CZ 一晚实测：**54 轮跳过、累计 398 个候选人次**，且日志还建议"补汉堡/蜜露鳞"
+        //   —— 用户其实有低档食物，只是不是它认的那两个 SKU，建议本身是误导。
+        //   修法：复用饿死救援那份 STARVING_FOOD_LIST（单一真源，两条路径不会再分叉），
+        //   排除 11305 Paeon 法术卡——它链上入口是 cast 不是 use。
+        const DAILY_FOOD_LIST = STARVING_FOOD_LIST.filter(f => f.index !== 11305);
+        const balMap = new Map();
         try {
             const acc = window.network.explorer.accounts.getByOperator(addr);
             const inv = Array.isArray(acc?.inventories) ? acc.inventories : [];
-            balBurger = Number((inv.find(it => Number(it?.item?.index) === ITEM_CHEESEBURGER)?.balance) || 0);
-            balHoney = Number((inv.find(it => Number(it?.item?.index) === ITEM_HONEYDEW_SCALE)?.balance) || 0);
-            balApple = Number((inv.find(it => Number(it?.item?.index) === ITEM_GOLDEN_APPLE)?.balance) || 0);
+            for (const f of DAILY_FOOD_LIST) {
+                balMap.set(f.index, Number((inv.find(it => Number(it?.item?.index) === f.index)?.balance) || 0));
+            }
         } catch (e) {
             log(`⚠️ [喂食] 查询库存失败: ${e?.message || e}`);
             return;
         }
+        // 有货的食物，按恢复量升序（最小档位在前）
+        const availFoods = DAILY_FOOD_LIST.filter(f => (balMap.get(f.index) || 0) > 0)
+                                          .sort((x, y) => x.hp - y.hp);
+        const totalFood = availFoods.reduce((sum, f) => sum + (balMap.get(f.index) || 0), 0);
 
-        const totalFood = balBurger + balHoney + balApple;
+        // 🔻SYNC[测试版1.2.38] **每轮都打**的食物盘点（无论有没有候选、有没有货）
+        log(`🧺 [食物盘点] ${availFoods.length ? availFoods.map(f => `${f.name}+${f.hp}×${balMap.get(f.index)}`).join('  ') : '（10 种可喂食物全部为 0）'}`
+            + `${availFoods.length ? `  ｜最小档位 ${availFoods[0].hp}HP` : ''}  ｜待喂候选 ${feedCandidates.length} 只`);
+
+        // 候选为 0：盘点已打，直接结束本轮
+        if (feedCandidates.length === 0) {
+            log(`✅ 喂食完成，无需喂食`);
+            return;
+        }
+
         if (totalFood <= 0) {
-            log(`⚠️ [喂食] 库存不足：金苹果=${balApple}, 蜜露鳞=${balHoney}, 汉堡=${balBurger}`);
+            log(`⚠️ [喂食] 库存不足：${DAILY_FOOD_LIST.map(f => `${f.name}=0`).join(', ')}`);
             return;
         }
 
         // 库存档位预筛：先算出当前库存能覆盖的最小缺口档位，过滤掉喂不了的候选，
         // 再决定要不要取锁——避免"有食物但档位全不匹配"时空转持锁
         // （曾致仅持金苹果的账户 30+ 候选逐只链上复查约 12 分钟，普通锁超时被强制释放）
-        const minGapAvailable = balBurger > 0 ? MIN_GAP_BURGER : (balHoney > 0 ? MIN_GAP_HONEY : MIN_GAP_APPLE);
+        // 🔻SYNC[测试版1.2.38] 最小可用档位 = 有货食物里恢复量最小的那个（原来只在 3 种里挑）
+        const minGapAvailable = availFoods[0].hp;
         const matchableCandidates = feedCandidates.filter(k => k.hpGap >= minGapAvailable);
         if (matchableCandidates.length === 0) {
             const maxGap = Math.max(...feedCandidates.map(k => k.hpGap));
-            log(`ℹ️ [喂食] 候选${feedCandidates.length}个但库存档位不匹配（库存最小档位${minGapAvailable}HP > 候选最大缺口${maxGap}HP），本轮跳过不取锁；建议补低档位食物（汉堡/蜜露鳞）`);
+            log(`ℹ️ [喂食] 候选${feedCandidates.length}个但库存档位不匹配（库存最小档位${minGapAvailable}HP > 候选最大缺口${maxGap}HP），本轮跳过不取锁；现有食物：${availFoods.map(f => `${f.name}+${f.hp}×${balMap.get(f.index)}`).join(' ')}`);
             return;
         }
 
@@ -8703,7 +8735,7 @@
             return;
         }
         try {
-        log(`🍔 [喂食] 候选${feedCandidates.length}个(档位可匹配${matchableCandidates.length})，库存: 金苹果${balApple} 蜜露鳞${balHoney} 汉堡${balBurger}`);
+        log(`🍔 [喂食] 候选${feedCandidates.length}个(档位可匹配${matchableCandidates.length})，库存: ${availFoods.map(f => `${f.name}+${f.hp}×${balMap.get(f.index)}`).join(' ')}`);
 
         // ========= 阶段3: 分批喂食 + 失败熔断 =========
         let totalSuccess = 0;
@@ -8735,15 +8767,13 @@
                     let itemToUse = null;
                     let foodName = '';
 
-                    if (hpGap >= MIN_GAP_APPLE && balApple > 0) {
-                        itemToUse = ITEM_GOLDEN_APPLE;
-                        foodName = '金苹果(+150)';
-                    } else if (hpGap >= MIN_GAP_HONEY && balHoney > 0) {
-                        itemToUse = ITEM_HONEYDEW_SCALE;
-                        foodName = '蜜露鳞(+75)';
-                    } else if (hpGap >= MIN_GAP_BURGER && balBurger > 0) {
-                        itemToUse = ITEM_CHEESEBURGER;
-                        foodName = '汉堡(+50)';
+                    // 🔻SYNC[测试版1.2.38] 从**全部有货食物**里按缺口挑：不浪费前提下加血最多。
+                    //   降序找第一个 hp ≤ 缺口的（与饿死救援 __foodDesc 同一条规则）。
+                    const __pick = [...availFoods].sort((x, y) => y.hp - x.hp)
+                        .find(f => f.hp <= hpGap && (balMap.get(f.index) || 0) > 0);
+                    if (__pick) {
+                        itemToUse = __pick.index;
+                        foodName = `${__pick.name}(+${__pick.hp})`;
                     }
 
                     if (!itemToUse) {
@@ -8793,9 +8823,9 @@
                     totalSuccess++;
 
                     // 本地扣减库存计数，后续候选据此匹配食物（省去重复查链）
-                    if (itemToUse === ITEM_GOLDEN_APPLE) balApple--;
-                    else if (itemToUse === ITEM_HONEYDEW_SCALE) balHoney--;
-                    else if (itemToUse === ITEM_CHEESEBURGER) balBurger--;
+                    // 🔻SYNC[测试版1.2.38] 本地扣减：喂掉一个就从 balMap 减一，
+                    //   减到 0 的食物在后续候选的选食里自动不再被挑中。
+                    balMap.set(itemToUse, Math.max(0, (balMap.get(itemToUse) || 0) - 1));
 
                     // 喂食成功，清除该 kami 的失败冷却记录
                     if (kamiId) __feedFailedKamis.delete(kamiId);
