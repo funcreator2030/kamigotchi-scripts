@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.39
+// @version      1.2.40
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 10:26:30
+// @x-release-date 2026/9/12 10:30:12
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -1733,7 +1733,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.39';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.40';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
         let firstSeen = null;
@@ -1911,9 +1911,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.39 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog('%c🧪 测试版核心运行中 v1.2.40 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.39 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.40 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -8591,6 +8591,56 @@
     //     调小提速，但增大 nonce 冲突与 RPC 限流风险。
     // ▍相关控制台命令：本板块内未定义。
     // ============================================================
+
+    // ============================================================
+    // 【板块：每轮库存盘点（纯日志）】
+    // ------------------------------------------------------------
+    // ▍用户 0912 要求。起因：那晚查日志想知道账户到底有什么食物，翻遍 13 份日志一条都没有，
+    //   我据此给出了"补汉堡/蜜露鳞"的错误建议——其实账户里有 Pom-Pom(+50)、Gakki(+100)。
+    //   查下来：脚本**确实有**食物盘点日志，但只在饿死救援函数里（_starvingFeedKamisInner）。
+    //   那晚 STARVING 全是启动 DOM 假阳性、被 5 秒重扫压掉 → 救援没跑 → 整晚零条库存记录。
+    // ▍这个函数**只读、只打日志**：不改任何喂食判断、不改门槛、不发交易、不影响控制流。
+    //   放在主循环紧急锁判断**之前**，紧急轮次也照打（那正是最想知道库存的时候）。
+    //   读法照抄生产：getByOperator(addr).inventories（复数、同步的本地 ECS 读，零成本）。
+    // ▍为什么要同时标出"日常喂食认哪几种"：
+    //   日常喂食只认汉堡/蜜露鳞/金苹果三种（刻意设计的省 gas 经济线，见 autoFeedLowHpRestingKamis），
+    //   而饿死救援认 11 种。两者不同是**有意的**。盘点里把这个差别直接标出来，
+    //   以后看日志就能一眼分清"没喂是因为没货"还是"没喂是因为这档不在日常清单里"，
+    //   不用再翻代码猜——今天就是没标清楚，害我把设计当成 bug 改了两版。
+    // 🔻SYNC→内部版[测试版1.2.40 每轮库存盘点]
+    // ============================================================
+    const INV_SNAPSHOT_ITEMS = {
+        食物: [[11314, 'Blue Pansy', 25], [11301, 'Ghost Gum', 25], [11233, 'Gingerbread', 25],
+               [11227, 'Fetid Egg', 35], [11311, 'Resin', 35], [11302, 'Cheeseburger', 50],
+               [11303, 'Pom-Pom', 50], [11312, 'Honeydew', 75], [11304, 'Gakki', 100],
+               [11305, 'Paeon法术卡', 100], [11313, 'Golden Apple', 150]],
+        步长: [[21201, 'Ice Cream', 20], [21202, 'Better', 40], [21203, 'Best', 80],
+               [21205, 'Candyfloss', 80], [21204, 'Neith卡', 80]],
+    };
+    const DAILY_FEED_ITEMS = new Set([11302, 11312, 11313]);   // 日常喂食认的三种（与 autoFeedLowHpRestingKamis 一致）
+
+    function _logInventorySnapshot() {
+        try {
+            const addr = window.network?.network?.connectedAddress?.value_;
+            if (!addr) return;
+            const acc = window.network.explorer.accounts.getByOperator(addr);
+            const inv = Array.isArray(acc?.inventories) ? acc.inventories : null;
+            if (!inv) { log(`🧺 [库存盘点] 读不到 acc.inventories（不是空，是没读到）`); return; }
+            const bal = (i) => Number((inv.find(x => Number(x?.item?.index) === i)?.balance) || 0);
+
+            const foods = INV_SNAPSHOT_ITEMS.食物.map(([i, n, hp]) => ({ i, n, hp, b: bal(i) })).filter(f => f.b > 0);
+            const dailyUsable = foods.filter(f => DAILY_FEED_ITEMS.has(f.i));
+            log(`🧺 [库存盘点/食物] ${foods.length ? foods.map(f => `${f.n}+${f.hp}×${f.b}`).join('  ') : '（全部为 0）'}`
+                + `　｜日常喂食可用: ${dailyUsable.length ? dailyUsable.map(f => `${f.n}+${f.hp}`).join(' ') : '无'}`
+                + `（日常只认汉堡/蜜露鳞/金苹果三种；饿死救援认全部 11 种，差异是设计）`);
+
+            const sp = INV_SNAPSHOT_ITEMS.步长.map(([i, n, v]) => ({ n, v, b: bal(i) })).filter(x => x.b > 0);
+            log(`🧺 [库存盘点/其他] 复活丝带×${bal(11001)}　｜步长道具: ${sp.length ? sp.map(x => `${x.n}+${x.v}×${x.b}`).join('  ') : '无'}`);
+        } catch (e) {
+            log(`🧺 [库存盘点] 读取异常（不影响主流程）: ${(e?.message || e + '').toString().slice(0, 80)}`);
+        }
+    }
+
     async function autoFeedLowHpRestingKamis(kamiList) {
         const ITEM_CHEESEBURGER = 11302;    // +50 HP
         const ITEM_HONEYDEW_SCALE = 11312;  // +75 HP
@@ -10647,6 +10697,9 @@
         //   需求，不拿锁就不会白占资源挡住辅助脚本的合成等模块。
         // ▍边界与保护：紧急锁存在时整体跳过（紧急停采优先于一切普通操作）。
         // ============================================================
+        // 🔻SYNC[测试版1.2.40] 每轮库存盘点（纯日志，放在锁判断之前 → 紧急轮次也照打）
+        _logInventorySnapshot();
+
         // 喂食前检查锁
         if (hasEmergencyLock()) {
             log(`[TX锁] ⏸️ 紧急锁存在，跳过本轮喂食`);
