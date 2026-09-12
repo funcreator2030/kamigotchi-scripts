@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-测试版 (killer BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.7
+// @version      1.2.8
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 11:24:13
+// @x-release-date 2026/9/12 12:49:04
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -374,7 +374,7 @@
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.8';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -484,6 +484,26 @@
     let __killerPlayerMap = {};  // playerId → { playerName, kamis: [] }
     let __selfOwnedKillerList = [];  // 当前账户名下的杀手 kami 索引列表（与 __killerPlayerMap 互斥）
     let __mappingBuilt = false;  // 映射是否已建立（防止检测在映射就绪前空跑）
+    // 🔻SYNC[测试版1.2.8 R3 首查失败永久失明]（用户 0912 复现）
+    //   BEFORE：buildKillerPlayerMap 的 catch 只 failCount++ 加一行日志，这只 kami
+    //           **连缓存都没进**——不在 __killerPlayerMap、不在 __selfOwnedKillerList、
+    //           也没有第三个容器记着它，等于从数据结构里彻底消失。而 __mappingBuilt=true
+    //           的置位**完全不看 failCount**（41 只失败 1 只成功也照样置 true），
+    //           checkKillerPositions 开头那道 `!__mappingBuilt || length===0` 的补查门禁
+    //           从此永远为 false → 整个会话不再重建（本脚本没有任何周期性重建，
+    //           scheduleNextCheck 是纯 setTimeout 自调度）。
+    //           如果那只失败的 kami 是它主人在名单里的**独苗**，这个玩家就从威胁扫描里
+    //           整个消失：不查房间、不告警、不触发紧急停采 —— 与 0708 #1129 那次
+    //           「真凶不在监控名单」的命案逐字节同型。
+    //   AFTER ：失败的 kami 进 __killerPendingIds，每轮轮询开头补查，成功即并入映射。
+    //   ⚠️ 补查成本 = 三次**同步本地 ECS 读**（无网络、无 gas），所以**不套用**核心
+    //      1.1.22 那套 3~30 分钟退避——那是为链上状态复读设计的、延迟源是索引器分钟级
+    //      滞后，语义完全不同（照抄代码形状而非语义，正是本项目栽过六次的坑）。
+    let __killerPendingIds = new Set();     // 建映射时反查失败、等待补查的 kami 索引
+    const __killerPendingMeta = {};         // kamiIndex → { fails, nextAt }
+    let __myAccIdCache = null;              // 身份闸门通过后才写，补查时复用
+    let __myAccNameCache = null;            // ⚠️ 必须在身份闸门之后赋值：早退路径写 null
+                                            //    会让补查失去自检依据 → 自家杀手被判成敌方（重演 1.2.5）
     // （v1.1.9~1.1.10 曾在此维护 __dormantAlertLast 做"沉寂杀手警报降频"；v1.1.11 起
     //  沉寂杀手直接跳过停采，不再需要降频状态，随之移除——见上方 KILLER_INACTIVE_HOURS 处说明）
 
@@ -498,6 +518,45 @@
      *     稍后 checkKillerPositions 用 harvest.roomIndex 单独跟踪它们的实际部署位置
      *   - 同时注册到 window.MY_KILLER_KAMIS：核心+辅助脚本据此跳过部署/升级/reset/XP喂食
      */
+    // 🔻SYNC[测试版1.2.8 R3] 单只 kami 的反查+归类，建映射与补查**共用同一段逻辑**
+    //   （整段从原循环体搬过来，没有重写——两处各写一份必然口径漂移）
+    //   返回 true=已并入敌方映射 / null=自家杀手 / false=查询失败
+    async function __mapOneKiller(kamiIndex, myAccId, myAccName, tag) {
+        try {
+            const kamiInfo = await window.network.explorer.kamis.getByIndex(kamiIndex, { harvest: true });
+            const entityRes = await window.network.explorer.entities.get(kamiInfo.entity);
+            const ownerAccount = await window.network.explorer.accounts.getByID(entityRes.OwnsKamiID);
+
+            const playerId = entityRes.OwnsKamiID;
+            const playerName = ownerAccount.name;
+
+            // 自检：owner 是不是自己？双重比对（id + name 任一匹配即算，防某一字段缺失漏判）
+            // 🔻SYNC[1.2.5] 真值判断:空串/0/undefined 一律不参与自检,避免"两个空值相等"的误判
+            const isSelfById   = !!myAccId   && !!playerId   && playerId   === myAccId;
+            const isSelfByName = !!myAccName && !!playerName && playerName === myAccName;
+            if (isSelfById || isSelfByName) {
+                if (!__selfOwnedKillerList.includes(kamiIndex)) __selfOwnedKillerList.push(kamiIndex);
+                log(`  🛡️${tag} Kami ${kamiIndex} 是自己(${_killerLabel(playerName, playerId)})名下 → 移入"自家杀手"单独追踪（用 harvest.roomIndex 而非账户位置）`);
+                return null;
+            }
+
+            if (!__killerPlayerMap[playerId]) {
+                __killerPlayerMap[playerId] = {
+                    playerName: playerName,
+                    kamis: []
+                };
+            }
+            if (!__killerPlayerMap[playerId].kamis.includes(kamiIndex)) __killerPlayerMap[playerId].kamis.push(kamiIndex);
+
+            log(`  ✓${tag} Kami ${kamiIndex} → ${_killerLabel(playerName, playerId)}`);
+
+            return true;
+        } catch (e) {
+            log(`  ✗${tag} Kami ${kamiIndex} 查询失败: ${e?.message || e}`);
+            return false;
+        }
+    }
+
     async function buildKillerPlayerMap() {
         log('═══════════════════════════════════════════════════');
         log('%c🔧  正在建立杀手 kami → player 映射...', 'color: orange; font-weight: bold;');
@@ -543,39 +602,19 @@
         let failCount = 0;
 
         for (const kamiIndex of KILLER_KAMI_INDEXES) {
-            try {
-                const kamiInfo = await window.network.explorer.kamis.getByIndex(kamiIndex, { harvest: true });
-                const entityRes = await window.network.explorer.entities.get(kamiInfo.entity);
-                const ownerAccount = await window.network.explorer.accounts.getByID(entityRes.OwnsKamiID);
-
-                const playerId = entityRes.OwnsKamiID;
-                const playerName = ownerAccount.name;
-
-                // 自检：owner 是不是自己？双重比对（id + name 任一匹配即算，防某一字段缺失漏判）
-                // 🔻SYNC[1.2.5] 真值判断:空串/0/undefined 一律不参与自检,避免"两个空值相等"的误判
-                const isSelfById   = !!myAccId   && !!playerId   && playerId   === myAccId;
-                const isSelfByName = !!myAccName && !!playerName && playerName === myAccName;
-                if (isSelfById || isSelfByName) {
-                    __selfOwnedKillerList.push(kamiIndex);
-                    log(`  🛡️ Kami ${kamiIndex} 是自己(${_killerLabel(playerName, playerId)})名下 → 移入"自家杀手"单独追踪（用 harvest.roomIndex 而非账户位置）`);
-                    continue;
-                }
-
-                if (!__killerPlayerMap[playerId]) {
-                    __killerPlayerMap[playerId] = {
-                        playerName: playerName,
-                        kamis: []
-                    };
-                }
-                __killerPlayerMap[playerId].kamis.push(kamiIndex);
-                successCount++;
-
-                log(`  ✓ Kami ${kamiIndex} → ${_killerLabel(playerName, playerId)}`);
-
-            } catch (e) {
+            const ok = await __mapOneKiller(kamiIndex, myAccId, myAccName, '');
+            if (ok === true) successCount++;
+            else if (ok === false) {
                 failCount++;
-                log(`  ✗ Kami ${kamiIndex} 查询失败: ${e?.message || e}`);
+                // 🔻SYNC[测试版1.2.8 R3] 失败的不再蒸发：登记待补查，每轮轮询开头重试
+                __killerPendingIds.add(kamiIndex);
+                __killerPendingMeta[kamiIndex] = { fails: 1, nextAt: 0 };
             }
+            // ok === null = 自家杀手，已进 __selfOwnedKillerList，不计成功也不计失败
+        }
+        if (__killerPendingIds.size > 0) {
+            log(`%c🔁 [映射] ${__killerPendingIds.size} 只反查失败已登记待补查，每轮轮询开头自动重试：${[...__killerPendingIds].join(', ')}`,
+                'color: orange; font-weight: bold;');
         }
 
         const playerCount = Object.keys(__killerPlayerMap).length;
@@ -589,6 +628,11 @@
             try { window.__killerMonitorState.mappingBuilt = false; } catch (_) {}
             return;
         }
+        // 🔻SYNC[测试版1.2.8 R3] 身份闸门（上方那个 return）已通过，此处才缓存身份供补查复用。
+        //   放在闸门之前会缓存到 null → 补查把自家杀手判成敌方 → 轮询自己的账户位置
+        //   → 走到哪都触发"同房间警报"+紧急停采（1.2.5 同类事故的镜像）。
+        __myAccIdCache = myAccId;
+        __myAccNameCache = myAccName;
         __mappingBuilt = true;
         window.__killerMonitorState.mappingBuilt = true;
 
@@ -783,6 +827,42 @@
         if (!__mappingBuilt || Object.keys(__killerPlayerMap).length === 0) {
             log('⚠️ 杀手映射尚未建立，先建立映射...');
             await buildKillerPlayerMap();
+        }
+
+        // 🔻SYNC[测试版1.2.8 R3 首查失败永久失明] 补查上次没查成的 kami。
+        //   三次同步本地 ECS 读，没网络没 gas，所以不设每轮只数上限（42 只全查也只是 126 次本地读）。
+        //   身份缓存为空时**不补查**：宁可继续缺这几只，也不能在没有自检依据的情况下
+        //   把自家杀手并成敌方 → 轮询自己 → 走到哪都误触发紧急停采。
+        if (__killerPendingIds.size > 0) {
+            if (!__myAccIdCache && !__myAccNameCache) {
+                log(`⏸️ [补查] 身份未缓存，本轮跳过 ${__killerPendingIds.size} 只待补查（避免自家杀手被判成敌方）`);
+            } else {
+                const __now = Date.now();
+                const __due = [...__killerPendingIds].filter(i => (__killerPendingMeta[i]?.nextAt || 0) <= __now);
+                if (__due.length > 0) {
+                    log(`🔁 [补查] 重试 ${__due.length} 只首查失败的杀手 kami…`);
+                    let __fixed = 0;
+                    for (const idx of __due) {
+                        const ok = await __mapOneKiller(idx, __myAccIdCache, __myAccNameCache, '[补查]');
+                        if (ok === false) {
+                            const m = __killerPendingMeta[idx] || { fails: 0, nextAt: 0 };
+                            m.fails++;
+                            // 前 5 次每轮都重试（水合竞态通常一两轮内自愈）；之后退到 10 分钟一次，
+                            // 只为压日志噪音，不是为了省成本（本地读没有成本）
+                            m.nextAt = (m.fails <= 5) ? 0 : __now + 10 * 60 * 1000;
+                            __killerPendingMeta[idx] = m;
+                        } else {
+                            __killerPendingIds.delete(idx);
+                            delete __killerPendingMeta[idx];
+                            __fixed++;
+                        }
+                    }
+                    if (__fixed > 0) {
+                        log(`%c✅ [补查] ${__fixed} 只已补回监控名单，剩余待补 ${__killerPendingIds.size} 只`,
+                            'color: #66bb6a; font-weight: bold;');
+                    }
+                }
+            }
         }
 
         const myRoom = getMyRoomIndex();
