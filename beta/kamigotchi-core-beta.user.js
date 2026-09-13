@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.45
+// @version      1.2.46
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 12:49:04
+// @x-release-date 2026/9/13 08:29:48
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.45                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.46                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -914,6 +914,23 @@
                 : (kamiIds != null ? [String(kamiIds)] : []);
             const entry = { ts: Date.now(), action, kamiIds: ids, n: ids.length, hash: null, gasWei: null, status: null };
             entry.hash = _gasLedgerExtractHash(txOrHash, entry);
+            // 🔻SYNC[测试版1.2.46] 0913 实测：MUD 队列（api 通道）返回的是 { hash, receipt }，
+            //   receipt 已经是解析好的完整回执（带 gasUsed / effectiveGasPrice / status）。
+            //   手里既然已经有了，就当场入账，别再让 reconciler 按 hash 去链上查一遍——
+            //   喂食是发 tx 最密的动作，省下的是每笔一次 RPC。
+            //   gasWei 的算法逐字沿用 _gasLedgerReconcile 里那一行，不另写一套。
+            try {
+                const rc = txOrHash && txOrHash.receipt;
+                if (rc && typeof rc === 'object' && typeof rc.then !== 'function') {
+                    const gasUsed = rc.gasUsed;
+                    const price = (rc.gasPrice != null) ? rc.gasPrice : rc.effectiveGasPrice;
+                    if (gasUsed != null && price != null) {
+                        entry.gasWei = (BigInt(gasUsed.toString()) * BigInt(price.toString())).toString();
+                    }
+                    if (rc.status != null) entry.status = Number(rc.status);
+                    if (!entry.hash && typeof rc.transactionHash === 'string') entry.hash = rc.transactionHash;
+                }
+            } catch (_) { /* 记账绝不影响业务；算不出就留 null 交 reconciler */ }
             const arr = _gasLedgerPrune(_gasLedgerRead());
             arr.push(entry);
             _gasLedgerWrite(arr);
@@ -1744,7 +1761,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-测试版 v1.2.45 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-测试版 v1.2.46 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1773,7 +1790,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.45';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.46';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         try { window.__kamiCoreVersion = SELF_VERSION; } catch (_) {}   // 供 安装说明() 打印，避免多出一处版本仪式
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
@@ -1952,9 +1969,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.45 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog('%c🧪 测试版核心运行中 v1.2.46 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.45 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.46 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -2726,7 +2743,9 @@
         INVOCATION_HARD_CAP_MS: 180000,   // 停采阶段硬上限：到点强制收尾释放锁，未完成交下一轮（1.2.43 起从"喂食结束"起算，见 __stopPhaseStart）
         // 🔻SYNC[测试版1.2.43 ① 喂食堵停采] 饿死救援喂食阶段的时间上限。
         //   默认通道(queue)下 `await apiFn()` 要等 MUD 队列把 tx 打包上链才 resolve
-        //   （v1.1.30 实测停采批 9528ms），N 只 STARVING 就是 N×~10s，且原来没有任何上限。
+        //   🔻SYNC[测试版1.2.46] 量级修正：此处原引 v1.1.30 的"停采批 9528ms"外推成喂食 ~10s/只，
+        //   0913 实测**喂食单笔 722~2148ms**（停采批慢是因为一批带十几只，不能拿来推单笔）。
+        //   即 N 只 STARVING ≈ N×2.4s（含 300ms 间隔），本上限实际很少触发，属安全阀不是常态闸。
         //   断网夜一次性攒出十几二十只 STARVING 时，喂食能把整个 180s 预算吃光，
         //   停采循环第一轮都进不去 → 一只都没停成。90s 保证至少 ~9 只能喂到，
         //   剩下的交下一轮（喂食失败不写 __starvingFedRecord，下轮必被重新捞起）。
@@ -3214,8 +3233,10 @@
     //   3) 【Step 3】按顺序 fire-and-forget 喂食：每只从库存里按 HP
     //      降序取第一个有库存的食物（优先最大、一次到位省 gas；
     //      小食物为兜底；表本身顺序不动，选食时 sort 降序）；
-    //      await apiFn() 只等钱包分配 nonce 就发下一只，不等 tx.wait()
-    //      上链确认；每笔间隔 300ms 让 nonce 排队稳定。
+    //      🔻SYNC[测试版1.2.46] ⚠️ 这里原写"await apiFn() 只等钱包分配 nonce，不等上链确认"——
+    //      0913 控制台实测证伪：api 通道 await 要 722~2148ms，返回 { hash, receipt } 且
+    //      **receipt 已是解析好的完整回执**（带 status/gasUsed），也**没有 wait() 方法**。
+    //      即它其实是"等到上链才 resolve"。每笔另加 300ms 间隔让 nonce 排队稳定。
     // ▍边界与保护：
     //   - 库存查询失败：直接返回 0，本轮放弃救援（不抛异常）；
     //   - 全部食物余额为 0：红色告警列出所有候选编号，要求手动处理；
@@ -3231,9 +3252,9 @@
     //   - API 入口分流：11305 Paeon Spell Card 是法术卡道具，链上
     //     入口为 api.player.pet.item.cast；其余普通食物走 .use；
     //     对应入口不存在时跳过该只并提示；
-    //   - fire-and-forget 语义：返回值 fedCount 只表示 tx 已成功发出
-    //     （拿到 nonce），不保证链上执行成功；单只发送失败记日志
-    //     不中断整批。
+    //   - 返回值 fedCount 表示"成功交出去了几笔"。🔻SYNC[测试版1.2.46] 分通道看：
+    //     api(queue，默认) 实测等到上链才 resolve 且带回执，链上成败可当场判；
+    //     raw 提交即返回、没有回执，只能事后对账。单只发送失败记日志不中断整批。
     // ▍可调参数：
     //   - STARVING_FOOD_LIST — 救援食物表，每项 { index: 链上物品
     //     编号, name: 名称, hp: 恢复量 }。表内可按 hp 升序存放
@@ -3785,10 +3806,27 @@
                 //   只在"明确为 0"时才不登记：raw 通道 resolve 出来的是 tx 形（没有 status），
                 //   拿不到判据一律按老行为登记，宁可保守也不放开 6h 内反复烧 gas 的口子。
                 if (info.stuck24hTrying) {
-                    // 🔻SYNC[测试版1.2.45 R2] 先上短闸（30min）。旧码在这里判 Number(tx.status)===0，
-                    //   而 raw 的返回对象没有 status、queue 的形状也没实测过 —— 那道判据是死代码。
-                    //   升长闸（6h）只在下方"喂后复查"拿到 receipt 实锤后进行。
-                    try { window.__stuck24hTried.set(info.kamiId, { at: Date.now(), confirmed: false }); } catch (_) {}
+                    // 🔻SYNC[测试版1.2.46 R2] 0913 控制台实测钉死了 queue 的返回形状：
+                    //   `api.player.pet.item.use()` 返回 **{ hash, receipt }**，其中 receipt 是
+                    //   **已经解析好的完整回执对象**（不是 Promise），status 是十六进制字符串
+                    //   "0x1"/"0x0"，722~2148ms 就带回来了。顶层 t.status 恒 undefined ——
+                    //   所以 1.2.43/1.2.44 那道 `Number(tx.status) === 0` **在两条通道上都是死代码**，
+                    //   是这次实测才纠正过来的（此前两轮分析都继承了"queue=receipt 形"这个没验证过的前提，
+                    //   正是本项目的元教训：藏在共享前提里的错，异源交叉验证纠不出来，只有实盘能纠）。
+                    //   拿到实锤后闸长可以当场定，不必再等事后对账：
+                    //     status=1  → 确实喂进去了，还饿着才算真卡链 → 6h 长闸（防反复烧 gas）
+                    //     status=0  → 链上 revert，根本没吃到 → **不登记**，下一轮继续救
+                    //     拿不到    → raw 通道提交即返回，没有 receipt → 30min 短闸（安全方向）
+                    let __rcStatus = null;
+                    try {
+                        const __rc = __feedTx && __feedTx.receipt;
+                        if (__rc && __rc.status != null) __rcStatus = Number(__rc.status);   // Number('0x1')===1
+                    } catch (_) {}
+                    if (__rcStatus === 0) {
+                        log(`⚠️ [${logPrefix}] #${kami.dbIndex} 抢救喂食链上 revert(status=0)，不登记冷却，下一轮继续救`);
+                    } else {
+                        try { window.__stuck24hTried.set(info.kamiId, { at: Date.now(), confirmed: __rcStatus === 1 }); } catch (_) {}
+                    }
                 }
 
                 // 记录喂食次数（供保护2熔断判定；达阈值即提示后续将跳过）
@@ -3879,8 +3917,14 @@
                     try { f.info.__feedTxHash = __tx && __tx.hash ? String(__tx.hash) : null; } catch (_) {}
                     // 🔻SYNC[测试版1.2.43 ④(b)] 主循环失败、这里补发成功的 stuck24h kami 同样要登记 6h，
                     //   否则真卡死的 kami 会每轮被重救一次（主循环那边已改成"发送成功后才登记"）
-                    if (f.info.stuck24hTrying) {   // 🔻SYNC[测试版1.2.45 R2] 同上，补发也只上短闸
-                        try { window.__stuck24hTried.set(f.info.kamiId, { at: Date.now(), confirmed: false }); } catch (_) {}
+                    if (f.info.stuck24hTrying) {   // 🔻SYNC[测试版1.2.46 R2] 补发走 api，同样能拿到 receipt 实锤
+                        let __rs = null;
+                        try { const __r = __tx && __tx.receipt; if (__r && __r.status != null) __rs = Number(__r.status); } catch (_) {}
+                        if (__rs === 0) {
+                            log(`   ⚠️ #${f.kami.dbIndex} 补发的抢救喂食链上 revert，不登记冷却`);
+                        } else {
+                            try { window.__stuck24hTried.set(f.info.kamiId, { at: Date.now(), confirmed: __rs === 1 }); } catch (_) {}
+                        }
                     }
                     const __prev = __starvingFedRecord.get(f.info.kamiId) || { count: 0, lastFeedTime: 0 };
                     __starvingFedRecord.set(f.info.kamiId, { count: __prev.count + 1, lastFeedTime: Date.now() });
