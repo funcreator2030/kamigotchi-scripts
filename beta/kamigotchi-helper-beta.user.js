@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-测试版 (helper BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.12
+// @version      1.2.13
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:12:31
+// @x-release-date 2026/9/13 10:32:17
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.12                      ║
+// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.13                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -270,9 +270,9 @@
   //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
   //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
   //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-  const SCRIPT_VERSION = '1.2.12';
+  const SCRIPT_VERSION = '1.2.13';
   const SCRIPT_LINE = '测试版';
-  const SCRIPT_BUILT = '2026/9/13 10:12:31';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+  const SCRIPT_BUILT = '2026/9/13 10:32:17';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
   log(`%c✅ Kamigotchi辅助脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -4680,7 +4680,8 @@
     for (const r of __HEALTH_REGISTRY) if (r.re) stats[r.name] = { total: 0, errs: 0, lastErr: null };
     const evHits = __HEALTH_EVENTS.map(() => ({ count: 0, last: null }));
     const pairSeen = __HEALTH_PAIRS.map(() => ({ start: null, end: null }));
-    let deployOk = 0, nonceErr = 0, preciseChanged = null;
+    let deployOk = 0, nonceErr = 0, txqOther = 0, preciseChanged = null;
+    const __nonceSeen = new Set();   // 🔻SYNC[测试版1.2.13] 一次撞号会打两行日志，按 expected/got 去重
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
       // 跳过看板自身输出（整块看板含"代码健康看板"表头；全绿行/自检异常带 [健康] 标记）——
@@ -4713,7 +4714,30 @@
       if ((m = /\[批量部署\/第 \d+ 笔\(API\)\] 成功 (\d+) 个/.exec(line))) deployOk += Number(m[1]);
       // 🔻SYNC→内部版[1.1.24 看板nonce正则收紧] 旧 /nonce/i 会把我方"nonce统一/统一nonce"诊断日志误计成 nonce 冲突
       //   （0710 取证：mud 通道真实 nonce 冲突=0，看板"nonce冲突3次"全是自身日志误匹配）。收紧为真实报错短语 NONCE ERROR。
-      if (/sequence mismatch|NONCE ERROR/i.test(line)) nonceErr++;
+      // 🔻SYNC[测试版1.2.13 撞号计数去重 + 抓出号段]（0913 实盘定案）
+      //   ⚠️ 先纠正一个曾经的误判：0913 一度以为游戏的 "NONCE ERROR detected" 是误标、
+      //      底层只是 -32000 参数错。**错了**——`-32000 / Missing or invalid parameters` 只是
+      //      viem 的外层信封，真相在错误体深处的一行：
+      //        Details: account sequence mismatch, expected 184955, got 184942: incorrect account sequence
+      //      那是货真价实的撞号。**看错误分类别只看最外层的 code 和 message。**
+      //   实际要修的是两件别的事：
+      //   ① **双计**：一次撞号，游戏会打两行（EXECUTION FAILED … + NONCE ERROR detected …），
+      //      两行都含 sequence mismatch → 旧码把 1 次事故记成 2 次。按 expected/got 数对去重。
+      //   ② **看不出是谁撞谁**：光知道"撞了 N 次"没法定位。把 expected/got 抓出来——
+      //      got 落在停采批的 nonce 区间里，就说明是 raw 停采占了号、MUD 队列内部计数器没跟上
+      //      （0710 定案的双通道分叉；0913 实盘复现：raw 停采吃掉 184942→184953，
+      //       随后部署走 MUD 队列仍用 184942，而链上已到 184955）。
+      {
+        const __mm = /account sequence mismatch, expected (\d+), got (\d+)/i.exec(line);
+        if (__mm) {
+          const key = __mm[1] + '/' + __mm[2];
+          if (!__nonceSeen.has(key)) { __nonceSeen.add(key); nonceErr++; }
+        } else if (/sequence mismatch|nonce too (?:low|high)|invalid nonce|nonce has already been used|replacement (?:transaction )?underpriced/i.test(line)) {
+          nonceErr++;   // 有 nonce 语义但没给出号段的其它形态
+        } else if (/\[TXQueue\][^\n]*(?:EXECUTION FAILED|TX failed)/i.test(line)) {
+          txqOther++;   // TXQueue 失败但与 nonce 无关（如 Transaction failed with status 0）
+        }
+      }
       if (preciseChanged == null && (m = /\[精确LT\].*更新 (\d+) 条/.exec(line))) preciseChanged = Number(m[1]);
     }
     const beats = window.__kamiHealthBeats || {};
@@ -4753,7 +4777,14 @@
       else if (s.errs > 0) rules.push({ lvl: '🟡', msg: `${r.name}: 近1小时 ${s.errs} 条带错（共 ${s.total} 条）—— 最新: ${s.lastErr}` });
     }
     if ((stats['批量部署']?.total || 0) > 0 && deployOk === 0) rules.push({ lvl: '🔴', msg: '批量部署: 近1小时有动作但成功 0 只 —— 排查预检/nonce/tile 获取' });
-    if (nonceErr >= 3) rules.push({ lvl: '🟡', msg: `nonce 冲突 ${nonceErr} 次 —— 锁纪律被破坏或多开页面抢号？` });
+    if (nonceErr >= 1) {
+      // 🔻SYNC[测试版1.2.13] 门槛从 3 降到 1：去重后一次就是一次真事故，不该被平均掉；
+      //   并把号段打出来，好判断是不是 raw 停采与 MUD 队列的双通道分叉
+      const __pairs = [...__nonceSeen].slice(0, 3).map(k => { const [e, g] = k.split('/'); return `期望${e}/实到${g}`; }).join('，');
+      rules.push({ lvl: nonceErr >= 3 ? '🟡' : '🔵',
+        msg: `nonce 撞号 ${nonceErr} 次（已去重）${__pairs ? '：' + __pairs : ''} —— 实到号若落在 [停采诊断/发送] 的 nonce 区间内，即 raw 停采占号、MUD 队列计数器未跟上（0710 定案的双通道分叉）` });
+    }
+    if (txqOther >= 5) rules.push({ lvl: '🟡', msg: `TXQueue 非 nonce 失败 ${txqOther} 次 —— 看原文定性（如 status 0 = 链上 revert）` });
     // 状态不变量（直接校验数据对不对）
     const misc = [];
     try {
