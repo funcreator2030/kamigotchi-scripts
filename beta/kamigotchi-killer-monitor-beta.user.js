@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-测试版 (killer BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.12
+// @version      1.2.13
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 23:06:17
+// @x-release-date 2026/9/13 23:15:07
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -16,7 +16,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.12                     ║
+// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.13                     ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本持续监控一份你自己维护的"杀手 kami 名单"（KILLER_KAMI_INDEXES），        ║
 // ║  纯 API 轮询、不依赖 DOM，开销极小。当杀手出现在你的采集地块（房间）或          ║
@@ -51,9 +51,9 @@
 // ║      查不到 time.last 时按"活跃"保守处理，照常停采，绝不因数据缺失漏防。       ║
 // ║      本条替代 v1.1.9~1.1.10 的"沉寂降频仍停采"方案（原方案沉寂 10 天以上       ║
 // ║      只降低警报频率，仍会触发停采；本版改为直接跳过，语义更准确）。            ║
-// ║   6. 隔壁杀手击杀静默不停采（测试版 v1.2.12）：杀手主人站在隔壁、累计击杀数    ║
-// ║      连续 NEIGHBOR_NO_KILL_MINUTES（默认 10 分钟）没有增加 → 判定它不在杀人    ║
-// ║      的时间段（不在线或只是挂机采集），不触发紧急停采；击杀数一涨立刻恢复。    ║
+// ║   6. 隔壁杀手静默不停采（测试版 v1.2.13）：杀手主人站在隔壁、连续              ║
+// ║      NEIGHBOR_QUIET_MINUTES（默认 10 分钟）既没清算（stats.kills 没涨）也没移动║
+// ║      （time.action 没更新）→ 判定不在杀人时段，不触发紧急停采；任一发生即恢复。║
 // ║      kami 在我方节点、查不清、击杀数读不到、前端冻结 → 一律照常停采。          ║
 // ║      同房间仍只用上面第 5 条的 24 小时门槛，不受这条影响。                     ║
 // ║   7. 杀手换账户每轮核对（测试版 v1.2.11 起）：杀手会把杀手 kami 换到别的       ║
@@ -179,19 +179,20 @@
     // 照常触发；本版改为沉寂超阈值直接跳过停采，语义更准确，降频用的 __dormantAlertLast
     // 状态随之移除。
     const KILLER_INACTIVE_HOURS = 24;              // 主人超此时长无链上动作视为"不玩了"，不触发停采（可配置）
-    // 🔻SYNC[测试版1.2.11 隔壁久未动作不停采 → 1.2.12 改为「击杀静默」]（用户 0913 定案：
-    //   "杀手在隔壁，10 分钟内没有杀人就是不在线/挂机采集，我们只需要避开它杀人的时间段"）
+    // 🔻SYNC[测试版1.2.11 隔壁规则 → 1.2.12 击杀静默 → 1.2.13 只看「移动 + 清算」]（用户 0913 定案：
+    //   "监测杀手的 move 和 liquidate 动作，不需要看它的部署/采集/停采"）
     //   只作用于【隔壁】分支，同房间分支不受影响（仍只看上面的 24 小时）。
-    //   判据 = 该主人的累计击杀数（acc.stats.kills，全图口径）连续 NEIGHBOR_NO_KILL_MINUTES 没有增加。
-    //   击杀数一涨（本轮或 10 分钟内涨过）→ 视为正在杀人的时间段，照常提前停采。
-    //   为什么不用 time.last：挂机采集不写 time.last（产出懒结算，只有发交易才更新），
-    //   但用户要的口径是"有没有在杀人"，击杀数更直接；两者都不受"挂机采集"影响。
-    //   静默计时存在 localStorage（kami_killer_activity.killsSince），页面刷新不清零；
-    //   首次观测到某主人、或页面零状态（击杀读成 0）之后，从当轮重新计时 → 头 10 分钟照常停采（保守）。
-    //   保留的例外（零成本、只在拿不准时触发）：核对到的 kami 正在我方节点采集、查不清、
-    //   击杀数读不到、前端冻结 → 照常停采。
-    //   0913 实盘依据：隔壁 4785（#4277 在它自己的房间75采集，击杀 84 全天没涨）7 小时触发 176 次紧急停采。
-    const NEIGHBOR_NO_KILL_MINUTES = 10;           // 隔壁杀手击杀数连续超此分钟数未增加 + kami 不在我方节点 → 不停采
+    //   两个信号，各自独立的链上字段：
+    //     · 清算 = acc.stats.kills（累计清算数，全图口径）连续 NEIGHBOR_QUIET_MINUTES 没涨；
+    //     · 移动 = acc.time.action（TimeLastAction）。合约 0913 核对：只有 AccountMoveSystem / AccountUseItemSystem /
+    //       CraftSystem / KamiCastItemSystem 写它（都是账户级动作，移动为主）；部署/停采/收取/喂食/清算只写 time.last，
+    //       不碰它。所以 time.action ≈ 最后一次移动时间。
+    //   隔壁 + 两者都超过 NEIGHBOR_QUIET_MINUTES → 判定不在杀人时段，不停采；任一发生 → 照常提前停采。
+    //   time.action 读不到（0/缺失）→ 退化为只看清算（= 1.2.12 行为），日志注明。
+    //   击杀静默计时存 localStorage（kami_killer_activity.killsSince），页面刷新不清零；首次观测/零状态后重新计时。
+    //   保留的例外（零成本、只在拿不准时触发）：核对到的 kami 正在我方节点采集、查不清、击杀数读不到、前端冻结 → 照常停采。
+    //   0913 实盘依据：隔壁 4785（#4277 在它自己的房间75采集，击杀 84 全天没涨、全天没移动）7 小时触发 176 次紧急停采。
+    const NEIGHBOR_QUIET_MINUTES = 10;             // 隔壁杀手连续超此分钟数既没杀人也没移动 + kami 不在我方节点 → 不停采
 
     // ============================================================
     // 【板块：Feed 监控配置】（⚠️ 已停用的历史功能：现已不再监控 Feed，参数仅作保留）
@@ -248,7 +249,8 @@
     // ▍相关控制台命令：listKillers() 现在会附带活跃度一览。
     // ============================================================
     const KILLER_ACTIVITY_KEY = 'kami_killer_activity';   // 独立 localStorage 键，不与其他数据冲突
-    const __killerKillQuietMin = {};   // playerId → 当前击杀数已持续多少分钟没涨（null=读不到击杀数）；隔壁击杀静默规则用
+    const __killerKillQuietMin = {};   // playerId → 当前击杀数已持续多少分钟没涨（null=读不到击杀数）；隔壁静默规则用
+    const __killerMoveAgoMin = {};     // playerId → 距最后一次移动（time.action）多少分钟（null=读不到）；隔壁静默规则用
     function __loadKillerActivity() {
         try { return JSON.parse(localStorage.getItem(KILLER_ACTIVITY_KEY) || '{}') || {}; } catch (e) { return {}; }
     }
@@ -289,6 +291,10 @@
         if (!sameKills) killsSince = nowMs;
         __killerKillQuietMin[playerId] = (typeof kills === 'number' && kills > 0) ? (nowMs - killsSince) / 60000 : null;
         if (typeof kills === 'number' && kills > 0) note += `｜击杀静默 ${Math.floor(__killerKillQuietMin[playerId])} 分钟`;
+        // 🔻SYNC[测试版1.2.13] 最后移动时间 = acc.time.action（合约里只有移动等 4 个账户级系统写它，见常量说明）
+        const act = acc?.time?.action;
+        __killerMoveAgoMin[playerId] = (typeof act === 'number' && act > 0) ? (nowSec - act) / 60 : null;
+        if (typeof act === 'number' && act > 0) note += `｜最近移动: ${__fmtAgo(nowSec - act)}`;
         store[playerId] = { name: playerName, room: acc?.roomIndex, last, kills, at: nowSec, killsSince };
         __saveKillerActivity(store);
         return note;
@@ -408,9 +414,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.12';
+    const SCRIPT_VERSION = '1.2.13';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 23:06:17';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/13 23:15:07';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ 轻量杀手监控-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已加载，等待启动...`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -924,8 +930,9 @@
     //        邻居打橙色预警，并触发一次停采（每轮至多一次）后继续查完全
     //        名单，保证全员位置/活跃度情报完整——保护力度不打折扣；
     //        提前一格反应，赶在杀手进场前收 kami；
-    //      - 隔壁分支另有一道（测试版 1.2.12 击杀静默）：主人累计击杀数连续 NEIGHBOR_NO_KILL_MINUTES
-    //        （默认 10 分钟）没涨，且核对到的 kami 都不在我方节点采集、前端未冻结 → 不告警不停采；
+    //      - 隔壁分支另有一道（测试版 1.2.13 静默规则）：主人连续 NEIGHBOR_QUIET_MINUTES（默认 10 分钟）
+    //        既没清算（stats.kills 没涨）也没移动（time.action 没更新），且核对到的 kami 都不在我方节点采集、
+    //        前端未冻结 → 不告警不停采；time.action 读不到时只看清算；
     //        kami 正在我方节点、或任何一只查不清 → 照常停采（见 __neighborKillerKamisAway）；
     //      - 其他位置 → 记一条"安全"日志，继续查下一个玩家；
     //   4) 遍历自家杀手，逐只查 kami 本体：
@@ -1103,13 +1110,18 @@
                         continue;
                     }
 
-                    // 🔻SYNC[测试版1.2.12 隔壁击杀静默不停采] 见常量 NEIGHBOR_NO_KILL_MINUTES 与 __neighborKillerKamisAway 的说明。
-                    //   __quietMin 由本轮 __trackKillerActivity 刚算出；读不到击杀数为 null → 不进这里 → 照常停采。
-                    //   前端冻结（核心脚本写的 window.__frontendFrozen）时击杀数是旧值，"没涨"会被高估 → 不启用。
+                    // 🔻SYNC[测试版1.2.12 击杀静默 → 1.2.13 移动+清算] 见常量 NEIGHBOR_QUIET_MINUTES 与 __neighborKillerKamisAway 的说明。
+                    //   __quietMin / __moveMin 由本轮 __trackKillerActivity 刚算出；读不到击杀数为 null → 不进这里 → 照常停采；
+                    //   读不到 time.action 为 null → 只看清算（= 1.2.12）。
+                    //   前端冻结（核心脚本写的 window.__frontendFrozen）时两者都是旧值，"静默"会被高估 → 不启用。
                     const __quietMin = __killerKillQuietMin[playerId];
-                    if (typeof __quietMin === 'number' && __quietMin >= NEIGHBOR_NO_KILL_MINUTES) {
+                    const __moveMin = __killerMoveAgoMin[playerId];
+                    const __killQuiet = typeof __quietMin === 'number' && __quietMin >= NEIGHBOR_QUIET_MINUTES;
+                    if (__killQuiet && typeof __moveMin === 'number' && __moveMin < NEIGHBOR_QUIET_MINUTES) {
+                        log(`⚠️ [隔壁静默/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨，但 ${__fmtAgo(Math.round(__moveMin * 60))}刚移动过 → 人在线，照常停采`);
+                    } else if (__killQuiet) {
                         if (window.__frontendFrozen === true) {
-                            log(`⚠️ [隔壁击杀静默/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨，但前端数据冻结中（击杀数可能是旧值）→ 照常停采`);
+                            log(`⚠️ [隔壁静默/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨${typeof __moveMin === 'number' ? `、${Math.floor(__moveMin)} 分钟没移动` : ''}，但前端数据冻结中（读数可能是旧值）→ 照常停采`);
                         } else {
                             // 核对范围：它名下登记的监控 kami + 名单里还没归属任何主人的 kami（归属不明，当可能是它的）
                             //   + 账户对象若带 kamis 列表，则它名下全部 kami
@@ -1147,10 +1159,10 @@
                             }
                             apiCallCount += chk.calls;
                             if (chk.away) {
-                                log(`⚪ [隔壁击杀静默/不停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨（累计 ${acc?.stats?.kills}），核对到的 kami 都不在我方节点（${chk.detail}${__accKamisNote}）→ 判不在杀人时段，不停采`);
+                                log(`⚪ [隔壁静默/不停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨（累计 ${acc?.stats?.kills}）${typeof __moveMin === 'number' ? `、${Math.floor(__moveMin)} 分钟没移动` : '、time.action 读不到只看清算'}，核对到的 kami 都不在我方节点（${chk.detail}${__accKamisNote}）→ 判不在杀人时段，不停采`);
                                 continue;
                             }
-                            log(`⚠️ [隔壁击杀静默/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨，但 ${chk.reason} → 照常停采`);
+                            log(`⚠️ [隔壁静默/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，击杀数 ${Math.floor(__quietMin)} 分钟没涨${typeof __moveMin === 'number' ? `、${Math.floor(__moveMin)} 分钟没移动` : ''}，但 ${chk.reason} → 照常停采`);
                         }
                     }
 
@@ -1282,7 +1294,7 @@
         log(`   随机范围: 0-${KILLER_CHECK_RANDOM / 1000} 秒`);
         log(`   杀手 kami 数量: ${KILLER_KAMI_INDEXES.length}`);
         log(`   邻居预警: ${NEIGHBOR_WARNING ? '开启' : '关闭'}`);
-        if (NEIGHBOR_WARNING) log(`   隔壁击杀静默不停采: 击杀数连续 >${NEIGHBOR_NO_KILL_MINUTES} 分钟没涨、核对到的 kami 都不在我方节点、前端未冻结（测试版 1.2.12 起）`);
+        if (NEIGHBOR_WARNING) log(`   隔壁静默不停采: 连续 >${NEIGHBOR_QUIET_MINUTES} 分钟既没清算(stats.kills)也没移动(time.action)、核对到的 kami 都不在我方节点、前端未冻结（测试版 1.2.13）`);
 
         // 先建立映射，再开始监控
         await buildKillerPlayerMap();
