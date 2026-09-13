@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-测试版 (killer BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.10
+// @version      1.2.11
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:12:31
+// @x-release-date 2026/9/13 22:33:33
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -16,7 +16,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.10                     ║
+// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.11                     ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本持续监控一份你自己维护的"杀手 kami 名单"（KILLER_KAMI_INDEXES），        ║
 // ║  纯 API 轮询、不依赖 DOM，开销极小。当杀手出现在你的采集地块（房间）或          ║
@@ -51,6 +51,14 @@
 // ║      查不到 time.last 时按"活跃"保守处理，照常停采，绝不因数据缺失漏防。       ║
 // ║      本条替代 v1.1.9~1.1.10 的"沉寂降频仍停采"方案（原方案沉寂 10 天以上       ║
 // ║      只降低警报频率，仍会触发停采；本版改为直接跳过，语义更准确）。            ║
+// ║   6. 隔壁久未动作不停采（测试版 v1.2.11 起）：杀手主人站在隔壁、超过           ║
+// ║      NEIGHBOR_INACTIVE_HOURS（默认 2 小时）没有链上动作，且核对到的 kami       ║
+// ║      都没有正在我方节点采集 → 判定人不在，不触发紧急停采。                     ║
+// ║      kami 在我方节点、查不清、读不到活跃度、前端冻结 → 一律照常停采。          ║
+// ║      同房间仍只用上面第 5 条的 24 小时门槛，不受这条影响。                     ║
+// ║   7. 杀手换账户每轮核对（测试版 v1.2.11 起）：杀手会把杀手 kami 换到别的       ║
+// ║      账户。每轮位置检测前先逐只核对名单 kami 的当前主人，与映射不符就          ║
+// ║      重建映射，避免一直盯着旧账户、看不到新主人。                              ║
 // ║                                                                              ║
 // ║  ▍使用前必读：                                                                ║
 // ║   - v1.1.8 起 KILLER_KAMI_INDEXES 已预填默认名单（长期敌情观察 + 全网          ║
@@ -171,6 +179,15 @@
     // 照常触发；本版改为沉寂超阈值直接跳过停采，语义更准确，降频用的 __dormantAlertLast
     // 状态随之移除。
     const KILLER_INACTIVE_HOURS = 24;              // 主人超此时长无链上动作视为"不玩了"，不触发停采（可配置）
+    // 🔻SYNC[测试版1.2.11 隔壁久未动作不停采]（用户 0913 提："杀手在隔壁、很久没动，就可以认定它没有在"）
+    //   只作用于【隔壁】分支，同房间分支不受影响（仍只看上面的 24 小时）。
+    //   隔壁杀手要清算我方，它的账户必须先走进我方房间（清算前置条件之一：攻击者账户与节点同房间）。
+    //   主人超过此时长没有链上动作，且核对到的 kami（它名下登记的监控 kami + 名单里尚未归属的 kami
+    //   + 账户对象若带 kamis 列表则它名下全部 kami）都没有正在我方节点采集 → 判定人不在，不停采；
+    //   前端冻结（window.__frontendFrozen）时不启用。
+    //   调大 = 更保守（停得多）；调到 >= KILLER_INACTIVE_HOURS 等于关闭本条。
+    //   0913 实盘依据：隔壁 4785（#4277 在它自己的房间75采集）7 小时触发 176 次紧急停采、零击杀。
+    const NEIGHBOR_INACTIVE_HOURS = 2;             // 隔壁杀手主人超此时长无链上动作 + kami 不在我方节点 → 不停采
 
     // ============================================================
     // 【板块：Feed 监控配置】（⚠️ 已停用的历史功能：现已不再监控 Feed，参数仅作保留）
@@ -378,9 +395,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.10';
+    const SCRIPT_VERSION = '1.2.11';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 10:12:31';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/13 22:33:33';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ 轻量杀手监控-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已加载，等待启动...`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -599,7 +616,9 @@
                 //    shrike 该会话完全隐形;同时"我的位置"读成 deadzone 房间0)。
                 //   修法:空串一律当"没拿到",宁可全部按外部杀手处理(fail-safe 方向)。
                 const __rawId = myAcc?.id, __rawName = myAcc?.name;
-                myAccId   = (typeof __rawId   === 'string' && __rawId.length   > 0) ? __rawId   : null;
+                // 🔻SYNC[测试版1.2.11] 客户端 NullAccount 的 id 是字符串 '0'（07-24/09-11 日志里的「当前账户: (unknown) (id=0)」就是它），
+                //   之前能通过「非空字符串」守卫 → 把自家杀手并成敌方且不再自愈。一律当没拿到。
+                myAccId   = (typeof __rawId   === 'string' && __rawId.length   > 0 && !/^(0x)?0+$/i.test(__rawId)) ? __rawId   : null;
                 myAccName = (typeof __rawName === 'string' && __rawName.length > 0) ? __rawName : null;
                 log(`👤 当前账户: ${myAccName || '(unknown)'} (id=${myAccId || '?'})`);
             }
@@ -794,6 +813,78 @@
         }
     }
 
+    // 🔻SYNC[测试版1.2.11 隔壁久未动作不停采] 核对隔壁杀手主人名下的 kami 是否都不在我方节点。
+    //   返回 { away: true,  detail, calls } = 逐只核对过，没有一只正在我方节点采集；
+    //        { away: false, reason, calls } = 有一只正在我方节点采集，或任何一只查不清。
+    //   fail-closed：拿不准就返回 away:false，调用方照常停采（停采侧宁发勿漏）。
+    //   为什么"正在我方节点采集"就必须停：清算要求杀手 kami 已在同节点采集、账户在同房间、冷却已过。
+    //   kami 已挂在我方节点时，人从隔壁走一步回来就能立刻清算，挂着等待期间 time.last 不会刷新，
+    //   所以"很久没动"不能说明它不在。
+    //   核对范围由调用方给（见隔壁分支）：它名下登记的监控 kami + 名单里尚未归属任何主人的 kami
+    //   （首查失败待补查 / addKiller 后没重建映射，归属不明就当可能是它的）+ 账户对象若带 kamis 列表，
+    //   则它名下全部 kami（没登记进名单的 kami 挂在我方节点也要看得见）。
+    //   判定一律白名单式（复核 0913 提出，全部往"照停"方向收紧）：
+    //   - kami 编号必须是正整数，否则查不清；
+    //   - 状态去空白转大写后：HARVESTING 看节点；只有 RESTING / DEAD / LISTED / 721_EXTERNAL 算不在我方节点；
+    //     其他任何值（空、对象、数字、未知状态）→ 查不清；
+    //   - 节点号必须是正整数（数字、BigInt 或纯数字字符串），0（deadzone）、布尔、空白、数组等 → 查不清；
+    //     若同时读到 node.roomIndex，与 node.index 不相等 → 查不清；
+    //   - 函数体整体 try/catch，任何异常 → 查不清。
+    //   节点号读 harvest.node.index：核心脚本生产代码在用；0913 控制台探针 10 只 HARVESTING 样本
+    //   10/10 读到，且 node.index 与 node.roomIndex 全部相等。
+    //   只有 HARVESTING 才看节点：RESTING/DEAD 等状态下 harvest.node 是上一次采集的旧节点
+    //   （0913 探针：shrike 的 #6245 在 RESTING，harvest.node 仍指房间10），不代表现在的位置。
+    async function __neighborKillerKamisAway(kamiIndexes, myRoom) {
+        let calls = 0;
+        try {
+            if (!Array.isArray(kamiIndexes) || kamiIndexes.length === 0) {
+                return { away: false, reason: '没有可核对的 kami', calls };
+            }
+            const toPosInt = (v) => {
+                if (typeof v === 'number') return (Number.isInteger(v) && v > 0) ? v : NaN;
+                if (typeof v === 'bigint') return v > 0n ? Number(v) : NaN;
+                if (typeof v === 'string' && /^\d+$/.test(v.trim())) { const n = Number(v.trim()); return n > 0 ? n : NaN; }
+                return NaN;
+            };
+            const mine = toPosInt(myRoom);
+            if (!Number.isFinite(mine)) return { away: false, reason: `我方房间号无法识别（${String(myRoom)}）`, calls };
+            const OFF_NODE = ['RESTING', 'DEAD', 'LISTED', '721_EXTERNAL'];
+            const tally = {};
+            const list = [...new Set(kamiIndexes.map(String))];
+            for (const key of list) {
+                const idx = toPosInt(key);
+                if (!Number.isFinite(idx)) return { away: false, reason: `kami 编号无法识别（${key}）`, calls };
+                let info;
+                try {
+                    info = await window.network.explorer.kamis.getByIndex(idx, { harvest: true });
+                    calls++;
+                } catch (e) {
+                    return { away: false, reason: `#${idx} 查询失败（${e?.message || e}）`, calls };
+                }
+                const rawState = info?.state;
+                const state = (typeof rawState === 'string') ? rawState.trim().toUpperCase() : '';
+                if (state === 'HARVESTING') {
+                    const node = toPosInt(info?.harvest?.node?.index);
+                    if (!Number.isFinite(node)) return { away: false, reason: `#${idx} 在采集但读不到有效节点号`, calls };
+                    const roomRaw = info?.harvest?.node?.roomIndex;
+                    if (roomRaw !== undefined && roomRaw !== null && toPosInt(roomRaw) !== node) {
+                        return { away: false, reason: `#${idx} 节点号与房间号对不上（index=${node} roomIndex=${String(roomRaw)}）`, calls };
+                    }
+                    if (node === mine) return { away: false, reason: `#${idx} 正在我方节点（${node}）采集，人走一步进房即可清算`, calls };
+                    const k = `在节点${node}采集`; tally[k] = (tally[k] || 0) + 1;
+                } else if (OFF_NODE.includes(state)) {
+                    tally[state] = (tally[state] || 0) + 1;
+                } else {
+                    return { away: false, reason: `#${idx} 状态无法识别（${String(rawState)}）`, calls };
+                }
+            }
+            const detail = `核对 ${list.length} 只：` + Object.entries(tally).map(([k, v]) => `${k}×${v}`).join('，');
+            return { away: true, detail, calls };
+        } catch (e) {
+            return { away: false, reason: `核对异常（${e?.message || e}）`, calls };
+        }
+    }
+
     // ============================================================
     // 【板块：杀手位置检测（轮询主函数）】
     // ------------------------------------------------------------
@@ -805,10 +896,12 @@
     //   执行 checkKillerPositions() 立即查一轮。
     // ▍依赖：__killerPlayerMap / __selfOwnedKillerList（建映射的
     //   产物）、accounts.getByID（查玩家位置）、kamis.getByIndex
-    //   （查自家杀手部署状态）、getRoomInfo / isNeighborRoom、
+    //   （查自家杀手部署状态；1.2.11 起也用于隔壁核对与换主核对）、
+    //   entities.get（1.2.11 起换主核对）、getRoomInfo / isNeighborRoom、
     //   triggerEmergencyStop（联动核心脚本）。
     // ▍核心流程：
     //   1) 映射未建立或为空 → 先兜底建映射再继续；
+    //      映射已建立 → 逐只核对名单 kami 当前主人，有变化就重建映射（测试版 1.2.11 起）；
     //   2) 取自己位置；取不到则整轮跳过（不带错误基准硬判）；
     //   3) 遍历每个杀手玩家，查其账户 roomIndex：
     //      - 同房间/相邻地块（NEIGHBOR_WARNING 开启时）→ 先查活跃度门槛
@@ -818,6 +911,9 @@
     //        邻居打橙色预警，并触发一次停采（每轮至多一次）后继续查完全
     //        名单，保证全员位置/活跃度情报完整——保护力度不打折扣；
     //        提前一格反应，赶在杀手进场前收 kami；
+    //      - 隔壁分支另有一道（测试版 1.2.11 起）：主人超过 NEIGHBOR_INACTIVE_HOURS（默认 2 小时）
+    //        无链上动作，且核对到的 kami 都不在我方节点采集、前端未冻结 → 不告警不停采；
+    //        kami 正在我方节点、或任何一只查不清 → 照常停采（见 __neighborKillerKamisAway）；
     //      - 其他位置 → 记一条"安全"日志，继续查下一个玩家；
     //   4) 遍历自家杀手，逐只查 kami 本体：
     //      - 状态非 HARVESTING 或无 harvest.roomIndex → 视为未部署，
@@ -828,7 +924,7 @@
     //      - 在其他地块（含邻居）→ 记"远程作战中"，纯信息性日志；
     //   5) 输出本轮实际 API 调用次数，便于核对省请求效果。
     // ▍边界与保护：单个玩家/单只 kami 查询失败只记日志并继续，
-    //   不影响其余目标；自家杀手分支永不触发停采；命中威胁后用
+    //   不影响其余目标（隔壁久未动作核对里查不清的一律照常停采）；自家杀手分支永不触发停采；命中威胁后用
     //   stopTriggeredThisRound 标记保证同一轮至多触发一次停采，
     //   后续命中只告警不重复触发（早年命中即 return 会让名单里
     //   排在命中者之后的玩家整轮零监控，活跃度快照也不更新）。
@@ -874,6 +970,54 @@
                         log(`%c✅ [补查] ${__fixed} 只已补回监控名单，剩余待补 ${__killerPendingIds.size} 只`,
                             'color: #66bb6a; font-weight: bold;');
                     }
+                }
+            }
+        }
+
+        // 🔻SYNC[测试版1.2.11 杀手换账户每轮核对]（用户 0913 提："杀手有时候会更换账户放他的杀手kami"）
+        //   BEFORE：映射只在启动/页面刷新（约 45~50 分钟一次）时建立。其间杀手 kami 换了主人，
+        //   监控继续盯旧账户、完全看不到新主人。日志实测 07-08~09-13 共 35 次换主人、涉及 16 只 kami，
+        //   常整批换（09-13 #7088/#9406/#12818 同时 beater→cocokele；#46 在 sakalaka 与小号 akalakas 之间来回）。
+        //   与本版"隔壁久未动作不停采"配合尤其要紧：旧主人若恰好在隔壁挂机，不核对就会被判"人不在"而不停采。
+        //   AFTER：每轮位置检测前逐只读名单 kami 的当前主人（与 __mapOneKiller 同一取法：
+        //   kamis.getByIndex → entities.get(entity).OwnsKamiID），与映射不符就整表重建
+        //   （复用 buildKillerPlayerMap，不另写一套自家/敌方归类逻辑）。本地 ECS 读、无网络无 gas。
+        //   待补查的 kami 归上面的补查管，这里跳过；读失败或读到空主人的只跳过、不改映射。
+        const __ownerReadFailed = new Set();   // 本轮读不到当前主人的 kami，归属不明 → 隔壁核对时当可能是它的
+        if (__mappingBuilt) {
+            const __owner = {};
+            for (const [pid, info] of Object.entries(__killerPlayerMap)) {
+                for (const k of (info.kamis || [])) __owner[k] = pid;
+            }
+            for (const k of __selfOwnedKillerList) __owner[k] = '__self__';
+            const __moved = [];
+            for (const idx of KILLER_KAMI_INDEXES) {
+                if (__killerPendingIds.has(idx) || !(idx in __owner)) continue;
+                try {
+                    const ki = await window.network.explorer.kamis.getByIndex(idx, { harvest: true });
+                    const ent = await window.network.explorer.entities.get(ki.entity);
+                    const nowOwner = ent?.OwnsKamiID;
+                    if (typeof nowOwner !== 'string' || nowOwner.length === 0) continue;
+                    const was = __owner[idx];
+                    // 自家杀手只按 id 比（身份缓存没有 id 时不判，避免误把自家当成换主）
+                    const changed = (was === '__self__') ? (!!__myAccIdCache && nowOwner !== __myAccIdCache) : (nowOwner !== was);
+                    if (changed) __moved.push({ idx, was, nowOwner });
+                } catch (_) { __ownerReadFailed.add(idx); /* 读不到就不动映射，但记下来 */ }
+            }
+            if (__moved.length > 0) {
+                const desc = __moved.map(m => `#${m.idx} ${m.was === '__self__' ? '自家' : _killerLabel(__killerPlayerMap[m.was]?.playerName, m.was)} → ${_killerLabel('新主人', m.nowOwner)}`).join('；');
+                log(`%c🔄 [杀手换主] ${__moved.length} 只杀手 kami 已换账户：${desc} → 重建映射`, 'color: #ff9800; font-weight: bold;');
+                // 重建中途若账户身份读不到，buildKillerPlayerMap 会留下一张「全员敌方」的表并置 __mappingBuilt=false；
+                //   在本轮继续用那张表会轮询到自己 → 同房间 → 误触发紧急停采（复核 0913 离线复现）。
+                //   所以先快照，失败就回滚到旧映射，下一轮再试。
+                const __snapMap = __killerPlayerMap, __snapSelf = __selfOwnedKillerList;
+                await buildKillerPlayerMap();
+                if (!__mappingBuilt) {
+                    __killerPlayerMap = __snapMap;
+                    __selfOwnedKillerList = __snapSelf;
+                    __mappingBuilt = true;
+                    try { window.__killerMonitorState.mappingBuilt = true; window.__killerPlayerMap = __killerPlayerMap; } catch (_) {}
+                    log('⚠️ [杀手换主] 重建映射时账户身份未就绪 → 已回滚到旧映射，下一轮再试');
                 }
             }
         }
@@ -944,6 +1088,56 @@
                         // 沉寂杀手：与同房间分支同一门槛、同一判定，跳过停采
                         log(`⚪ [沉寂杀手/跳过] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，但主人 ${inactiveHours.toFixed(1)}h 未动作 → 判不玩，跳过停采`);
                         continue;
+                    }
+
+                    // 🔻SYNC[测试版1.2.11 隔壁久未动作不停采] 见常量 NEIGHBOR_INACTIVE_HOURS 与 __neighborKillerKamisAway 的说明。
+                    //   inactiveHours 在读不到 time.last 时按 0 算，不会进这里 → 照常停采（沿用上面的保守约定）。
+                    //   前端冻结（核心脚本写的 window.__frontendFrozen）时 time.last 是旧值，"没动"的时长会被高估 → 不启用。
+                    if (inactiveHours > NEIGHBOR_INACTIVE_HOURS) {
+                        if (window.__frontendFrozen === true) {
+                            log(`⚠️ [隔壁久未动作/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，主人 ${inactiveHours.toFixed(1)}h 未动作，但前端数据冻结中（time.last 可能是旧值）→ 照常停采`);
+                        } else {
+                            // 核对范围：它名下登记的监控 kami + 名单里还没归属任何主人的 kami（归属不明，当可能是它的）
+                            //   + 账户对象若带 kamis 列表，则它名下全部 kami
+                            const __assigned = new Set(__selfOwnedKillerList);
+                            for (const pInfo of Object.values(__killerPlayerMap)) {
+                                for (const k of (pInfo.kamis || [])) __assigned.add(k);
+                            }
+                            const __unassigned = [...KILLER_KAMI_INDEXES.filter(k => !__assigned.has(k)), ...__ownerReadFailed];
+                            // 账户对象带 kamis 列表时一并核对。元素形状 {index,...} 是知识库 §4.6/§14.4 对
+                            //   accounts.getByOperator 记录的；这里的 acc 来自 getByID，是否也带 kamis 未见文档——
+                            //   缺席就只核对名单内的并在日志说明；列表非空但有元素读不出编号 = 拿不准 → 照常停采。
+                            let __accKamis = [];
+                            let __accKamisNote = '；账户对象未带 kamis 列表，只核对了名单内的';
+                            let __accKamisBad = false;
+                            if (Array.isArray(acc?.kamis)) {
+                                const idxs = acc.kamis.map(k => k?.index);
+                                if (idxs.length === 0) {
+                                    __accKamisNote = '；账户名下 kamis 列表为空';
+                                } else if (idxs.every(v => (typeof v === 'number' && Number.isInteger(v) && v > 0) || (typeof v === 'string' && /^\d+$/.test(v)))) {
+                                    __accKamis = idxs;
+                                    __accKamisNote = `；含账户名下全部 ${idxs.length} 只`;
+                                } else {
+                                    __accKamisBad = true;
+                                }
+                            }
+                            let chk;
+                            if (__accKamisBad) {
+                                chk = { away: false, reason: '账户 kamis 列表有元素读不出编号，无法完整核对', calls: 0 };
+                            } else {
+                                try {
+                                    chk = await __neighborKillerKamisAway([...(playerInfo.kamis || []), ...__unassigned, ...__accKamis], myRoom);
+                                } catch (e) {
+                                    chk = { away: false, reason: `核对异常（${e?.message || e}）`, calls: 0 };
+                                }
+                            }
+                            apiCallCount += chk.calls;
+                            if (chk.away) {
+                                log(`⚪ [隔壁久未动作/不停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，主人 ${inactiveHours.toFixed(1)}h 未动作，核对到的 kami 都不在我方节点（${chk.detail}${__accKamisNote}）→ 判人不在，不停采`);
+                                continue;
+                            }
+                            log(`⚠️ [隔壁久未动作/仍停采] ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】，主人 ${inactiveHours.toFixed(1)}h 未动作，但 ${chk.reason} → 照常停采`);
+                        }
                     }
 
                     log(`%c⚠️⚠️ [邻居预警] 杀手 ${_killerLabel(playerInfo.playerName, playerId)} 在隔壁【${killerRoomInfo.name}】！`,
@@ -1070,6 +1264,7 @@
         log(`   随机范围: 0-${KILLER_CHECK_RANDOM / 1000} 秒`);
         log(`   杀手 kami 数量: ${KILLER_KAMI_INDEXES.length}`);
         log(`   邻居预警: ${NEIGHBOR_WARNING ? '开启' : '关闭'}`);
+        if (NEIGHBOR_WARNING) log(`   隔壁久未动作不停采: 主人 >${NEIGHBOR_INACTIVE_HOURS}h 未动作、核对到的 kami 都不在我方节点、前端未冻结（测试版 1.2.11 起）`);
 
         // 先建立映射，再开始监控
         await buildKillerPlayerMap();
@@ -1390,8 +1585,10 @@
             return;
         }
         KILLER_KAMI_INDEXES.push(index);
-        log(`✅ 已添加杀手 Kami ${index}`);
-        log('💡 提示: 运行 rebuildKillerMap() 更新映射');
+        // 🔻SYNC[测试版1.2.11] 登记进补查队列：下一轮轮询开头自动反查主人并归属，不用手动 rebuildKillerMap()
+        __killerPendingIds.add(index);
+        __killerPendingMeta[index] = { fails: 0, nextAt: 0 };
+        log(`✅ 已添加杀手 Kami ${index}（下一轮轮询自动归属主人；也可立即运行 rebuildKillerMap()）`);
         log('当前列表:', KILLER_KAMI_INDEXES);
     };
 
