@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-测试版 (killer BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.9
+// @version      1.2.10
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 08:48:42
+// @x-release-date 2026/9/13 10:12:31
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -16,7 +16,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.9                      ║
+// ║                 Kamigotchi 轻量杀手监控 · 测试版 v1.2.10                     ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本持续监控一份你自己维护的"杀手 kami 名单"（KILLER_KAMI_INDEXES），        ║
 // ║  纯 API 轮询、不依赖 DOM，开销极小。当杀手出现在你的采集地块（房间）或          ║
@@ -372,15 +372,15 @@
     // ------------------------------------------------------------
     // 版本号、线名、构建时间收敛到这三个常量，启动 log / 命令 banner / SELF_VERSION
     // 全部引用它们，从此不可能各改各的。
-    //   BEFORE：三处各自硬编码，长期不同步。0913 CZ 实盘日志里辅助 @version 已是 1.2.10，
+    //   BEFORE：三处各自硬编码，长期不同步。0913 账户A 实盘日志里辅助 @version 已是 1.2.10，
     //   启动 log 却打「辅助脚本-公开版 v1.2.8」；精简数据库 1.2.4 打「公开版 v1.2.3」；
     //   监控 1.2.8 打 v1.2.7 —— 直接导致按日志误判「beta 没装全」「监控没更新」两次。
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.9';
+    const SCRIPT_VERSION = '1.2.10';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 08:48:42';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/13 10:12:31';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ 轻量杀手监控-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已加载，等待启动...`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -595,7 +595,7 @@
                 // 🔻SYNC→内部版[1.2.5 自家杀手误判修复] 0911 实盘 bug:`??` 只替换 null/undefined,
                 //   不管空字符串。账户未就绪时 myAccName='',而查不到名字的敌方 owner 也是 '',
                 //   两个空串相等 → 敌方杀手被误判成"自家杀手"移出监控,整个会话对该玩家失明
-                //   (实录:CZ 15:17 会话把 shrike 名下 12649/11224/6245 全判成自家,监控玩家数 23→21,
+                //   (实录:账户A 15:17 会话把 shrike 名下 12649/11224/6245 全判成自家,监控玩家数 23→21,
                 //    shrike 该会话完全隐形;同时"我的位置"读成 deadzone 房间0)。
                 //   修法:空串一律当"没拿到",宁可全部按外部杀手处理(fail-safe 方向)。
                 const __rawId = myAcc?.id, __rawName = myAcc?.name;

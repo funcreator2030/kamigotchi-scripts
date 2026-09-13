@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi轻量杀手监控-公开版 (killer monitor)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.6
+// @version      1.2.7
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/11 17:05:48
+// @x-release-date 2026/9/13 10:12:31
 // @description  Kamigotchi杀手监控公开版：纯API轮询监控指定杀手kami位置，逼近时告警并联动核心脚本紧急停采
 // @author       hongfei and claude
 // @match        https://*.kamigotchi.io/*
@@ -368,13 +368,13 @@
         } catch (_) {}
     }
 
-    log('%c✅ 轻量杀手监控-公开版 v1.2.6 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
+    log('%c✅ 轻量杀手监控-公开版 v1.2.7 已加载，等待启动...', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.14 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.13 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '轻量杀手监控';
-        const SELF_VERSION = '1.2.6';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.7';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）
@@ -523,7 +523,7 @@
                 // 🔻SYNC→内部版[1.2.5 自家杀手误判修复] 0911 实盘 bug:`??` 只替换 null/undefined,
                 //   不管空字符串。账户未就绪时 myAccName='',而查不到名字的敌方 owner 也是 '',
                 //   两个空串相等 → 敌方杀手被误判成"自家杀手"移出监控,整个会话对该玩家失明
-                //   (实录:CZ 15:17 会话把 shrike 名下 12649/11224/6245 全判成自家,监控玩家数 23→21,
+                //   (实录:账户A 15:17 会话把 shrike 名下 12649/11224/6245 全判成自家,监控玩家数 23→21,
                 //    shrike 该会话完全隐形;同时"我的位置"读成 deadzone 房间0)。
                 //   修法:空串一律当"没拿到",宁可全部按外部杀手处理(fail-safe 方向)。
                 const __rawId = myAcc?.id, __rawName = myAcc?.name;
@@ -1367,7 +1367,7 @@
     // ▍触发时机：脚本加载立即输出（早于 150 秒的延迟自动启动）。
     // ============================================================
     clog('═══════════════════════════════');
-    clog('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.2.6 已加载', 'color: green; font-weight: bold;');
+    clog('%c🛡️ Kamigotchi轻量杀手监控-公开版 v1.2.7 已加载', 'color: green; font-weight: bold;');
     clog('');
     clog('【杀手监控优化】');
     clog('  启动时建立 kami→player 映射，每次检测只查 player 位置');

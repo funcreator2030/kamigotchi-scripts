@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-测试版 (helper BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.11
+// @version      1.2.12
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 08:48:42
+// @x-release-date 2026/9/13 10:12:31
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.11                      ║
+// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.12                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -264,15 +264,15 @@
   // ------------------------------------------------------------
   // 版本号、线名、构建时间收敛到这三个常量，启动 log / 命令 banner / SELF_VERSION
   // 全部引用它们，从此不可能各改各的。
-  //   BEFORE：三处各自硬编码，长期不同步。0913 CZ 实盘日志里辅助 @version 已是 1.2.10，
+  //   BEFORE：三处各自硬编码，长期不同步。0913 账户A 实盘日志里辅助 @version 已是 1.2.10，
   //   启动 log 却打「辅助脚本-公开版 v1.2.8」；精简数据库 1.2.4 打「公开版 v1.2.3」；
   //   监控 1.2.8 打 v1.2.7 —— 直接导致按日志误判「beta 没装全」「监控没更新」两次。
   //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
   //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
   //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-  const SCRIPT_VERSION = '1.2.11';
+  const SCRIPT_VERSION = '1.2.12';
   const SCRIPT_LINE = '测试版';
-  const SCRIPT_BUILT = '2026/9/13 08:48:42';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+  const SCRIPT_BUILT = '2026/9/13 10:12:31';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
   log(`%c✅ Kamigotchi辅助脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============

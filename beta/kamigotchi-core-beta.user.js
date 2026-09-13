@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.47
+// @version      1.2.48
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 08:48:42
+// @x-release-date 2026/9/13 10:12:31
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.47                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.48                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -573,7 +573,7 @@
                 if (frozen !== _prevFrozen) {
                     log(`%c🧊 [前端传感器] 冻死判定翻转 → frozen=${frozen} | blockStalled=${blockStalled}(块=${_lastBlock},停滞${haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA'}s,已订阅=${_subscribed}) connDown=${connectionDown} timerDrift=${timerDrift} canaryNull=${canaryNull} hidden=${hidden}`,
                         frozen ? 'color:#c0392b;font-weight:bold' : 'color:#27ae60;font-weight:bold');
-                    // 🔻SYNC→内部版[1.2.1 停采空转闭环] C3：进入冻结瞬间 dump 深快照——抓 CZ 根因（区块流正常但组件仓单独滞后=已知盲区；connected翻false=WS问题）。纯观测全 try/catch。
+                    // 🔻SYNC→内部版[1.2.1 停采空转闭环] C3：进入冻结瞬间 dump 深快照——抓 账户A 根因（区块流正常但组件仓单独滞后=已知盲区；connected翻false=WS问题）。纯观测全 try/catch。
                     if (frozen) {
                         try {
                             const _nn = (window.network && window.network.network) || {};
@@ -592,7 +592,7 @@
                     const _hbStall = haveBaseline ? Math.round((now - _lastBlockAdvanceAt) / 1000) : 'NA';
                     // 🔻SYNC→内部版[1.1.22 退避复读] C5：组件滞后信号（补盲，纯观测，不进 frozen 判定/不影响门闩）。
                     //   判据：退避复读队列中存在 attempts≥4(≥90s 档)仍未确认已停的条目 → componentLag=疑似。
-                    //   意图：CZ 类"病态组件滞后可达数十分钟(blockNumber$ 仍正常前进=blockStalled 盲区)"的补盲信号，供下一步标定。
+                    //   意图：账户A 类"病态组件滞后可达数十分钟(blockNumber$ 仍正常前进=blockStalled 盲区)"的补盲信号，供下一步标定。
                     let _componentLag = '正常';
                     try {
                         for (const e of __stopPendingVerify.values()) { if (e.attempts >= 4) { _componentLag = '疑似'; break; } }
@@ -1765,15 +1765,15 @@
     // ------------------------------------------------------------
     // 版本号、线名、构建时间收敛到这三个常量，启动 log / 命令 banner / SELF_VERSION
     // 全部引用它们，从此不可能各改各的。
-    //   BEFORE：三处各自硬编码，长期不同步。0913 CZ 实盘日志里辅助 @version 已是 1.2.10，
+    //   BEFORE：三处各自硬编码，长期不同步。0913 账户A 实盘日志里辅助 @version 已是 1.2.10，
     //   启动 log 却打「辅助脚本-公开版 v1.2.8」；精简数据库 1.2.4 打「公开版 v1.2.3」；
     //   监控 1.2.8 打 v1.2.7 —— 直接导致按日志误判「beta 没装全」「监控没更新」两次。
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.47';
+    const SCRIPT_VERSION = '1.2.48';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 08:48:42';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/13 10:12:31';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -2877,7 +2877,7 @@
     // ============================================================
     // 🔻SYNC→内部版[1.1.22 退避复读] 停采反馈查询重构：数据驱动退避复读 + 假卡链四件套
     // ------------------------------------------------------------
-    // 病灶（0710 下午 CZ 实测）：tx 确认 p50=5.3s/p90=11s/p95=16s/max=376s(拥堵长尾)，
+    // 病灶（0710 下午 账户A 实测）：tx 确认 p50=5.3s/p90=11s/p95=16s/max=376s(拥堵长尾)，
     //   索引器翻面 p50=3.1s/p95=3.9s/max=21s；但"疑似卡链"3 笔可在几分钟内凑满，
     //   快于长尾确认 → 41 只已停成的 kami 被误判卡链拉黑。
     // 修复核心：estimateGas revert + 仍 HARVESTING 的"疑似卡链"不再当场记失败，
@@ -2889,8 +2889,8 @@
     const STOP_BACKOFF_TABLE_MS = [7000, 20000, 45000, 90000, 180000, 300000];  // 相对 sentAt 的复读时刻表（实测 tx 确认长尾 max=376s → 300s 兜到绝大多数）
     const STOP_BACKOFF_FULL_MS = 300000;          // C3：走完全表的最小跨度（≥5min ≫ 索引翻面 max=21s；真卡链最早此后 + ≥3 次调用 ≈ 15min 才拉黑）
     const STOP_BACKOFF_SCAN_MAX = 20;             // C2：单轮扫描最多复读只数（读数极限背压，其余下轮）
-    const STOP_BACKOFF_GASLIKELY_FULL_MS = 30 * 60 * 1000;  // B1b：gasLikely(gas像执行过)的count证据窗=30min——CZ组件滞后达数十分钟，300s表按索引21s滞后标定差一个数量级(grok审查关键洞)
-    const STOP_BACKOFF_MASSLAG_MIN = 3;           // B1a：≥3只卡在90s+档未确认=群体组件滞后(CZ特征；真卡链是孤例不会成群)→冻结全体count
+    const STOP_BACKOFF_GASLIKELY_FULL_MS = 30 * 60 * 1000;  // B1b：gasLikely(gas像执行过)的count证据窗=30min——账户A组件滞后达数十分钟，300s表按索引21s滞后标定差一个数量级(grok审查关键洞)
+    const STOP_BACKOFF_MASSLAG_MIN = 3;           // B1a：≥3只卡在90s+档未确认=群体组件滞后(账户A特征；真卡链是孤例不会成群)→冻结全体count
     let __stopMassLagLogged = false;              // 群体滞后冻结日志节流(每invocation一条)
     const STOP_BACKOFF_STALE_MS = 30 * 60 * 1000; // I4：兜底——30 分钟仍未确认的条目移除并告警（防 Map 泄漏）
     const STOP_BACKOFF_SCAN_INTERVAL_MS = 15000;  // C2：调度器扫描周期（全表过点后按此周期持续复读）
@@ -2989,7 +2989,7 @@
      */
     function _componentMassLagSuspect() {
         // B1a：退避队列里 ≥3 只卡在 90s+ 档(attempts≥4)仍未确认 → 判"群体组件同步滞后"。
-        //   用"规模"区分病灶：CZ 滞后是群体现象(0710实测41只)，真卡链是孤例(1~2只)不会触发冻结。
+        //   用"规模"区分病灶：账户A 滞后是群体现象(0710实测41只)，真卡链是孤例(1~2只)不会触发冻结。
         try {
             let n = 0;
             for (const [, e] of __stopPendingVerify) {
@@ -11105,7 +11105,7 @@
                                 //   （内部 _preCheckTx('deploy') 走 signer.estimateGas，eth_call 模拟、零 gas、零新增 tx，见 I1）。单只调用：_preCheckDeploy([it.kamiId], tile)。
                                 //   **只信 ok===true 方向**（同停采 C2 纪律 2529）：唯有 estimateGas 成功且返回 gasEstimate=链上确认"还能部署=尚未部署"才点击（第三道）。
                                 //   因第一道已排除冷却，这里的 revert 归因已干净（基本=已部署）；ok===true但无gasEstimate(signer/system不可用=读不到结果) 或预检抛异常 → 保守 skip 不点击。
-                                //   动机：DOM 兜底会把 API 层刚 estimateGas 实锤"已部署"的 kami 逐只重发白烧 gas（aaron 实测 18 笔 revert）。漏点一轮代价小——
+                                //   动机：DOM 兜底会把 API 层刚 estimateGas 实锤"已部署"的 kami 逐只重发白烧 gas（账户C 实测 18 笔 revert）。漏点一轮代价小——
                                 //   该 kami 仍在 pending，下轮主循环 API 门禁(8027)重扫再试(I2)，绝不永久搁置；烧 gas 才是真损失（真钱路径宁严勿松）。
                                 let _d1chk = null;
                                 try { _d1chk = await _preCheckDeploy([it.kamiId], tile); } catch (_) { _d1chk = null; }
@@ -13074,7 +13074,7 @@
     // ============================================================
     // 🔻SYNC→内部版[1.1.22 活动保活] 【板块：人化活动模拟保活（对照实验·真人让路）】
     // ------------------------------------------------------------
-    // ▍背景：0710 CZ 组件同步滞后风暴时 hidden=false/WS 正常/区块流正常——嫌疑集中在
+    // ▍背景：0710 账户A 组件同步滞后风暴时 hidden=false/WS 正常/区块流正常——嫌疑集中在
     //   app 级"无操作降速"。本模块模拟真人活动做对照实验：风暴消失=坐实并保留，无效=下轮撤。
     // ▍行为（用户 0710 实测定稿）：
     //   1) 真人让路：监听 isTrusted 的 mousedown/keydown/wheel/mousemove/pointerdown，
