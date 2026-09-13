@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.52
+// @version      1.2.53
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 23:37:41
+// @x-release-date 2026/9/14 00:19:45
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.52                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.53                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1770,9 +1770,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.52';
+    const SCRIPT_VERSION = '1.2.53';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 23:37:41';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/14 00:19:45';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -6860,10 +6860,55 @@
     //   `卡片数 > 0`（主循环 0 张卡时占比算作 0，历史峰值 <20 时会放行）。
     //   不就绪 → ⚠️ + 每 3 秒重扫，最多约 15 秒（覆盖实测开机竞态 +2~+14s）；
     //   仍不就绪 → 🚨 红字明确说「无法判断」，**绝不输出"没有需要停采"**，并有界自重试。
-    // ▍刻意和主循环不同的一处：**不去点 Party / 切眼睛**。盲扫发生时核心启动正在同一秒点 Party，
-    //   Party 按钮是开关，两边一起点会把列表又关上。只等、只重扫，把界面交给启动流程。
+    // ▍1.2.51 原设计"不去点 Party / 切眼睛"（怕与启动流程同时盲点开关把列表点关）。
+    //   1.2.53 起改为**按状态打开**：折叠才点 Party、眼睛不在 half 才切（__ensurePartyListOpen），
+    //   三处调用方共用同一函数并用 window.__ensurePartyInFlight 串行，盲点开关的顾虑由此解决。
     // ▍眼睛不在 half 但卡片完整可读 → 照常扫描（与主循环同：它在 DOM 完整时也不看眼睛），只记日志。
     // ============================================================
+    // 🔻SYNC[测试版1.2.53 按状态打开 Kami 列表]（0914 探针：刷新后 94s、启动流程还没点开时，#party display:none、卡片 1 张、
+    //   血量读不到、眼睛=open —— 每次页面刷新后约 2~3 分钟紧急停采读不到血量）
+    // 列表是否折叠/未打开：div#party 计算样式 display:none（折叠和刷新后未点开都是这个状态）。元素不存在也算未打开。
+    function __isPartyListClosed() {
+        const p = document.querySelector('div#party');
+        if (!p) return true;
+        try { return getComputedStyle(p).display === 'none'; } catch (_) { return false; }
+    }
+    // 按状态把 Kami 列表打开并切到 eye-half：折叠才点 Party（Party 按钮是开关，盲点会把已开的点关），
+    // 眼睛不在 half 才点眼睛（三态循环，最多 3 下）。三处调用（启动 / 主循环 DOM 修复 / 紧急停采 DOM 预检）
+    // 共用这一个函数，并用 window.__ensurePartyInFlight 串行：同一时刻只有一个在点，后来者等它做完再看状态。
+    // 返回 true = 本次做过动作（调用方据此立刻重扫，不用再干等）。游戏页未就绪（没有 Party 按钮）→ 直接 false。
+    async function __ensurePartyListOpen(tag) {
+        // 别处正在做 → 等它做完，再按当前状态重新判定一次（状态判据是幂等的，不会重复点）
+        for (let w = 0; w < 5 && window.__ensurePartyInFlight; w++) { try { await window.__ensurePartyInFlight; } catch (_) {} }
+        const job = (async () => {
+            const partyBtn = document.querySelector('#party_button button');
+            if (!partyBtn) return false;
+            let acted = false;
+            if (__isPartyListClosed()) {
+                log(`📦 [${tag}] Kami 列表是折叠/未打开的，点 Party 按钮展开...`);
+                simulateClick(partyBtn, 500);
+                await delay(2500);
+                acted = true;
+            }
+            let eyeClicked = false;
+            for (let i = 0; i < 3 && getEyeState() !== 'half'; i++) {
+                const eyeBtn = document.querySelector('#party button img[src*="eye-"]')?.closest('button');
+                if (!eyeBtn) break;
+                log(`👁️ [${tag}] 眼睛=${getEyeState()}，点一下切换到 half（${i + 1}/3）...`);
+                simulateClick(eyeBtn, 300);
+                await delay(1500);
+                acted = true; eyeClicked = true;
+            }
+            if (eyeClicked) {   // 图标更新可能比点击落地慢，再等 1 秒复读；不是 half 只记日志（启动路径另有 waitForEyeHalf 兜底）
+                await delay(1000);
+                if (getEyeState() !== 'half') log(`⚠️ [${tag}] 切了眼睛后复读仍是 ${getEyeState()}，本次不再点，交后续流程`);
+            }
+            return acted;
+        })();
+        window.__ensurePartyInFlight = job;
+        try { return await job; } finally { if (window.__ensurePartyInFlight === job) window.__ensurePartyInFlight = null; }
+    }
+
     // 🔻SYNC[测试版1.2.52] opts.requireButton=false：不把"缺主按钮"算不完整。
     //   0913 23:34 探针：Party 列表折叠（#party display:none）时 313 张卡的状态图、"(NN%)" 血量文字、
     //   kami 编号全部仍在，只有 harvest/stop 主按钮不渲染。主循环要点按钮（DOM 兜底部署/停采），所以
@@ -6892,6 +6937,7 @@
         const SEL = 'div#party>div>div:nth-of-type(3)>div:nth-of-type(2)>div:nth-of-type(2)>div';
         const MAX_TRIES = 6, GAP_MS = 3000;
         let reason = '';
+        let __ensured = false;   // 🔻SYNC[测试版1.2.53] 每次预检最多主动打开列表一次
         for (let t = 0; t < MAX_TRIES; t++) {
             const cards = document.querySelectorAll(SEL);
             const n = cards.length;
@@ -6910,6 +6956,12 @@
             reason = n === 0 ? `匹配div数=0（眼睛=${eye}）`
                    : scaleAbnormal ? `规模异常 ${n}/${historyMax}（低于历史峰值10%）`
                    : `不完整 ${incomplete}/${n}（${(ratio * 100).toFixed(0)}%）`;
+            // 🔻SYNC[测试版1.2.53] 未就绪且列表折叠/眼睛不在 half → 先按状态打开再立刻重扫（不再干等启动流程）
+            if (!__ensured && (__isPartyListClosed() || eye !== 'half')) {
+                __ensured = true;
+                const acted = await __ensurePartyListOpen('紧急停采/DOM预检');
+                if (acted) { log(`🔄 [紧急停采/DOM预检] ${tag}：已主动打开列表/切眼睛，立即重扫`); continue; }
+            }
             if (t < MAX_TRIES - 1) {
                 log(`%c⚠️ [紧急停采/DOM预检] ${tag}：页面未就绪——${reason}，3 秒后重扫（${t + 1}/${MAX_TRIES}）`,
                     'color: orange; font-weight: bold;');
@@ -8977,8 +9029,8 @@
     // ▍核心流程：1) 每 5 秒调用一次 checkGameLoaded；
     //   2) 检测到错误界面（如 Wallet Connector / Unknown error）→
     //      随机等 1~20 秒后 smartReload（随机化避免多账户同刻齐刷）；
-    //   3) 加载成功 → 把 kami_reload_count 复位为 0 → 点击 Party
-    //      按钮展开 Kami 列表（等 2 秒让列表渲染）→ waitForEyeHalf
+    //   3) 加载成功 → 把 kami_reload_count 复位为 0 → 按状态打开 Kami
+    //      列表（__ensurePartyListOpen：折叠才点 Party，1.2.53 起）→ waitForEyeHalf
     //      切显示模式 → 再等 3.5 秒 → 立即执行一次 runAutomation，
     //      并用 setInterval 按 checkInterval 周期化，启动完成；
     //   4) 超时（3 分钟 + 随机余量）仍未加载成功 → 打印检测详情后
@@ -8994,7 +9046,7 @@
     // ▍可调参数：maxWaitTime = 3 * 60 * 1000 + getRandomDelayMs(3)
     //   —— 加载等待上限；checkIntervalMs = 5000 —— 轮询间隔；错误
     //   界面刷新前随机延时 = Math.random()*19000 + 1000（即 1~20
-    //   秒）；Party 按钮点击后固定等待 2000ms；启动主循环前固定等待
+    //   秒）；列表打开的等待见 __ensurePartyListOpen（Party 后 2500ms、眼睛每下 1500ms）；启动主循环前固定等待
     //   3500ms；日志节流：剩余秒数 % 30 === 0 或 ≤ 10 秒时才输出。
     // ▍相关控制台命令：无（自动执行）。
     // ============================================================
@@ -9036,12 +9088,11 @@
                 } catch (_) {}
 
                 // 先点击 Party 按钮展开 Kami 列表
-                const partyBtn = document.querySelector('#party_button button');
-                if (partyBtn) {
-                    log('📦 [启动] 点击 Party 按钮展开 Kami 列表...');
-                    simulateClick(partyBtn, 500);
-                    await delay(2000);  // 等待列表展开
-                    log('✅ [启动] Party 按钮已点击，等待列表展开完成');
+                // 🔻SYNC[测试版1.2.53] 改按状态打开：列表已开（例如紧急停采刚点开）就不再点，避免开关被点关
+                if (document.querySelector('#party_button button')) {
+                    let __acted = false;
+                    try { __acted = await __ensurePartyListOpen('启动'); } catch (e) { log(`⚠️ [启动] 打开列表时异常（继续启动）：${e?.message || e}`); }
+                    log(__acted ? '✅ [启动] Kami 列表已展开/眼睛已处理' : 'ℹ️ [启动] 列表已打开（本处未点击）');
                 } else {
                     log('⚠️ [启动] 未找到 Party 按钮（#party_button button），跳过点击');
                 }
@@ -9093,10 +9144,11 @@
                 log(`⏳ 游戏加载中，剩余 ${remainingSec} 秒... (钱包: ${details.connectedAddress ? '已连接' : '未连接'}, API: ${details.playerApiExists ? '可用' : '不可用'})`);
             }
 
-            // 尝试点击加载按钮（如果存在）
+            // 尝试点击加载按钮（如果存在）。🔻SYNC[测试版1.2.53] 加状态门：列表已开（可能是紧急停采刚点开的）
+            //   或别处正在点 → 不再盲点，否则这颗开关会把刚开的列表点关（复核 0914 时序推演）
             const loadBtn = document.querySelector('#party_button button');
-            if (loadBtn) {
-                log('📦 检测到加载按钮，点击...');
+            if (loadBtn && !window.__ensurePartyInFlight && __isPartyListClosed()) {
+                log('📦 检测到加载按钮（列表未打开），点击...');
                 simulateClick(loadBtn, 500);
             }
 
@@ -10210,7 +10262,7 @@
         //   2) 读历史峰值判断规模异常：峰值 ≥ 20 且当前数量 < 峰值 × 10%
         //   3) 占比超阈值或规模异常 → 进入修复重试：
         //      第 1 次：纯等待 8 秒（多数情况 DOM 只是慢半拍）
-        //      第 2 次：重新点击 Party 按钮 + 把眼睛切回 half + 再等 5 秒
+        //      第 2 次：按状态打开列表（__ensurePartyListOpen，折叠才点 Party）+ 眼睛不在 half 再 waitForEyeHalf + 再等 5 秒
         //   4) 每次修复后重查 kamiList，两项检查都通过则提前跳出
         //   5) 扫描规模正常时更新历史峰值（只升不降，见下方峰值记录）
         // ▍边界与保护：
@@ -10223,7 +10275,7 @@
         //   __SCALE_ANOMALY_RATIO = 0.1 — 当前数量低于峰值的多少倍判定规模
         //     异常；调大更保守（更容易触发修复），调小容忍更大的渲染缺口
         //   __maxDomRetry = 2 — 修复尝试次数上限
-        //   8000 / 2000 / 5000 ms — 各阶段等待时长，机器或网络慢可适当调大
+        //   8000 / 5000 ms — 各阶段等待时长（列表打开的等待见 __ensurePartyListOpen），机器或网络慢可适当调大
         // ▍相关 localStorage key：
         //   kami_last_known_count — 历史规模峰值；基线失真时可手动执行
         //   localStorage.removeItem('kami_last_known_count') 重置
@@ -10253,12 +10305,8 @@
                 log('⏳ [DOM预检] 等待 8 秒让 DOM 充分加载...');
                 await delay(8000);
             } else {
-                const __partyBtn = document.querySelector('#party_button button');
-                if (__partyBtn) {
-                    log('📦 [DOM预检] 重新点击 Party 按钮...');
-                    simulateClick(__partyBtn, 500);
-                    await delay(2000);
-                }
+                // 🔻SYNC[测试版1.2.53] 改按状态打开（原来盲点 Party 按钮：列表已开时会被点关）
+                await __ensurePartyListOpen('DOM预检');
                 if (getEyeState() !== 'half') {
                     log('👁️ [DOM预检] 眼睛不在 half，重新切换...');
                     await waitForEyeHalf();
