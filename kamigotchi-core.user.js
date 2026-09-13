@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.37
+// @version      1.2.38
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:54:54
+// @x-release-date 2026/9/13 10:59:48
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.37                ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.38                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -171,7 +171,7 @@
 //   - greedy 模式：停采线 = 5%，榨干每个采集周期，收益最高，
 //     但必须依赖杀手检测保护，检测到杀手立即回退安全线
 //     （旧名 starving 模式，v1.1.13 起改名为 greedy，含义不变；
-//     'starving' 仍可作为 setKamiMode 的别名输入，会自动归一化为 'greedy'）
+//     ⚠️ 与「0 血仍在采集」的 STARVING **状态**是两回事，别混）
 //
 // ▍杀手检测机制：
 //   - 主路径（当前生效）：【轻量杀手监控脚本】按名单轮询杀手位置，
@@ -187,8 +187,7 @@
 //   - 任意 kami 的 HP 低于清算线 + 2%
 //
 // ▍切换命令：setKamiMode('greedy') / setKamiMode('normal')，
-//   getKamiMode() 查看当前模式。（旧命令 setKamiMode('starving') 仍兼容，
-//   自动归一化为 'greedy'）
+//   getKamiMode() 查看当前模式。（1.2.50 起只接受 'normal' / 'greedy'）
 //
 // ▍新手提示：
 //   - 首次运行默认就是 greedy 模式（本地无记录时的缺省值）；
@@ -220,7 +219,7 @@
 // 【常用控制台命令速查】（完整清单以启动时控制台打印的 banner 为准）
 // ------------------------------------------------------------
 // ── 模式与状态 ──
-// setKamiMode('greedy')    - 切换到贪婪模式（极限停采线5%，检测到杀手自动切安全线；旧名 'starving' 仍兼容）
+// setKamiMode('greedy')    - 切换到贪婪模式（极限停采线5%，检测到杀手自动切安全线）
 // setKamiMode('normal')    - 切换到正常模式（安全停采线，清算线+3%）
 // getKamiMode()            - 查看当前模式状态
 // getTxLockStatus()        - 查看当前TX锁状态
@@ -1709,7 +1708,7 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.37 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.38 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1738,7 +1737,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.37';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.38';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { window.__kamiCoreVersion = SELF_VERSION; } catch (_) {}   // 供 安装说明() 打印，避免多出一处版本仪式
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
@@ -1914,7 +1913,7 @@
     setTimeout(() => {
         clog('');
         clog('══════════════════════════════════════════════════════════════');
-        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.37 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.38 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -2338,7 +2337,7 @@
     //   setKamiMode / getKamiMode 由用户在控制台手动调用。
     // ▍依赖：
     //   - localStorage key「kami_mode」：持久化模式，取值 'normal' 或
-    //     'greedy'，未设置时默认 'greedy'；若读到旧版 'starving'，
+    //     'greedy'，未设置时默认 'greedy'；若读到老机器残留的 'starving'，
     //     启动时自动迁移为 'greedy' 并写回 localStorage（一次性，含义不变，仅改名）；
     //   - window.__kamiMode / window.__killerDetected /
     //     window.__lastKillerTime / window.__liquidatedTimestamps：
@@ -2352,13 +2351,13 @@
     //     DEFAULT_THRESHOLD_OTHER / MAX_THRESHOLD：常量挂到 window，
     //     供停采线计算模块与辅助脚本读取。
     // ▍核心流程：
-    //   1) 从 localStorage 读取模式（旧值 'starving' 自动迁移为 'greedy'），
+    //   1) 从 localStorage 读取模式（老机器残留的 'starving' 一次性迁移为 'greedy'），
     //      杀手状态初始化为"无杀手"；
     //   2) 定义各阈值常量并挂到 window；
     //   3) 输出启动 banner，提示当前模式与生效的停采线规则。
     // ▍边界与保护：
-    //   - setKamiMode 接受 'normal' / 'greedy'，以及向后兼容别名 'starving'
-    //     （自动归一化为 'greedy' 再写入），其他值直接打印用法说明并返回；
+    //   - setKamiMode 只接受 'normal' / 'greedy'（1.2.50 起移除 'starving' 别名）
+    //     其他值直接打印用法说明并返回；
     //   - 模式常量在加载时固化，运行中直接改 localStorage 不会生效，
     //     因此切换后 1.5 秒自动刷新页面，让所有模块按新模式重建；
     //   - 杀手判定规则：LIQUIDATE_WINDOW_MS（5 分钟）滑动窗口内累计
@@ -2391,12 +2390,15 @@
     //     升级属性，而不是抬高停采线。
     // ▍相关控制台命令：
     //   - setKamiMode('greedy' | 'normal') — 切换模式（自动刷新页面；
-    //     'starving' 仍可作为 'greedy' 的别名输入）
+    //     ）
     //   - getKamiMode() — 查看当前模式、杀手状态与恢复倒计时
     // ============================================================
 
-    // 模式: 'normal' (安全模式) 或 'greedy' (贪婪模式，旧名 starving)
-    // 默认使用贪婪模式；若检测到旧版 'starving' 值，自动迁移为 'greedy'
+    // 模式: 'normal' (安全模式) 或 'greedy' (贪婪模式)
+    // 默认贪婪模式。下面这段是**一次性存储迁移**，不是别名（输入侧别名已于 1.2.50 移除）：
+    // 老机器的 localStorage 里可能还存着 'starving'，若不迁移，__kamiMode 会变成一个
+    // 既非 normal 也非 greedy 的值 → 下游 `=== 'greedy'` 判假 → **停采线从 5% 静默跳回 ~72%**。
+    // 迁移跑一次就把存储值改写成 'greedy'，之后永不再触发。⚠️ 别当成"残留的别名"删掉。
     let __kamiMode = localStorage.getItem('kami_mode') || 'greedy';
     if (__kamiMode === 'starving') {
         __kamiMode = 'greedy';
@@ -2408,7 +2410,7 @@
     window.__lastKillerTime = 0;          // 上次检测到杀手的时间戳（ms，恢复冷却计时用）
     window.__liquidatedTimestamps = [];   // liquidated 消息时间戳记录（滑动窗口计数用）
 
-    // 贪婪模式参数配置（原"饥饿模式"，v1.1.13 起改名，含义不变）
+    // 贪婪模式参数配置（v1.1.13 改名、1.2.50 移除旧别名；与 STARVING 状态无关）
     const GREEDY_THRESHOLD = 5;           // 贪婪模式极限停采线: 5%（无杀手时生效）
     const LIQUIDATE_WINDOW_MS = 5 * 60 * 1000;    // 杀手判定滑动窗口: 5分钟
     const LIQUIDATE_COUNT_TRIGGER = 2;    // 窗口内2条 liquidated 消息即判定有杀手
@@ -2428,20 +2430,28 @@
     window.MAX_THRESHOLD = MAX_THRESHOLD;
 
     // 控制台命令：切换模式（写 localStorage 后自动刷新页面生效）
-    // 接受 'normal' / 'greedy'，以及向后兼容别名 'starving'（自动归一化为 'greedy'）
+    // 只接受 'normal' / 'greedy'。
+    // 🔻SYNC[测试版1.2.50 移除 starving 旧名]（用户 0913 定案）输入侧的 'starving' 别名已移除。
+    //   原因：这个旧名把人往错误的理解上带——它指的是「停采线压到 5% 榨干采集周期」，
+    //   跟「0 血还在采」的 STARVING **状态**毫无关系，而后者在脚本里是另一套东西
+    //   （isStarving / _starvingFeedKamis / STARVING_FOOD_LIST，280 余处，**不要动**）。
+    //   两个概念共用一个词，读代码的人和 AI 都会混。
+    //   ⚠️ 读取侧的 localStorage 迁移**保留**（见上方 __kamiMode 初始化），那不是别名，
+    //      是防止老机器上残留的旧值让模式静默退回 normal。
     window.setKamiMode = (mode) => {
-        if (mode !== 'normal' && mode !== 'greedy' && mode !== 'starving') {
-            clog('❌ 无效模式，请使用 "normal" 或 "greedy"（旧版 "starving" 仍可用作别名）');
+        if (mode !== 'normal' && mode !== 'greedy') {
+            if (mode === 'starving') {
+                clog('❌ \'starving\' 这个旧名已移除，请用 \'greedy\'');
+                clog('   （改名原因：它说的是「停采线 5% 榨干周期」，不是「0 血还在采」那个 STARVING 状态）');
+            } else {
+                clog('❌ 无效模式，请使用 "normal" 或 "greedy"');
+            }
             clog('   normal:   安全模式，使用清算线+3%停采（上限80%）');
             clog('   greedy:   贪婪模式，无杀手时用5%停采，有杀手自动切安全线');
             return;
         }
-        const normalizedMode = (mode === 'starving') ? 'greedy' : mode;
-        localStorage.setItem('kami_mode', normalizedMode);
-        clog(`%c✅ 模式已切换为: ${normalizedMode.toUpperCase()}`, 'color: green; font-weight: bold; font-size: 14px;');
-        if (mode === 'starving') {
-            clog(`ℹ️ 'starving' 是 'greedy' 的向后兼容别名，已按 'greedy' 写入`);
-        }
+        localStorage.setItem('kami_mode', mode);
+        clog(`%c✅ 模式已切换为: ${mode.toUpperCase()}`, 'color: green; font-weight: bold; font-size: 14px;');
         clog('⚡ 刷新页面后生效...');
         // 模式常量在脚本加载时固化，必须刷新页面才能全量生效
         setTimeout(() => location.reload(), 1500);
@@ -2468,7 +2478,7 @@
         }
         clog(`📋 默认值: normal body=${DEFAULT_THRESHOLD_NORMAL}%, 非normal=${DEFAULT_THRESHOLD_OTHER}%`);
         clog('═══════════════════════════════════════════════════');
-        clog('💡 切换模式: setKamiMode("greedy") 或 setKamiMode("normal")（旧名 "starving" 仍兼容）');
+        clog('💡 切换模式: setKamiMode("greedy") 或 setKamiMode("normal")');
         return { mode, killerDetected: killer, cooldownRemain };
     };
 
@@ -6612,7 +6622,7 @@
     //   - emergencyStopHarvest() — 紧急停采（定义于停采板块）
     //   - 全局标记：window.__killerDetected（杀手警戒中）、
     //     window.__lastKillerTime（最近一次发现死亡的时间戳）、
-    //     window.__kamiMode（'greedy' = 贪婪模式，旧名 'starving'）
+    //     window.__kamiMode（'greedy' = 贪婪模式）
     //   - 常量：SAFE_COOLDOWN_MS（警戒冷却时长）、GREEDY_THRESHOLD
     //    （贪婪模式极限停采线百分比，原 STARVING_THRESHOLD），均定义于其他板块
     // ▍核心流程：
@@ -9731,7 +9741,7 @@
                 //   （HARVESTING / STARVING）。
                 // ▍依赖：
                 //   - window.__kamiMode：'greedy' = 贪婪模式（榨干 HP 换更长
-                //     的采集时间，旧名 'starving'），其余值为普通模式
+                //     的采集时间），其余值为普通模式
                 //   - window.__killerDetected：杀手告警，由外部轻量杀手监控
                 //     脚本维护；有杀手时即使贪婪模式也退回安全线
                 //   - record.LT：本地库清算线（HP 低于该值可能被杀手清算）

@@ -52,7 +52,7 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 | 脚本 | 版本 | 安装链接（点开即装） |
 |---|---|---|
-| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.49` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
+| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.50` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
 | Kamigotchi辅助脚本-测试版 (helper BETA) | `1.2.13` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js |
 | Kamigotchi精简数据库-测试版 (database BETA) | `1.2.6` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.user.js |
 | Kamigotchi轻量杀手监控-测试版 (killer BETA) | `1.2.10` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js |
@@ -61,7 +61,7 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 | 脚本 | 版本 | 安装链接（点开即装） |
 |---|---|---|
-| Kamigotchi核心脚本-公开版 (core) | `1.2.37` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js |
+| Kamigotchi核心脚本-公开版 (core) | `1.2.38` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js |
 | Kamigotchi辅助脚本-公开版 (helper) | `1.2.9` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js |
 | Kamigotchi精简数据库-公开版 (database) | `1.2.3` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js |
 | Kamigotchi轻量杀手监控-公开版 (killer monitor) | `1.2.7` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js |
