@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.46
+// @version      1.2.47
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 08:29:48
+// @x-release-date 2026/9/13 08:48:42
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.46                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.47                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1761,7 +1761,20 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-测试版 v1.2.46 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    // 🔻SYNC[测试版1.2.47 版本标签防腐 + 构建时间自报]（用户 0913 提）
+    // ------------------------------------------------------------
+    // 版本号、线名、构建时间收敛到这三个常量，启动 log / 命令 banner / SELF_VERSION
+    // 全部引用它们，从此不可能各改各的。
+    //   BEFORE：三处各自硬编码，长期不同步。0913 CZ 实盘日志里辅助 @version 已是 1.2.10，
+    //   启动 log 却打「辅助脚本-公开版 v1.2.8」；精简数据库 1.2.4 打「公开版 v1.2.3」；
+    //   监控 1.2.8 打 v1.2.7 —— 直接导致按日志误判「beta 没装全」「监控没更新」两次。
+    //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
+    //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
+    //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
+    const SCRIPT_VERSION = '1.2.47';
+    const SCRIPT_LINE = '测试版';
+    const SCRIPT_BUILT = '2026/9/13 08:48:42';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
@@ -1790,7 +1803,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.46';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = SCRIPT_VERSION;   // 🔻SYNC[测试版1.2.47] 引用顶部常量，不再单独维护
         try { if (window.__kamiCoreInstance) window.__kamiCoreInstance.version = SELF_VERSION; } catch (_) {}
         try { window.__kamiCoreVersion = SELF_VERSION; } catch (_) {}   // 供 安装说明() 打印，避免多出一处版本仪式
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js';
@@ -1969,9 +1982,9 @@
         clog('══════════════════════════════════════════════════════════════');
         // 🔻测试版专属：醒目横幅。人眼兜底——如果你在同一个控制台里同时看到
         //   这条【测试版】横幅和公开版的横幅，说明两个核心都在跑，立刻去篡改猴停掉一个。
-        clog('%c🧪 测试版核心运行中 v1.2.46 —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
+        clog(`%c🧪 测试版核心运行中 v${SCRIPT_VERSION}（${SCRIPT_BUILT}）`+' —— 若同时看到「公开版」横幅，说明双开了，请去篡改猴停用其中一个',
             'background:#8e44ad;color:#fff;font-weight:bold;font-size:14px;padding:5px 10px;border-radius:4px;');
-        clog('%c🧪 Kamigotchi核心脚本-测试版 v1.2.46 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog(`%c🧪 Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）可用命令（每条命令独占一行，直接复制粘贴）`, 'color: #8e44ad; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');

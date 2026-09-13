@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi精简数据库-测试版 (database BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/12 11:24:13
+// @x-release-date 2026/9/13 08:48:42
 // @description  Kamigotchi精简数据库公开版：扫描账户全部kami构建17字段本地数据库(含清算线LT)，构建前自动备份
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -14,7 +14,7 @@
 // ==/UserScript==
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                  Kamigotchi 精简数据库脚本 · 公开版 v1.2.3                      ║
+// ║                  Kamigotchi 精简数据库脚本 · 测试版 v1.2.5                   ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本为整个脚本套件构建"精简数据库"——扫描当前账户的全部 kami，               ║
 // ║  把每只 kami 的关键数据压缩成 17 个字段，存入 localStorage.kami_core_db        ║
@@ -97,13 +97,26 @@
 
     // 脚本启动提示。⚠️ 顺序约束：log() 引用上方的 __TZ_OFFSET_MS（const 不提升，存在
     //   暂时性死区），首次调用必须晚于时区常量定义——曾因放在其前导致脚本启动即崩（v1.1.9 修复）。
-    log('%c✅ Kamigotchi精简数据库-公开版 v1.2.3 已经成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
+    // 🔻SYNC[测试版1.2.5 版本标签防腐 + 构建时间自报]（用户 0913 提）
+    // ------------------------------------------------------------
+    // 版本号、线名、构建时间收敛到这三个常量，启动 log / 命令 banner / SELF_VERSION
+    // 全部引用它们，从此不可能各改各的。
+    //   BEFORE：三处各自硬编码，长期不同步。0913 CZ 实盘日志里辅助 @version 已是 1.2.10，
+    //   启动 log 却打「辅助脚本-公开版 v1.2.8」；精简数据库 1.2.4 打「公开版 v1.2.3」；
+    //   监控 1.2.8 打 v1.2.7 —— 直接导致按日志误判「beta 没装全」「监控没更新」两次。
+    //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
+    //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
+    //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
+    const SCRIPT_VERSION = '1.2.5';
+    const SCRIPT_LINE = '测试版';
+    const SCRIPT_BUILT = '2026/9/13 08:48:42';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    log(`%c✅ Kamigotchi精简数据库-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已经成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.12 启动横幅醒目化]
 
     // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
     // 🔻SYNC→内部版[1.1.11 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '精简数据库';
-        const SELF_VERSION = '1.2.4';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = SCRIPT_VERSION;   // 🔻SYNC[测试版1.2.5] 引用顶部常量，不再单独维护
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.meta.js';
         let firstSeen = null;
         try {   // 本机此版本首次运行时间 ≈ 篡改猴安装/更新时间（无法直接读TM，取首次见到该版本的时刻）

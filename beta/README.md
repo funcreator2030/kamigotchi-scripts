@@ -52,10 +52,10 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 | 脚本 | 版本 | 安装链接（点开即装） |
 |---|---|---|
-| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.46` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
-| Kamigotchi辅助脚本-测试版 (helper BETA) | `1.2.10` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js |
-| Kamigotchi精简数据库-测试版 (database BETA) | `1.2.4` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.user.js |
-| Kamigotchi轻量杀手监控-测试版 (killer BETA) | `1.2.8` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js |
+| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.47` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
+| Kamigotchi辅助脚本-测试版 (helper BETA) | `1.2.11` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js |
+| Kamigotchi精简数据库-测试版 (database BETA) | `1.2.5` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.user.js |
+| Kamigotchi轻量杀手监控-测试版 (killer BETA) | `1.2.9` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js |
 
 对照一下主线现在的版本：
 
