@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.50
+// @version      1.2.51
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:59:48
+// @x-release-date 2026/9/13 18:04:45
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.50                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.51                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1770,9 +1770,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.50';
+    const SCRIPT_VERSION = '1.2.51';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/13 10:59:48';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/13 18:04:45';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -5169,7 +5169,16 @@
 
         try {
             // Step 1: DOM扫描（先扫描，不设置锁）
-            let stopList = _emergencyScanKamis();
+            // 🔻SYNC[测试版1.2.51] 先判 DOM 就绪再扫；读不到卡片时绝不报"没有需要停采"
+            const __scan1 = await __emergencyScanWithDomGuard('首次扫描');
+            if (!__scan1.ready) {
+                log(`%c🚨 [紧急停采/盲扫] 页面未就绪（${__scan1.reason}），本次**无法判断**是否需要停采——这不是「没有需要停采」`,
+                    'color: red; font-weight: bold; font-size: 14px;');
+                __scheduleEmergencyBlindRetry(opts, __scan1.reason);
+                return;
+            }
+            window.__emergencyBlindRetryCount = 0;   // 读到了真实 DOM，盲扫计数清零
+            let stopList = __scan1.list;
             if (stopList.length === 0) {
                 log('✅ [紧急停采] 没有需要停采的kami');
                 return;
@@ -5182,7 +5191,15 @@
                 log(`%c⚠️ [紧急停采] 首次扫描发现 ${firstStarving} 个 STARVING，疑似网页未加载完整，等待 5 秒后重扫...`,
                     'color: orange; font-weight: bold;');
                 await delay(5000);
-                const stopList2 = _emergencyScanKamis();
+                // 🔻SYNC[测试版1.2.51] 重扫同样先判 DOM 就绪
+                const __scan2 = await __emergencyScanWithDomGuard('STARVING可疑重扫');
+                if (!__scan2.ready) {
+                    log(`%c🚨 [紧急停采/盲扫] 重扫时页面未就绪（${__scan2.reason}），本次无法判断——这不是「没有需要停采」`,
+                        'color: red; font-weight: bold;');
+                    __scheduleEmergencyBlindRetry(opts, __scan2.reason);
+                    return;
+                }
+                const stopList2 = __scan2.list;
                 const secondStarving = stopList2.filter(x => x.isStarving).length;
                 if (secondStarving < firstStarving) {
                     log(`%c✅ [紧急停采] 重扫后 STARVING 从 ${firstStarving} 降到 ${secondStarving}，以最新结果为准`,
@@ -6825,6 +6842,94 @@
     //   - STARVING 告警阈值 10 —— 触发红色异常提示的数量线，只影响告警
     //     不影响停采行为。
     // ============================================================
+    // ============================================================
+    // 🔻SYNC[测试版1.2.51 紧急停采盲扫修复]（0913 7 小时实盘日志定案）
+    // ------------------------------------------------------------
+    // ▍病灶：14:48:18 杀手监控拉起紧急停采时，页面还没准备好——
+    //     🔍 [DOM扫描] 开始扫描, 眼睛=open, 匹配div数=0
+    //     ✅ [紧急停采] 没有需要停采的kami        ← 一张卡都没看到，却报绿灯
+    //   4 秒后核心启动才把眼睛切到 half。前一次扫描需停采 2 只、后一次 6 只，当时确实有要停的。
+    //   「读不到卡片」和「确实没有要停的」走了同一个出口 = 停采侧 fail-open，正好是「宁发勿漏」的反方向。
+    // ▍为什么这很危险：主循环不是兜底。紧急扫描用 min(LT+3,80)，而主循环在杀手在场时仍用
+    //   greedy 5%（__killerDetected 只有已停用的 Feed 监控会置位）。紧急扫描一瞎，主循环会让 kami
+    //   一路采到 5%，唯一的保护只剩约 2 分钟后的下一轮紧急扫描。
+    // ▍成因是结构性的：核心启动等 120s+随机0~30s 再点 Party、切眼睛；监控固定 150s 首启就开扫。
+    //   0913 十个会话里 3 个余量 ≤0 秒。
+    // ▍修法：扫描前先做 DOM 就绪判定，判据**逐字照搬主循环 DOM 预检**（runAutomation 内原
+    //   __countIncompleteDom + 不完整占比 0.5 + 规模 <历史峰值 10%），外加一条主循环没有的
+    //   `卡片数 > 0`（主循环 0 张卡时占比算作 0，历史峰值 <20 时会放行）。
+    //   不就绪 → ⚠️ + 每 3 秒重扫，最多约 15 秒（覆盖实测开机竞态 +2~+14s）；
+    //   仍不就绪 → 🚨 红字明确说「无法判断」，**绝不输出"没有需要停采"**，并有界自重试。
+    // ▍刻意和主循环不同的一处：**不去点 Party / 切眼睛**。盲扫发生时核心启动正在同一秒点 Party，
+    //   Party 按钮是开关，两边一起点会把列表又关上。只等、只重扫，把界面交给启动流程。
+    // ▍眼睛不在 half 但卡片完整可读 → 照常扫描（与主循环同：它在 DOM 完整时也不看眼睛），只记日志。
+    // ============================================================
+    function __countIncompleteDom(list) {
+        let incomplete = 0;
+        for (const kd of list) {
+            const sImg = kd.querySelector('img[src*="/assets/kami_"]');
+            const hText = sImg?.nextElementSibling?.textContent?.trim() || '';
+            const iN = getimgNumber(kd);
+            const mB = kd.querySelector('img[src*="/assets/harvest-"], img[src*="/assets/stop-"]')?.closest('button');
+            if (!sImg || !hText.match(/\((\d+)%\)/) || !iN || !mB) incomplete++;
+        }
+        return incomplete;
+    }
+
+    async function __emergencyScanWithDomGuard(tag) {
+        // 阈值与主循环 runAutomation 内 __DOM_INCOMPLETE_THRESHOLD / __KAMI_COUNT_KEY / __SCALE_ANOMALY_RATIO 同值，
+        // ⚠️ 改一处必须同步另一处
+        const DOM_INCOMPLETE_THRESHOLD = 0.5;
+        const KAMI_COUNT_KEY = 'kami_last_known_count';
+        const SCALE_ANOMALY_RATIO = 0.1;
+        const SEL = 'div#party>div>div:nth-of-type(3)>div:nth-of-type(2)>div:nth-of-type(2)>div';
+        const MAX_TRIES = 6, GAP_MS = 3000;
+        let reason = '';
+        for (let t = 0; t < MAX_TRIES; t++) {
+            const cards = document.querySelectorAll(SEL);
+            const n = cards.length;
+            const eye = getEyeState();
+            const incomplete = n > 0 ? __countIncompleteDom(cards) : 0;
+            const ratio = n > 0 ? incomplete / n : 1;
+            let historyMax = 0;
+            try { historyMax = parseInt(localStorage.getItem(KAMI_COUNT_KEY) || '0', 10) || 0; } catch (_) {}
+            const scaleAbnormal = historyMax >= 20 && n < historyMax * SCALE_ANOMALY_RATIO;
+            const domReady = n > 0 && ratio <= DOM_INCOMPLETE_THRESHOLD && !scaleAbnormal;
+            if (domReady) {
+                if (t > 0) log(`✅ [紧急停采/DOM预检] ${tag}：第 ${t + 1} 次检查就绪（卡片 ${n}，不完整 ${incomplete}，眼睛=${eye}），开始扫描`);
+                else if (eye !== 'half' || incomplete > 0) log(`ℹ️ [紧急停采/DOM预检] ${tag}：卡片 ${n}、不完整 ${incomplete}、眼睛=${eye}，DOM 可读，照常扫描`);
+                return { ready: true, list: _emergencyScanKamis(), reason: '' };
+            }
+            reason = n === 0 ? `匹配div数=0（眼睛=${eye}）`
+                   : scaleAbnormal ? `规模异常 ${n}/${historyMax}（低于历史峰值10%）`
+                   : `不完整 ${incomplete}/${n}（${(ratio * 100).toFixed(0)}%）`;
+            if (t < MAX_TRIES - 1) {
+                log(`%c⚠️ [紧急停采/DOM预检] ${tag}：页面未就绪——${reason}，3 秒后重扫（${t + 1}/${MAX_TRIES}）`,
+                    'color: orange; font-weight: bold;');
+                await delay(GAP_MS);
+            }
+        }
+        return { ready: false, list: [], reason };
+    }
+
+    // 盲扫后的有界自重试：别只等约 2 分钟后的下一轮杀手监控。
+    // 计数挂在 window 上而不是模块级 let——本脚本是 async IIFE，模块级 let 在初始化前被调用会 TDZ 崩溃，
+    // 而紧急停采恰恰可能在启动早期被监控拉起。
+    function __scheduleEmergencyBlindRetry(opts, reason) {
+        const MAX = 3, RETRY_MS = 20000;
+        const n = window.__emergencyBlindRetryCount || 0;
+        if (n >= MAX) {
+            log(`%c🚨 [紧急停采/盲扫] 已连续 ${n} 次读不到页面（${reason}），停止自重试，交下一轮杀手监控/主循环；请检查 Party 列表是否展开`,
+                'color: red; font-weight: bold;');
+            return;
+        }
+        window.__emergencyBlindRetryCount = n + 1;
+        log(`%c⏱️ [紧急停采/盲扫] ${RETRY_MS / 1000} 秒后自动重试紧急停采（${n + 1}/${MAX}）`, 'color: red; font-weight: bold;');
+        setTimeout(() => {
+            emergencyStopHarvest(opts).catch(e => log(`[紧急停采/盲扫重试] 异常: ${e?.message || e}`));
+        }, RETRY_MS);
+    }
+
     function _emergencyScanKamis(maxDelta = 1) {
         const list = [];
         const kamis = document.querySelectorAll(
@@ -10116,17 +10221,7 @@
         //   kami_last_known_count — 历史规模峰值；基线失真时可手动执行
         //   localStorage.removeItem('kami_last_known_count') 重置
         // ============================================================
-        function __countIncompleteDom(list) {
-            let incomplete = 0;
-            for (const kd of list) {
-                const sImg = kd.querySelector('img[src*="/assets/kami_"]');
-                const hText = sImg?.nextElementSibling?.textContent?.trim() || '';
-                const iN = getimgNumber(kd);
-                const mB = kd.querySelector('img[src*="/assets/harvest-"], img[src*="/assets/stop-"]')?.closest('button');
-                if (!sImg || !hText.match(/\((\d+)%\)/) || !iN || !mB) incomplete++;
-            }
-            return incomplete;
-        }
+        // __countIncompleteDom 已于测试版1.2.51 原样提升到顶层（紧急停采共用同一判据，见 __emergencyScanWithDomGuard）
 
         const __DOM_INCOMPLETE_THRESHOLD = 0.5;
         const __KAMI_COUNT_KEY = 'kami_last_known_count';   // 历史 kami 规模峰值的 localStorage key
