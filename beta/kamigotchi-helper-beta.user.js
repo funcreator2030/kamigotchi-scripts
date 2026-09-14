@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-测试版 (helper BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.13
+// @version      1.2.14
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:32:17
+// @x-release-date 2026/9/14 21:35:10
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.13                      ║
+// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.14                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -98,6 +98,8 @@
 // autoCraft()              - 手动触发一轮自动合成
 // startAutoCraft()         - 启动自动合成周期任务
 // stopAutoCraft()          - 停止自动合成周期任务
+// showCraftSupply()        - 盘点合成材料缺口（缺货时红底大字提醒补什么、补多少）
+// muteCraftAlert('Mint')   - 某项不打算补就静音它的补货提醒；unmuteCraftAlert() 取消
 // window.__refreshLT()     - 手动刷新卡片上的 LT 显示
 // ============================================================
 (function () {
@@ -270,9 +272,9 @@
   //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
   //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
   //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-  const SCRIPT_VERSION = '1.2.13';
+  const SCRIPT_VERSION = '1.2.14';
   const SCRIPT_LINE = '测试版';
-  const SCRIPT_BUILT = '2026/9/13 10:32:17';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+  const SCRIPT_BUILT = '2026/9/14 21:35:10';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
   log(`%c✅ Kamigotchi辅助脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -2503,6 +2505,12 @@
     clog('  🔧 autoCraft()');
     clog('     手动触发一次自动合成（步长≥80时合成物品）');
     clog('');
+    clog('  🛒 showCraftSupply()');
+    clog('     盘点合成材料缺口：缺货时红底大字提醒补什么、补多少（每轮合成检测自动查，不看步长）');
+    clog('');
+    clog("  🔕 muteCraftAlert('Mint') / unmuteCraftAlert()");
+    clog('     某项材料不打算补 → 静音它的提醒（刷新后仍有效）；unmuteCraftAlert() 取消全部静音');
+    clog('');
     clog('  📏 getStaminaFromDOM()');
     clog('     从DOM获取实时步长');
     clog('');
@@ -2745,6 +2753,7 @@
   //      · 所有材料取最小值 = 材料上限；无有效消耗类材料时返回 0。
   // ▍边界与保护：账户查询失败捕获异常并返回 null，主流程按"本轮跳过"
   //   容错；材料不足只打日志不报错，静默等下一轮材料攒够再合成。
+  //   （🔻SYNC[测试版1.2.14] 需要补货时另有红底大字提醒，见「材料缺口大字提醒」板块。）
   // ▍可调参数：无（配方与材料清单见 CRAFT_PRIORITY 配置板块）。
   // ▍相关控制台命令：无（内部函数）。
   // ============================================================
@@ -2798,6 +2807,191 @@
     }
 
     return maxCanCraft === Infinity ? 0 : maxCanCraft;
+  }
+
+  // ============================================================
+  // 【板块：自动合成——材料缺口大字提醒（测试版 1.2.14）】
+  // ------------------------------------------------------------
+  // ▍功能：每轮合成检测都盘点一次背包（不看步长），找出"已启用的配方连一批都做不了、
+  //   而且卡在要补货的基础材料上"的情况，用红底白字大字在控制台提醒补什么、补多少。
+  //   步长不够不算缺货（步长靠时间恢复，用户 0914 定案不吃步长道具），这里不提醒。
+  // ▍为什么单独做：原流程只有步长 ≥80 才逐配方查材料（0914 日志 106 次检测里 90 次因步长
+  //   不够直接返回，根本没查），查到了也只是一行普通的"材料不足"，混在日志里看不见。
+  // ▍触发时机：autoCraftItems() 读完背包后、步长门槛判断前（每轮合成检测都查：页面加载 5 分钟后首查，之后约每 30 分钟，
+  //   与步长无关；同样的缺货 10 分钟内只打一行普通日志，不重复大字）；
+  //   控制台 showCraftSupply() 随时手动查（连静音项一起显示）。
+  // ▍算法：对 CRAFT_PRIORITY 里每个 enabled 配方按"做一批"（minCraft，缺省 1）核对：
+  //   - 背包够 → 通过；
+  //   - 不够、而这个材料是另一个已启用配方的产物（松花粉 / 红琥珀粉 / 薄荷碎 / Greater 药水）
+  //     → 按该配方单次产出量折算要合成几次，再往下核对它的材料（最多下钻 4 层、防环）；
+  //   - 不够、且没有已启用的配方能做 → 记为"要补货"。
+  //   同一项被多个配方需要时取最大需求量，不累加（各配方算的是同一份库存，Fortified→Greater→
+  //   松花粉这种共用下游若累加会重复计数）。现行配方表每种基础材料只有一个配方直接消耗，取最大就是真实需求；
+  //   以后若加了共用同一基础材料的配方（如也吃塑料瓶的），会少报、需分次补。工具（研磨器 / 便携炉）只要求有 ≥1。
+  //   往下查中间产物时合成次数不少于该配方的 minCraft（松花粉凑满 10 次才合成）。
+  //   不覆盖的情况：Fortified 另有链上等级要求（配方表 Min Level=20）——材料够却合成被拒时先查等级。
+  // ▍输出：有缺货 → 一行红底大字标题 + 一段橙色明细（现有 / 做一批需要 / 缺多少 / 用于哪个配方 /
+  //   去哪补）；缺货全被静音 → 一行普通日志；不缺 → 一行普通日志。
+  //   标题与明细都带 [合成材料] 标签，健康看板整行跳过这个标签（业务提醒不是代码故障；明细里的配方名
+  //   XP Potion / Respec Potion 和"拾荒"会误命中其它模块正则），文案也不含 ❌/失败/不足 等报错字眼。
+  // ▍边界与保护：纯读背包，不发 tx、不占锁；背包读不到直接跳过。CRAFT_RECIPE_META 补的是
+  //   配方表里没写的单次产出量与工具（与游戏配方表 recipes.csv 一致），只用来算缺口，不改合成行为。
+  // ▍相关控制台命令：showCraftSupply() / muteCraftAlert('Mint') / unmuteCraftAlert()
+  // ============================================================
+  const CRAFT_RECIPE_META = {
+    29: { output: 1,   tool: { id: 23101, name: 'Portable Burner' } },   // Fortified XP Potion
+    2:  { output: 1,   tool: { id: 23101, name: 'Portable Burner' } },   // Greater XP Potion
+    3:  { output: 1,   tool: { id: 23101, name: 'Portable Burner' } },   // Respec Potion
+    13: { output: 500, tool: { id: 23100, name: 'Spice Grinder' } },     // Powdered Red Amber：1 晶体 → 500 粉
+    6:  { output: 500, tool: { id: 23100, name: 'Spice Grinder' } },     // Pine Pollen：1 松果 → 500 松花粉（链上实测）
+    9:  { output: 500, tool: { id: 23100, name: 'Spice Grinder' } },     // Shredded Mint：1 薄荷 → 500 薄荷碎
+  };
+  // 去哪补：两样工具 Mina 商店固定价出售；其余基础材料 NPC 商店不卖（游戏 listings 表），市场买或拾荒。
+  //   两种空瓶是循环容器（喂药水后返还），但照样会用完，用完同样要去市场买或拾荒。
+  const CRAFT_SUPPLY_HINT = {
+    23100: 'Mina 商店有售（工具，买一次一直用）',
+    23101: 'Mina 商店有售（工具，买一次一直用）',
+    1006:  '商店不卖：市场购买或拾荒获得；喂 Greater/Fortified XP 药水也会返还空瓶（背包有药水可先喂掉回收）',
+    1003:  '商店不卖：市场购买或拾荒获得；喂 Respec 药水也会返还空瓶（但合成 Respec 本身也用瓶，补不出净增量）',
+  };
+  const CRAFT_SUPPLY_HINT_DEFAULT = '商店不卖：市场购买或拾荒获得';
+  const CRAFT_ALERT_MUTE_KEY = 'kami_craft_alert_mute';   // localStorage：静音的物品名（小写）或物品编号
+  const CRAFT_ALERT_BIG = 'color:#fff;background:#d32f2f;font-size:18px;font-weight:bold;padding:6px 12px;border-radius:4px;';
+  const CRAFT_ALERT_DETAIL = 'color:#ffa726;font-size:14px;font-weight:bold;line-height:1.6;';   // 明暗主题都看得清
+
+  function _craftMuteList() {
+    try {
+      const v = JSON.parse(localStorage.getItem(CRAFT_ALERT_MUTE_KEY) || '[]');
+      return Array.isArray(v) ? v.map(x => String(x).trim().toLowerCase()).filter(Boolean) : [];
+    } catch (_) { return []; }
+  }
+
+  // 背包余额：按物品编号找，找不到再按名字（不分大小写）找，都没有算 0
+  function _supplyBalance(inventories, id, name) {
+    const byId = inventories.find(inv => Number(inv?.item?.index) === Number(id));
+    if (byId) return Number(byId.balance) || 0;
+    const lname = String(name || '').toLowerCase();
+    const byName = lname ? inventories.find(inv => String(inv?.item?.name || '').toLowerCase() === lname) : null;
+    return byName ? (Number(byName.balance) || 0) : 0;
+  }
+
+  // 纯计算：返回 { blocked: 做不了一批的配方名[], shortages: [{id,name,need,have,isTool,usedBy:Set}] }
+  function computeCraftSupplyShortage(inventories) {
+    const inv = Array.isArray(inventories) ? inventories : [];
+    const producers = new Map();   // 产物编号 → 已启用配方
+    for (const r of CRAFT_PRIORITY) if (r && r.enabled) producers.set(Number(r.productId), r);
+    const shortages = new Map();
+    const blocked = [];
+    const note = (id, name, need, have, isTool, usedBy) => {
+      const k = Number(id);
+      const cur = shortages.get(k) || { id: k, name, need: 0, have, isTool, usedBy: new Set() };
+      cur.need = Math.max(cur.need, need);
+      cur.have = have;
+      cur.usedBy.add(usedBy);
+      shortages.set(k, cur);
+    };
+    const needTool = (tool, usedBy) => {
+      const have = _supplyBalance(inv, tool.id, tool.name);
+      if (have >= 1) return true;
+      note(tool.id, tool.name, 1, have, true, usedBy);
+      return false;
+    };
+    let needRecipe;
+    const needItem = (id, name, qty, usedBy, depth, stack) => {
+      const have = _supplyBalance(inv, id, name);
+      if (have >= qty) return true;
+      const prod = producers.get(Number(id));
+      if (prod && depth < 4 && !stack.has(prod.recipeId)) {
+        const meta = CRAFT_RECIPE_META[prod.recipeId] || {};
+        // 按单次产出量折算合成次数，并且不少于该配方自己的起批量（主流程凑不满 minCraft 就不合成）
+        const crafts = Math.max(Math.ceil((qty - have) / (meta.output || 1)), Math.max(1, prod.minCraft || 1));
+        stack.add(prod.recipeId);
+        const ok = needRecipe(prod, crafts, usedBy, depth + 1, stack);
+        stack.delete(prod.recipeId);
+        return ok;
+      }
+      note(id, name, qty, have, false, usedBy);
+      return false;
+    };
+    needRecipe = (recipe, crafts, usedBy, depth, stack) => {
+      let ok = true;
+      const mats = recipe.materials || [];
+      for (const m of mats) {
+        if (m.amount === 0) ok = needTool(m, usedBy) && ok;
+        else ok = needItem(m.id, m.name, m.amount * crafts, usedBy, depth, stack) && ok;
+      }
+      const meta = CRAFT_RECIPE_META[recipe.recipeId];
+      if (meta && meta.tool && !mats.some(m => Number(m.id) === meta.tool.id)) ok = needTool(meta.tool, usedBy) && ok;
+      return ok;
+    };
+    for (const r of CRAFT_PRIORITY) {
+      if (!r || !r.enabled) continue;
+      const batch = Math.max(1, r.minCraft || 1);
+      if (!needRecipe(r, batch, r.name, 0, new Set([r.recipeId]))) blocked.push(r.name);
+    }
+    return { blocked, shortages: [...shortages.values()] };
+  }
+
+  // 打印提醒。opts.force=true（手动 showCraftSupply）时连静音项一起显示
+  let __craftAlertLast = { key: '', at: 0 };   // 同样的缺货 10 分钟内不重复大字（普通锁被占 3 分钟后重跑会再查一次）
+  function reportCraftSupplyShortage(inventories, opts = {}) {
+    const { blocked, shortages } = computeCraftSupplyShortage(inventories);
+    if (!shortages.length) {
+      log(`✅ [合成材料] 已启用配方的材料都够做一批`);
+      return { blocked, shortages, shown: [] };
+    }
+    const muted = _craftMuteList();
+    const isMuted = s => muted.includes(String(s.id)) || muted.includes(String(s.name).toLowerCase());
+    const hidden = shortages.filter(isMuted);
+    const list = opts.force ? shortages : shortages.filter(s => !isMuted(s));
+    if (!list.length) {
+      log(`🔕 [合成材料] 缺货：${hidden.map(s => s.name).join('、')}（都已静音；unmuteCraftAlert() 取消静音）`);
+      return { blocked, shortages, shown: [] };
+    }
+    const head = list.map(s => `${s.name} ${s.need - s.have} 个`).join('、');
+    const now = Date.now();
+    if (!opts.force && __craftAlertLast.key === head && now - __craftAlertLast.at < 10 * 60 * 1000) {
+      log(`🛒 [合成材料] 缺货同上（${head}），${Math.round((now - __craftAlertLast.at) / 60000)} 分钟前刚提醒过，不重复大字`);
+      return { blocked, shortages, shown: list };
+    }
+    __craftAlertLast = { key: head, at: now };
+    log(`%c🛒 [合成材料] 缺货，自动合成做不了——请补：${head}`, CRAFT_ALERT_BIG);
+    const lines = [`🛒 [合成材料] 做不了的配方：${blocked.join('、')}`];
+    // 中间产物（松花粉/红琥珀粉/薄荷碎/Greater）只能合成、掉落表里没有：它的配方被停用时别说成"拾荒获得"
+    const producedBy = new Map();
+    for (const r of CRAFT_PRIORITY) if (r) producedBy.set(Number(r.productId), r);
+    for (const s of list) {
+      const maker = producedBy.get(Number(s.id));
+      const hint = CRAFT_SUPPLY_HINT[s.id]
+        || (maker && !maker.enabled ? `只能合成：${maker.name} 配方已停用（或交给核心脚本合成），要自动补就把它的 enabled 改回 true` : CRAFT_SUPPLY_HINT_DEFAULT);
+      lines.push(`   🛒 ${s.name}${s.isTool ? '（工具）' : ''}：现有 ${s.have}，做一批需要 ${s.need}，缺 ${s.need - s.have}｜用于 ${[...s.usedBy].join('、')}｜${hint}${isMuted(s) ? '｜🔕已静音' : ''}`);
+    }
+    if (!opts.force && hidden.length) lines.push(`   🔕 已静音没显示：${hidden.map(s => s.name).join('、')}`);
+    lines.push(`   不打算补某一项：muteCraftAlert('${list[0].name}')；不想合成某个配方：把 CRAFT_PRIORITY 里它的 enabled 改成 false`);
+    log(`%c${lines.join('\n')}`, CRAFT_ALERT_DETAIL);
+    return { blocked, shortages, shown: list };
+  }
+
+  async function showCraftSupply() {
+    const info = await getCraftAccountInfo();
+    if (!info) { log('⚠️ [合成材料] 读不到背包，稍后再试'); return null; }
+    return reportCraftSupplyShortage(info.inventories, { force: true });
+  }
+
+  function muteCraftAlert(item) {
+    const k = String(item ?? '').trim().toLowerCase();
+    if (!k) { log(`🔕 [合成材料] 用法：muteCraftAlert('Mint') 或 muteCraftAlert(1012)；当前静音：${_craftMuteList().join('、') || '无'}`); return; }
+    const list = _craftMuteList();
+    if (!list.includes(k)) list.push(k);
+    try { localStorage.setItem(CRAFT_ALERT_MUTE_KEY, JSON.stringify(list)); } catch (_) {}
+    log(`🔕 [合成材料] 已静音「${item}」的补货提醒（刷新后仍有效）；当前静音：${list.join('、')}`);
+  }
+
+  function unmuteCraftAlert(item) {
+    const k = item == null ? null : String(item).trim().toLowerCase();
+    const list = k == null ? [] : _craftMuteList().filter(x => x !== k);
+    try { localStorage.setItem(CRAFT_ALERT_MUTE_KEY, JSON.stringify(list)); } catch (_) {}
+    log(`🔔 [合成材料] ${k == null ? '已取消全部静音' : `已取消「${item}」的静音`}；当前静音：${list.join('、') || '无'}`);
   }
 
   // ============================================================
@@ -2947,6 +3141,9 @@
       return;
     }
     let inventories = info.inventories;
+
+    // 🔻SYNC[测试版1.2.14] 盘点材料缺口（不看步长，每轮都查）；要补货时红底大字提醒。纯读，不占锁
+    try { reportCraftSupplyShortage(inventories); } catch (e) { log(`⚠️ [合成材料] 本轮盘点跳过：${e?.message || e}`); }
 
     // 步长阈值检查（>=80 才触发合成流程：攒高步长一次合成一大批，减少 tx 次数）
     if (stamina < AUTO_CRAFT_CONFIG.staminaThreshold) {
@@ -4687,7 +4884,7 @@
       // 跳过看板自身输出（整块看板含"代码健康看板"表头；全绿行/自检异常带 [健康] 标记）——
       // 否则"最新: 原文"回显会被事件/闭环/心跳正则再次命中，产生自回声误报。
       // 注意不能用裸 🩺 过滤：辅助复活的正常日志也用该 emoji。
-      if (line.includes('代码健康看板') || line.includes('[健康]')) continue;
+      if (line.includes('代码健康看板') || line.includes('[健康]') || line.includes('[合成材料]')) continue;   // 🔻SYNC[测试版1.2.14] 合成缺货是业务提醒，不进看板统计（明细含 XP Potion/Respec Potion/拾荒 会误命中其它模块）
       const ts = __healthParseTs(line);
       for (const r of __HEALTH_REGISTRY) {
         if (r.re && lastSeen[r.name] === undefined && r.re.test(line)) lastSeen[r.name] = ts;
@@ -4916,6 +5113,9 @@
   window.getStaminaFromDOM = getStaminaFromDOM;
   window.AUTO_CRAFT_CONFIG = AUTO_CRAFT_CONFIG;
   window.CRAFT_PRIORITY = CRAFT_PRIORITY;
+  window.showCraftSupply = showCraftSupply;       // 🔻SYNC[测试版1.2.14] 材料缺口大字提醒
+  window.muteCraftAlert = muteCraftAlert;
+  window.unmuteCraftAlert = unmuteCraftAlert;
 
   // 页面加载后自动启动合成模块
   startAutoCraft();
