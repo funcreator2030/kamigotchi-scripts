@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.56
+// @version      1.2.57
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/14 16:38:15
+// @x-release-date 2026/9/14 20:09:09
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.56                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.57                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -115,7 +115,7 @@
 // · 停采线 —— 脚本自定的"停止采集"阈值：HP 跌到该线即自动停采。
 //   normal 模式 = LT+3%（封顶 80%；v1.1.1 起 LT 为精确清算线，由辅助脚本
 //   按官方公式+全网最强杀手档案自动维护，3% 安全垫承担停采反应时间），
-//   greedy 模式（旧名 starving）= 5%。
+//   greedy 模式（旧名 starving）= 30%（测试版 1.2.57 起；此前 5%）。
 // · delta（Δ）—— 实时 HP% 减去停采线的差值；delta 越小（越负）越危险。
 // · RESTING / HARVESTING / STARVING / DEAD —— kami 的四种状态：休息中 /
 //   采集中 / 饿死（HP 归零但未被清算，可喂食救回）/ 已死亡（需复活丝带）。
@@ -179,7 +179,7 @@
 // ------------------------------------------------------------
 // ▍模式对比：
 //   - normal 模式：停采线 = 清算线(LT) + 3%，上限 80%。安全但单周期采集时间短
-//   - greedy 模式：停采线 = 5%，榨干每个采集周期，收益最高，
+//   - greedy 模式：停采线 = 30%（1.2.57 起；此前 5%），榨干每个采集周期，收益最高，
 //     但必须依赖杀手检测保护，检测到杀手立即回退安全线
 //     （旧名 starving 模式，v1.1.13 起改名为 greedy，含义不变；
 //     ⚠️ 与「0 血仍在采集」的 STARVING **状态**是两回事，别混）
@@ -230,7 +230,7 @@
 // 【常用控制台命令速查】（完整清单以启动时控制台打印的 banner 为准）
 // ------------------------------------------------------------
 // ── 模式与状态 ──
-// setKamiMode('greedy')    - 切换到贪婪模式（极限停采线5%，检测到杀手自动切安全线）
+// setKamiMode('greedy')    - 切换到贪婪模式（极限停采线30%，检测到杀手自动切安全线）
 // setKamiMode('normal')    - 切换到正常模式（安全停采线，清算线+3%）
 // getKamiMode()            - 查看当前模式状态
 // getTxLockStatus()        - 查看当前TX锁状态
@@ -1780,9 +1780,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.56';
+    const SCRIPT_VERSION = '1.2.57';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/14 16:38:15';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/14 20:09:09';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -2013,7 +2013,7 @@
         clog('%cresumeDeploy()', 'color: red; font-size: 14px;');
         clog('');
         clog('───────── 🔀 模式切换 ─────────');
-        clog('// 切换到贪婪模式（极限停采线 5%；检测到杀手会自动切回安全线；旧名 \'starving\' 仍兼容）');
+        clog('// 切换到贪婪模式（极限停采线 30%；检测到杀手会自动切回安全线；旧名 \'starving\' 仍兼容）');
         clog("setKamiMode('greedy')");
         clog('');
         clog('// 切换到正常模式（安全停采线，清算线 + 3%）');
@@ -2411,7 +2411,7 @@
     //   定义脚本的两种停采策略模式，并提供控制台切换/查看命令：
     //   - normal（安全模式）：停采线 = 精确清算线 LT + 3%（LT_STOP_MARGIN，封顶 80%），
     //     取不到精确 LT 时用默认值 65% / 76%；
-    //   - greedy（贪婪模式，旧名 starving）：地图上没有杀手时用 5% 极限停采线，
+    //   - greedy（贪婪模式，旧名 starving）：地图上没有杀手时用 30% 极限停采线（1.2.57 起），
     //     让 kami 尽量采到接近极限才停，最大化单周期采集时长；
     //     一旦检测到杀手，自动退回安全线，杀手消失后再自动恢复。
     // ▍触发时机：
@@ -2451,7 +2451,7 @@
     //     此规则默认不会触发，相关常量保留为兼容；实际杀手保护
     //     见杀手监控脚本的位置轮询（直接触发紧急停采）。
     // ▍可调参数：
-    //   - GREEDY_THRESHOLD = 5 — 贪婪模式极限停采线（HP%）。原名
+    //   - GREEDY_THRESHOLD = 30 — 贪婪模式极限停采线（HP%，1.2.57 从 5 抬到 30，依据见常量处）。原名
     //     STARVING_THRESHOLD，v1.1.13 起改名，window.STARVING_THRESHOLD
     //     仍保留为兼容别名。调小：采集更久，但饿死/被清算风险上升；
     //     调大：更安全，但牺牲采集时长。
@@ -2479,7 +2479,7 @@
     // 模式: 'normal' (安全模式) 或 'greedy' (贪婪模式)
     // 默认贪婪模式。下面这段是**一次性存储迁移**，不是别名（输入侧别名已于 1.2.50 移除）：
     // 老机器的 localStorage 里可能还存着 'starving'，若不迁移，__kamiMode 会变成一个
-    // 既非 normal 也非 greedy 的值 → 下游 `=== 'greedy'` 判假 → **停采线从 5% 静默跳回 ~72%**。
+    // 既非 normal 也非 greedy 的值 → 下游 `=== 'greedy'` 判假 → **停采线从 30% 静默跳回 ~72%**。
     // 迁移跑一次就把存储值改写成 'greedy'，之后永不再触发。⚠️ 别当成"残留的别名"删掉。
     let __kamiMode = localStorage.getItem('kami_mode') || 'greedy';
     if (__kamiMode === 'starving') {
@@ -2493,7 +2493,12 @@
     window.__liquidatedTimestamps = [];   // liquidated 消息时间戳记录（滑动窗口计数用）
 
     // 贪婪模式参数配置（v1.1.13 改名、1.2.50 移除旧别名；与 STARVING 状态无关）
-    const GREEDY_THRESHOLD = 5;           // 贪婪模式极限停采线: 5%（无杀手时生效）
+    // 🔻SYNC[测试版1.2.57] 贪婪线 5 → 30（用户 0914 定案）。依据 = 0914 全网探针（验证脚本/普通玩家清算线探针_控制台.js）：
+    //   全网 22222 只里 97% 是白板（无攻击技能），我方 313 只全带防御加成，血量 ≥20% 时没有任何一只白板能杀我方任何一只；
+    //   带技能的 3% 在 30% 时只有 0.5~1.6% 能杀（其顶部就是监控名单）。5% 线只有 5 点垫子，夜里卡片血量停更会直接采成 STARVING
+    //   （0 产出 + 必须喂 + intensity 清零）；30% 留 10 点给读数滞后和深处掉血加速（intensity 随连采时长线性涨）。
+    //   每点血换的 MUSU 恒定 =(harmony+20)/6.5，深采收益在少停部 tx 与 intensity，不在"每点血更值钱"，5→30 损失很小。
+    const GREEDY_THRESHOLD = 30;          // 贪婪模式极限停采线: 30%（无杀手时生效；1.2.57 前为 5%）
     const LIQUIDATE_WINDOW_MS = 5 * 60 * 1000;    // 杀手判定滑动窗口: 5分钟
     const LIQUIDATE_COUNT_TRIGGER = 2;    // 窗口内2条 liquidated 消息即判定有杀手
     const SAFE_COOLDOWN_MS = 15 * 60 * 1000;      // 15分钟无新击杀才恢复贪婪模式
@@ -2514,7 +2519,7 @@
     // 控制台命令：切换模式（写 localStorage 后自动刷新页面生效）
     // 只接受 'normal' / 'greedy'。
     // 🔻SYNC[测试版1.2.50 移除 starving 旧名]（用户 0913 定案）输入侧的 'starving' 别名已移除。
-    //   原因：这个旧名把人往错误的理解上带——它指的是「停采线压到 5% 榨干采集周期」，
+    //   原因：这个旧名把人往错误的理解上带——它指的是「停采线压低（现 30%）榨干采集周期」，
     //   跟「0 血还在采」的 STARVING **状态**毫无关系，而后者在脚本里是另一套东西
     //   （isStarving / _starvingFeedKamis / STARVING_FOOD_LIST，280 余处，**不要动**）。
     //   两个概念共用一个词，读代码的人和 AI 都会混。
@@ -2524,12 +2529,12 @@
         if (mode !== 'normal' && mode !== 'greedy') {
             if (mode === 'starving') {
                 clog('❌ \'starving\' 这个旧名已移除，请用 \'greedy\'');
-                clog('   （改名原因：它说的是「停采线 5% 榨干周期」，不是「0 血还在采」那个 STARVING 状态）');
+                clog('   （改名原因：它说的是「停采线压低榨干周期」，不是「0 血还在采」那个 STARVING 状态）');
             } else {
                 clog('❌ 无效模式，请使用 "normal" 或 "greedy"');
             }
             clog('   normal:   安全模式，使用清算线+3%停采（上限80%）');
-            clog('   greedy:   贪婪模式，无杀手时用5%停采，有杀手自动切安全线');
+            clog(`   greedy:   贪婪模式，无杀手时用${GREEDY_THRESHOLD}%停采，有杀手自动切安全线`);
             return;
         }
         localStorage.setItem('kami_mode', mode);
@@ -2554,7 +2559,7 @@
             if (killer) {
                 clog(`⏱️ 恢复倒计时: ${Math.ceil(cooldownRemain / 60000)} 分钟后自动恢复贪婪模式`);
             }
-            clog(`📊 当前停采线: ${killer ? `安全线(LT+${LT_STOP_MARGIN}%，上限80%)` : '极限线(5%)'}`);
+            clog(`📊 当前停采线: ${killer ? `安全线(LT+${LT_STOP_MARGIN}%，上限80%)` : `极限线(${GREEDY_THRESHOLD}%)`}`);
         } else {
             clog(`📊 停采线: 安全线(LT+${LT_STOP_MARGIN}%，上限80%)`);
         }
@@ -5131,12 +5136,22 @@
     // ============================================================
     /**
      * 紧急停采主函数 - 预检过滤 + 凑批决策 + 多轮批量停采 + 动态等待
-     * @param {{trimTo?: number}} [opts] 可选；仅硬触发路径传 {trimTo:25} 在 stopList 构建后修剪到目标数。
+     * @param {{trimTo?: number}} [opts] 可选；仅无杀手警戒的硬触发路径传 {trimTo:STOP_TRIGGER_HARD} 在 stopList 构建后修剪到目标数。
      *   其它调用方（杀手监控/危险HP/手动）不传参 → 行为逐字节不变（无修剪）。
      */
     async function emergencyStopHarvest(opts) {
         if (window.__emergencyStopRunning) {
-            log('⚠️ [紧急停采] 已在运行中，跳过');
+            // 🔻SYNC[测试版1.2.57] 全撤请求（杀手监控/死亡监控/手动，不带 trimTo）撞上正在跑的一轮时不再丢掉：
+            //   记一个待办，当前轮 finally 里立刻补一次全撤。0914 全库"已在运行中，跳过" 805 次，其中就有
+            //   同房间杀手告警撞上修剪被吞的样本；保留数抬高后单轮更长，被吞窗口更大。修剪请求（带 trimTo）照旧丢弃。
+            const __wantsFull = !(opts && typeof opts.trimTo === 'number');
+            if (__wantsFull) {
+                const __prev = window.__pendingFullEvac;
+                window.__pendingFullEvac = { at: Date.now(), n: (__prev && __prev.n ? __prev.n : 0) + 1 };
+                log('⚠️ [紧急停采] 已在运行中，跳过（本次是全撤请求，已记待办：当前轮结束后立即补一次全撤）');
+            } else {
+                log('⚠️ [紧急停采] 已在运行中，跳过');
+            }
             return;
         }
         window.__emergencyStopRunning = true;
@@ -5887,6 +5902,19 @@
             }
             window.__kamiOperationInProgress = false;
             window.__emergencyStopRunning = false;
+            // 🔻SYNC[测试版1.2.57] 补撤：本轮运行期间被跳过的全撤请求，1 秒后补一次（不修剪）。只补一次，
+            //   补撤那轮若再被撞会再记待办、再补——链条只在杀手持续告警时延续，扫不到候选的轮几秒就结束。
+            try {
+                const __p = window.__pendingFullEvac;
+                if (__p) {
+                    window.__pendingFullEvac = null;
+                    log(`🔁 [紧急停采/补撤] 本轮运行期间有 ${__p.n} 次全撤请求被跳过（最近一次 ${Math.round((Date.now() - __p.at) / 1000)}s 前），1 秒后补一次全撤（不修剪）`);
+                    setTimeout(() => {
+                        try { emergencyStopHarvest().catch(e => log(`[紧急停采/补撤] 异常: ${e?.message || e}`)); }
+                        catch (e) { log(`[紧急停采/补撤] 启动失败: ${e?.message || e}`); }
+                    }, 1000);
+                }
+            } catch (_) {}
         }
     }
 
@@ -6854,8 +6882,8 @@
     //   4 秒后核心启动才把眼睛切到 half。前一次扫描需停采 2 只、后一次 6 只，当时确实有要停的。
     //   「读不到卡片」和「确实没有要停的」走了同一个出口 = 停采侧 fail-open，正好是「宁发勿漏」的反方向。
     // ▍为什么这很危险：主循环不是兜底。紧急扫描用 min(LT+3,80)，而主循环在杀手在场时仍用
-    //   greedy 5%（__killerDetected 只有已停用的 Feed 监控会置位）。紧急扫描一瞎，主循环会让 kami
-    //   一路采到 5%，唯一的保护只剩约 2 分钟后的下一轮紧急扫描。
+    //   greedy 30%（__killerDetected 只有死亡监控会置位）。紧急扫描一瞎，主循环会让 kami
+    //   一路采到 30%，唯一的保护只剩约 2 分钟后的下一轮紧急扫描。
     // ▍成因是结构性的：核心启动等 120s+随机0~30s 再点 Party、切眼睛；监控固定 150s 首启就开扫。
     //   0913 十个会话里 3 个余量 ≤0 秒。
     // ▍修法：扫描前先做 DOM 就绪判定，判据**逐字照搬主循环 DOM 预检**（runAutomation 内原
@@ -10357,7 +10385,7 @@
             restingTotal: 0, restingLTSkip: 0, restingHPLow: 0, restingAlreadyActed: 0
         };
         // "普通模式停采线"独立计数器（不论当前是否贪婪模式都计算）。
-        // 贪婪模式 + 无杀手时实际停采线极低（5%），按当前模式扫描几乎不可能
+        // 贪婪模式 + 无杀手时实际停采线很低（30%），按当前模式扫描几乎不可能
         // 凑出大批停采候选，"候选过多 → 紧急停采"的保护会形同虚设；因此再以
         // "LT+3% 或默认 65%/76%"的普通线为基准独立扫一遍计数，超过硬触发
         // 阈值就紧急停采保命（详见下方"紧急停采硬触发"板块）
@@ -10657,10 +10685,10 @@
         // ▍触发条件（两路任一满足，且当前没有紧急锁）：
         //   1) 当前模式停采线扫出的候选总数（API+DOM）≥ STOP_TRIGGER_ACT
         //   2) "普通模式停采线"独立计数 ≥ STOP_TRIGGER_ACT —— 第二路专治
-        //      盲区：贪婪模式 + 无杀手时实际停采线仅 5%，按当前模式几乎
+        //      盲区：贪婪模式 + 无杀手时实际停采线仅 30%，按当前模式几乎
         //      扫不出大批候选，第一路等于失效；用普通线（LT+3% / 65%~80%）
         //      独立扫，就能在杀手批量攻击的早期识别险情
-        //   候选 ∈ (HARD, ACT) 即 26~30：只打观察预警，不硬触发，交普通停采凑批
+        //   候选 ∈ (HARD, ACT) 即 81~85：只打观察预警，不硬触发，交普通停采凑批
         // ▍核心流程：后台启动 emergencyStopHarvest({trimTo:HARD})（不 await，
         //   让它自己拿紧急锁运行；扫描后只停最危险的超额部分，修剪到 HARD 只继续采）；
         //   主流程继续向下，在"锁协调"处向紧急锁让路。
@@ -10668,27 +10696,36 @@
         //   - 已有紧急锁时不重复触发
         //   - 启动时的同步/异步异常都被捕获，只记日志，不中断主流程
         // ▍可调参数：
-        //   STOP_TRIGGER_HARD = 36 — 修剪目标/预警线（>此值可观察预警；硬触发后修剪保留数）
-        //     🔻SYNC→内部版[1.2.17 修剪目标36] 0718 用户定案 25→36：首夜实测修剪池常态 31~40,
-        //     用户策略=尽量多的 kami 持续采到 5% 线吃喂食维持(省停部循环、产出不间断);
-        //     代价=杀手突入最坏在场 41 只,按 453 轮实测吞吐(30s+2.5s/只)撤离≈133s,贴 2~3 分钟冷却窗。
-        //   STOP_TRIGGER_ACT = HARD + TARGET_BATCH_MIN = 42 — 动手线（超额≥6 才硬触发）
+        //   STOP_TRIGGER_HARD = 80 — 修剪目标/预警线（>此值可观察预警；硬触发后修剪保留数）
+        //     🔻SYNC[测试版1.2.57] 36 → 80（用户 0914 定案，分档 80→120→160 逐档跑两夜；先只上一个测试号）。
+        //     0914 实测：36 时修剪每 11~13 分钟一次、停的是线下 1~2 点的 kami，贪婪线从未生效（stop 分流恒 0）；
+        //     线下池稳态天花板 ≈150~160（掉血 4.4%/h 起步、深处加速）；撤离 ≈ 固定 0~30s（夜间节流 +120s）
+        //     + 10s/批(10只) + 等待 15s，129 只实测 186s。旧注释"453 轮实测 30s+2.5s/只"无原始数据，已清。
+        //   STOP_TRIGGER_ACT = HARD + TARGET_BATCH_MIN = 86 — 动手线（超额≥6 才硬触发）
+        //   杀手警戒中（window.__killerDetected）：候选 ≥6 即硬触发且**不修剪**（全撤）——切安全线那一刻
+        //     候选会从 0 跳到上百只，若仍按修剪或掉进普通停采路径（全局 maxAttempts=5 只发得出 5 批）会漏停。
         // ============================================================
-        const STOP_TRIGGER_HARD = 36; // 修剪目标/预警线（0718 用户定案 25→36）
-        const STOP_TRIGGER_ACT = STOP_TRIGGER_HARD + 6; // =42 = HARD + TARGET_BATCH_MIN；超额≥6 才硬触发
+        const STOP_TRIGGER_HARD = 80; // 修剪目标/预警线（🔻SYNC[测试版1.2.57] 36→80，用户 0914 定案分档第一档）
+        const STOP_TRIGGER_ACT = STOP_TRIGGER_HARD + 6; // =86 = HARD + TARGET_BATCH_MIN；超额≥6 才硬触发
         const __totalStopCount = apiList.length + domList.length;
         const __triggerByCurrent = __totalStopCount >= STOP_TRIGGER_ACT;
         const __triggerByNormalLine = __normalLineStopCount >= STOP_TRIGGER_ACT;
-        if ((__triggerByCurrent || __triggerByNormalLine) && !hasEmergencyLock()) {
-            const reason = __triggerByCurrent
-                ? `当前模式停采线候选 ${__totalStopCount} ≥ ${STOP_TRIGGER_ACT}`
-                : `普通模式停采线候选 ${__normalLineStopCount} ≥ ${STOP_TRIGGER_ACT}（当前模式仅扫到 ${__totalStopCount}，但按 LT+${LT_STOP_MARGIN}% 已危险）`;
-            log(`%c🚨 [紧急触发] ${reason}，升级为紧急停采流程接管（修剪到 ${STOP_TRIGGER_HARD}）`,
+        // 🔻SYNC[测试版1.2.57] 杀手警戒中不修剪：安全线候选 ≥6 就全撤（0914 审查：保留数抬高后，切安全线瞬间
+        //   上百只候选若不够动手线会掉进普通停采路径，那条路全局只发 5 批；够动手线又会被修剪留一堆在场）
+        const __killerMode = window.__killerDetected === true;
+        const __triggerByKiller = __killerMode && __totalStopCount >= 6;
+        if ((__triggerByCurrent || __triggerByNormalLine || __triggerByKiller) && !hasEmergencyLock()) {
+            const reason = __killerMode
+                ? `杀手警戒中，安全线候选 ${__totalStopCount} 只`
+                : (__triggerByCurrent
+                    ? `当前模式停采线候选 ${__totalStopCount} ≥ ${STOP_TRIGGER_ACT}`
+                    : `普通模式停采线候选 ${__normalLineStopCount} ≥ ${STOP_TRIGGER_ACT}（当前模式仅扫到 ${__totalStopCount}，但按 LT+${LT_STOP_MARGIN}% 已危险）`);
+            log(`%c🚨 [紧急触发] ${reason}，升级为紧急停采流程接管（${__killerMode ? '全撤，不修剪' : `修剪到 ${STOP_TRIGGER_HARD}`}）`,
                 'color: red; font-weight: bold; font-size: 13px;');
             // 后台启动紧急停采（不 await），主流程下方会在最多300秒的等待中被紧急锁接管
-            // 仅本硬触发路径带 trimTo；杀手监控等其它调用方不传参、无修剪
+            // 仅无杀手警戒的硬触发带 trimTo；杀手警戒/杀手监控/死亡监控等路径不传参、无修剪
             try {
-                emergencyStopHarvest({ trimTo: STOP_TRIGGER_HARD }).catch(e => log(`[紧急触发] 紧急停采异常: ${e?.message || e}`));
+                emergencyStopHarvest(__killerMode ? undefined : { trimTo: STOP_TRIGGER_HARD }).catch(e => log(`[紧急触发] 紧急停采异常: ${e?.message || e}`));
             } catch (e) {
                 log(`[紧急触发] 紧急停采启动失败: ${e?.message || e}`);
             }
@@ -10786,7 +10823,7 @@
         // ▍触发时机：apiList 恰好 1 个且 domList 为空。
         // ▍核心流程（四分支）：
         //   1) 已饿死（isStarving）→ 必须立刻处理（先喂食再停采），不凑批
-        //   2) 贪婪模式 + 无杀手 → 停采线仅 GREEDY_THRESHOLD(5%)，HP 已在
+        //   2) 贪婪模式 + 无杀手 → 停采线仅 GREEDY_THRESHOLD(30%)，HP 已在
         //      极限边缘，多等一轮就可能饿死，立刻停，不凑批
         //   3) 普通线 + delta > SINGLE_STOP_DANGER_DELTA → 安全余量充足，
         //      清空 apiList 跳过本轮，等下轮凑批省 gas
@@ -10805,7 +10842,7 @@
                 // STARVING饿死的kami：必须立刻处理（先喂食再停），绝不凑批
                 log(`🚨 [饿死/单停] kami #${solo.dbIndex} 已饿死(STARVING)，必须立刻喂食+停采，不凑批！`);
             } else if (isGreedyNoKiller) {
-                // 贪婪模式：停采线仅5%，绝不能跳过
+                // 贪婪模式：停采线仅 GREEDY_THRESHOLD(30%)，绝不能跳过
                 log(`🚨 [贪婪模式/单停] kami #${solo.dbIndex} 停采线仅${GREEDY_THRESHOLD}%，HP已在极限边缘（Δ=${solo.delta.toFixed(2)}%），立刻停采，不凑批！`);
             } else if (solo.delta > SINGLE_STOP_DANGER_DELTA) {
                 // 非贪婪模式 + 不太危险：跳过等凑批
