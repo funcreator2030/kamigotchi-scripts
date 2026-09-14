@@ -121,6 +121,19 @@ defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
 
 然后 ⌘Q 完全退出 Chrome 再打开，`chrome://policy` 看到该项 = false 即生效。Windows 与撤销方法见主线 README「夜间挂机」一节。
 
+## 全功能手册
+
+四件套的全部功能、控制台命令、参数和存储键都整理在一份手册里（1400+ 条，按脚本/板块分章；条目末尾的
+「版本」是该功能落地的版本，带 🧪 的是测试线独有）：
+
+- Markdown：[Kamigotchi脚本全功能手册.md](./Kamigotchi脚本全功能手册.md)（GitHub 直接看）
+- 网页版：[kamigotchi-manual.html](https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-manual.html)
+  （右键另存后用浏览器打开，左侧目录 + 顶部搜索）
+
+手册随每次测试线发布一起更新，以最新发布为准。
+
+---
+
 ## 出了问题
 
 控制台输入 `saveKamiLogs()` 导出日志，连同「哪一版、什么时候、看到什么」一起反馈。
