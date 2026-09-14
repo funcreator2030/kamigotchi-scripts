@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.57
+// @version      1.2.58
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/14 20:09:09
+// @x-release-date 2026/9/14 23:48:13
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.57                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.58                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1780,9 +1780,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.57';
+    const SCRIPT_VERSION = '1.2.58';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/14 20:09:09';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/14 23:48:13';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -11822,9 +11822,10 @@
     //   1) _diagnoseCraft(recipeKey, items, stamina)：逐项核对体力、
     //      consumes（消耗品）、tools（工具），逐条 ✅/❌ 标注；
     //   2) 短缺项调 _traceDeficit() 递归下钻：可合成物列出"还需合成几次、
-    //      每次产量/耗体力"，不可合成的基础料标记 🛒 需采购；
+    //      每次产量/耗体力"，不可合成的基础料标记 🛒 缺 N 个并附去哪补；
     //   3) _accumulatePurchase() 把所有短缺递归折算到最底层基础料数量，
-    //      汇总为采购清单打印；
+    //      汇总为补货清单打印，每项附去哪补（_supplyHintOf，🔻SYNC[测试版1.2.58]）；
+    //      _diagnoseCraft 第 4 个参数 crafts 按一批核对（Pine Pollen 传 10）；
     //   4) 全部输出合并为单次 log 调用（避免每行重复时间戳前缀）。
     // ▍边界与保护：
     //   - consumes 与 tools 语义严格区分：consumes 按合成次数倍数累加
@@ -11859,6 +11860,7 @@
         },
         pine_pollen: {
             displayName: 'Pine Pollen',
+            batch: 10,                    // 🔻SYNC[测试版1.2.58] 主流程凑满 10 次一笔才合成（POLLEN_BATCH），下钻折算次数不少于它
             outputAmount: 500,            // 每次执行产出 500（经链上实测确认）
             staminaCost: 10,              // 每次执行 10 步长（实测确认）
             consumes: { pine_cone: 1 },   // 每次执行 1 松果（实测确认）
@@ -11878,16 +11880,24 @@
 
     function _labelOf(key) { return ITEM_LABEL[key] || key; }
 
+    // 🔻SYNC[测试版1.2.58] 去哪补（游戏 listings 表：合成相关只有研磨器/便携炉在 Mina 商店卖，其余商店不卖）。
+    //   旧版一律写"需采购"：玻璃罐喂 XP 药水会返还，先喂药水回收才对；也没说商店不卖、要去市场或拾荒。
+    function _supplyHintOf(key) {
+        if (key === 'spice_grinder' || key === 'portable_burner') return 'Mina 商店有售（工具，买一次一直用）';
+        if (key === 'glass_jar') return '喂 Greater/Fortified XP 药水会返还空瓶；背包没药水就去市场买或拾荒';
+        return '商店不卖：市场购买或拾荒获得';
+    }
+
     // 递归追溯某个短缺物的来源：可合成的列出子配方需求，基础料标记"采购"
     function _traceDeficit(itemKey, deficit, items, depth = 1) {
         const pad = '   '.repeat(depth);
         const recipe = RECIPE_DEFS[itemKey];
         const lines = [];
         if (!recipe) {
-            lines.push(`${pad}└─ 🛒 ${_labelOf(itemKey)} → 需采购 ${deficit} 个`);
+            lines.push(`${pad}└─ 🛒 ${_labelOf(itemKey)} → 缺 ${deficit} 个：${_supplyHintOf(itemKey)}`);
             return lines;
         }
-        const crafts = Math.ceil(deficit / recipe.outputAmount);   // 需要的合成次数（向上取整，按整次执行）
+        const crafts = Math.max(Math.ceil(deficit / recipe.outputAmount), recipe.batch || 1);   // 需要的合成次数（向上取整；不少于该配方一批的次数）
         lines.push(`${pad}└─ 🔄 ${_labelOf(itemKey)} 还差 ${deficit}，需合成 ${crafts} 次（每次产 ${recipe.outputAmount}，耗体力 ${recipe.staminaCost}）`);
         for (const [mKey, mPer] of Object.entries(recipe.consumes || {})) {
             const totalNeed = mPer * crafts;
@@ -11914,22 +11924,27 @@
 
     // 合成不足时打印完整诊断卡片：体力 + 各材料 + 短缺追溯 + 采购建议汇总
     // 全部内容合并为单次 log 调用，避免每行重复时间戳前缀和 source link
-    function _diagnoseCraft(recipeKey, items, stamina) {
+    // 🔻SYNC[测试版1.2.58] 加 crafts 参数（默认 1）：按"一批"核对。Pine Pollen 主流程凑满 10 次才合成，
+    //   旧版按单次（1 松果 / 10 步长）核对，松果只有 5 个时诊断全打 ✅、实际却不合成，说法和行为对不上。
+    function _diagnoseCraft(recipeKey, items, stamina, crafts = 1) {
         const recipe = RECIPE_DEFS[recipeKey];
         if (!recipe) return;
+        const n = Math.max(1, Math.floor(Number(crafts)) || 1);
         const out = [];
-        out.push(`🔍 ═══ 合成诊断：${recipe.displayName} ═══`);
+        out.push(`🔍 ═══ 合成诊断：${recipe.displayName}${n > 1 ? `（按一批 ${n} 次核对）` : ''} ═══`);
 
-        // 体力
-        if (stamina < recipe.staminaCost) {
-            out.push(`   ❌ 体力：需 ≥ ${recipe.staminaCost}（当前 ${stamina}，缺 ${recipe.staminaCost - stamina}）— 等恢复或喝体力药`);
+        // 体力（步长靠时间恢复，用户 0914 定案不吃步长道具）
+        const stNeed = recipe.staminaCost * n;
+        if (stamina < stNeed) {
+            out.push(`   ❌ 体力：需 ≥ ${stNeed}（当前 ${stamina}，缺 ${stNeed - stamina}）— 等它随时间恢复（不吃步长道具）`);
         } else {
-            out.push(`   ✅ 体力：需 ≥ ${recipe.staminaCost}（当前 ${stamina}）`);
+            out.push(`   ✅ 体力：需 ≥ ${stNeed}（当前 ${stamina}）`);
         }
 
         // 各材料
         const purchaseSummary = {};
-        for (const [mKey, mNeed] of Object.entries(recipe.consumes || {})) {
+        for (const [mKey, mPer] of Object.entries(recipe.consumes || {})) {
+            const mNeed = mPer * n;
             const have = items[mKey] ?? 0;
             if (have < mNeed) {
                 const deficit = mNeed - have;
@@ -11954,11 +11969,11 @@
         // 采购汇总
         const purchaseEntries = Object.entries(purchaseSummary);
         if (purchaseEntries.length > 0) {
-            out.push(`   💡 ───── 采购清单（最底层基础料） ─────`);
+            out.push(`   💡 ───── 补货清单（最底层基础料） ─────`);
             for (const [k, v] of purchaseEntries) {
-                out.push(`      🛒 ${_labelOf(k)} × ${v}`);
+                out.push(`      🛒 ${_labelOf(k)} × ${v}｜${_supplyHintOf(k)}`);
             }
-            out.push(`   👉 补齐后才能合成 ${recipe.displayName}`);
+            out.push(`   👉 补齐后才能合成 ${recipe.displayName}（辅助脚本每轮会用红底大字提醒补货，命令 showCraftSupply()）`);
         }
         out.push(`═══════════════════════════════════`);
 
@@ -11972,7 +11987,7 @@
             summary[itemKey] = (summary[itemKey] || 0) + deficit;
             return;
         }
-        const crafts = Math.ceil(deficit / recipe.outputAmount);
+        const crafts = Math.max(Math.ceil(deficit / recipe.outputAmount), recipe.batch || 1);   // 🔻SYNC[测试版1.2.58] 不少于一批
         // 消耗品按 crafts 倍数；工具只需补到 ≥ 阈值
         for (const [mKey, mPer] of Object.entries(recipe.consumes || {})) {
             const totalNeed = mPer * crafts;
@@ -12444,7 +12459,7 @@
             log("%c⚠️ 不满足 Greater XP Potion 合成条件，跳过合成", 'color: red; font-weight: bold;');
             _diagnoseCraft('greater_xp_potion', items, stamina);
             log(`💤 凑批条件不足，跳过等下轮（步长：${stamina}/100，松果：${items.pine_cone}）`);
-            _diagnoseCraft('pine_pollen', items, stamina);
+            _diagnoseCraft('pine_pollen', items, stamina, 10);   // 🔻SYNC[测试版1.2.58] 一批 10 次（=下方 POLLEN_BATCH；这里在它声明之前，写字面量）
             return;
         }
 
@@ -12505,7 +12520,7 @@
             }
         } else {
             log(`💤 凑批条件不足，跳过等下轮（步长：${currentStamina}/${POLLEN_BATCH_STAM}，松果：${currentInventory.pine_cone}）`);
-            _diagnoseCraft('pine_pollen', currentInventory, currentStamina);
+            _diagnoseCraft('pine_pollen', currentInventory, currentStamina, POLLEN_BATCH);   // 🔻SYNC[测试版1.2.58] 按一批核对
         }
 
         // UI 清理：合成走 API 后，页面上可能残留打开的 Crafting 面板，找到 "X" 按钮点掉

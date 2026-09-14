@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Kamigotchi辅助脚本-测试版 (helper BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.14
+// @version      1.2.15
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/14 21:35:10
+// @x-release-date 2026/9/14 23:48:13
 // @description  Kamigotchi辅助脚本公开版：一键升级+技能管理+自动合成(DOM步长真值)+LT显示+地块适配分析+杀手候选扫描+启动窗口复活+精确清算线(每6小时全网最强杀手扫描+默认档案地板)+gas挂钩记账(1.2.4)
 // @match        https://*.kamigotchi.io/*
 // @grant        none
@@ -15,7 +15,7 @@
 
 // 🔻SYNC→内部版[1.1.20 看板白名单三批]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.20）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.14                      ║
+// ║                    Kamigotchi 辅助脚本 · 测试版 v1.2.15                      ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是核心脚本的配套组件，与核心脚本同时安装在 Tampermonkey 中运行。         ║
 // ║  核心脚本负责部署/停采/喂食/复活等主流程；本辅助脚本提供以下能力：              ║
@@ -272,9 +272,9 @@
   //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
   //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
   //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-  const SCRIPT_VERSION = '1.2.14';
+  const SCRIPT_VERSION = '1.2.15';
   const SCRIPT_LINE = '测试版';
-  const SCRIPT_BUILT = '2026/9/14 21:35:10';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+  const SCRIPT_BUILT = '2026/9/14 23:48:13';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
   log(`%c✅ Kamigotchi辅助脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.23 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.20 看板白名单三批]
 
   // ============ [版本检查] 启动时对比 GitHub 最新版本，提示用户是否已更新 ============
@@ -2553,7 +2553,8 @@
   //   - maxCraft 限制单笔合成次数上限，防单笔 TX 过大失败；
   //   - minCraft 起批下限：可合成次数不足下限时本轮跳过，宁等下轮
   //     也不拆小批多付 gas；
-  //   - materials 中 amount=0 表示"工具"：只要求拥有，不会被消耗。
+  //   - materials 中 amount=0 表示"工具"：只要求拥有，不会被消耗；materials 没写的工具由 CRAFT_RECIPE_META
+  //     补查（🔻SYNC[测试版1.2.15]），缺工具就跳过该配方，不发 tx。
   // ▍可调参数（AUTO_CRAFT_CONFIG）：
   //   - enabled = true — 自动合成总开关；false 则只保留手动 autoCraft()；
   //   - checkIntervalMs = 30*60*1000（30 分钟）— 定时检测间隔；
@@ -2745,7 +2746,8 @@
   //      回复"的问题，API 读取是准确的）。步长判断一律走 getStaminaFromDOM()。
   //   2) getItemBalance：inventories.find 按 item.index === itemId 匹配，
   //      查不到返回 0。
-  //   3) checkCraftMaterials：遍历 recipe.materials 逐项核对——
+  //   3) checkCraftMaterials：先按 CRAFT_RECIPE_META 补查 materials 没写的工具，缺了直接返回 0
+  //      （🔻SYNC[测试版1.2.15]）；再遍历 recipe.materials 逐项核对——
   //      · mat.amount === 0 表示"工具类"材料：不随合成消耗，只需拥有
   //        ≥1 个即可，缺失则整个配方直接返回 0（不能合成）；
   //      · 普通材料按 floor(库存 / 单次用量) 算出该材料能支撑的合成
@@ -2787,13 +2789,24 @@
   function checkCraftMaterials(inventories, recipe) {
     let maxCanCraft = Infinity;
 
+    // 🔻SYNC[测试版1.2.15] 配方表 materials 没写的工具，按 CRAFT_RECIPE_META 补查（29/3 要便携炉，13/6/9 要研磨器）。
+    //   以前缺工具照样发合成 tx，被链上拒绝后主流程整轮 break，连累排在后面的配方（0914 审查发现）。
+    //   CRAFT_RECIPE_META 定义在后面的「材料缺口大字提醒」板块；本函数只被 autoCraftItems 调用（定时器、锁占用重试
+    //   或控制台 autoCraft()），都在脚本加载完成之后，那时早已初始化。
+    const __meta = CRAFT_RECIPE_META[recipe.recipeId];
+    if (__meta && __meta.tool && !recipe.materials.some(m => Number(m.id) === __meta.tool.id)
+        && _supplyBalance(inventories, __meta.tool.id, __meta.tool.name) < 1) {
+      log(`  ⏸️ [AutoCraft] 缺工具 ${__meta.tool.name}，跳过 ${recipe.name}（不发必败的合成 tx；补货见上方大字提醒）`);
+      return 0;
+    }
+
     for (const mat of recipe.materials) {
       const balance = getItemBalance(inventories, mat.id);
 
       if (mat.amount === 0) {
         // amount=0 表示工具类材料：不随合成消耗，只需拥有 ≥1 个即可
         if (balance < 1) {
-          log(`  ❌ [AutoCraft] 缺少工具: ${mat.name}`);
+          log(`  ⏸️ [AutoCraft] 缺工具 ${mat.name}，跳过 ${recipe.name}（不发必败的合成 tx；补货见上方大字提醒）`);
           return 0;
         }
       } else {
@@ -2835,7 +2848,9 @@
   //   标题与明细都带 [合成材料] 标签，健康看板整行跳过这个标签（业务提醒不是代码故障；明细里的配方名
   //   XP Potion / Respec Potion 和"拾荒"会误命中其它模块正则），文案也不含 ❌/失败/不足 等报错字眼。
   // ▍边界与保护：纯读背包，不发 tx、不占锁；背包读不到直接跳过。CRAFT_RECIPE_META 补的是
-  //   配方表里没写的单次产出量与工具（与游戏配方表 recipes.csv 一致），只用来算缺口，不改合成行为。
+  //   配方表里没写的单次产出量与工具（与游戏配方表 recipes.csv 一致）。它既用来算缺口，也是
+  //   checkCraftMaterials 的工具门禁（🔻SYNC[测试版1.2.15]）：缺工具就跳过该配方、不发 tx——
+  //   改 tool 字段会直接影响能不能合成。
   // ▍相关控制台命令：showCraftSupply() / muteCraftAlert('Mint') / unmuteCraftAlert()
   // ============================================================
   const CRAFT_RECIPE_META = {
@@ -4595,7 +4610,7 @@
     { name: '喂食',     type: 'cond', re: /喂食|饿死救援/ },
     { name: '复活',     type: 'cond', re: /复活/ },
     { name: 'XP药水',   type: 'cond', re: /XP Potion|XP流程|XP 药水|pine_pollen/ },
-    { name: '拾荒',     type: 'cond', re: /拾荒|Scavenge/ },
+    { name: '拾荒',     type: 'cond', re: /自动拾荒|跳过拾荒|Scavenge/ },   // 🔻SYNC[测试版1.2.15] 收紧：核心真实拾荒日志都带「自动拾荒(Scavenge)」或「跳过拾荒」；裸「拾荒」会误命中命令清单/gas 报告/合成诊断的说明文字
     { name: 'Gas统计',  type: 'cond', re: /\[Gas统计\]|\[余额警告\]/ },
     { name: 'DB增量',   type: 'cond', re: /\[DB增量\]/ },
     { name: '杀手扫描', type: 'cond', re: /\[杀手扫描\]/ },
@@ -4884,7 +4899,7 @@
       // 跳过看板自身输出（整块看板含"代码健康看板"表头；全绿行/自检异常带 [健康] 标记）——
       // 否则"最新: 原文"回显会被事件/闭环/心跳正则再次命中，产生自回声误报。
       // 注意不能用裸 🩺 过滤：辅助复活的正常日志也用该 emoji。
-      if (line.includes('代码健康看板') || line.includes('[健康]') || line.includes('[合成材料]')) continue;   // 🔻SYNC[测试版1.2.14] 合成缺货是业务提醒，不进看板统计（明细含 XP Potion/Respec Potion/拾荒 会误命中其它模块）
+      if (line.includes('代码健康看板') || line.includes('[健康]') || line.includes('[合成材料]') || line.includes('═══ 合成诊断：')) continue;   // 🔻SYNC[测试版1.2.15] 核心合成诊断卡片同属"条件不满足的说明"，整条跳过（玻璃罐标签含"喂食"会误归喂食模块）   // 🔻SYNC[测试版1.2.14] 合成缺货是业务提醒，不进看板统计（明细含 XP Potion/Respec Potion/拾荒 会误命中其它模块）
       const ts = __healthParseTs(line);
       for (const r of __HEALTH_REGISTRY) {
         if (r.re && lastSeen[r.name] === undefined && r.re.test(line)) lastSeen[r.name] = ts;
