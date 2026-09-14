@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.53
+// @version      1.2.54
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/14 00:19:45
+// @x-release-date 2026/9/14 09:52:12
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.53                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.54                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1770,9 +1770,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.53';
+    const SCRIPT_VERSION = '1.2.54';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/14 00:19:45';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/14 09:52:12';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -13605,6 +13605,12 @@
     // ▍边界与保护：
     //   - 操作让路：正在停采/部署时不硬刷，先延迟
     //   - 延迟熔断：最多延迟 __RELOAD_MAX_DELAYS 次，防无限延迟
+    //   - 🔻SYNC[测试版1.2.54] 紧急停采让路（用户 0914 定案：只看紧急锁，其他不动）：
+    //     紧急锁在握或紧急停采流程在跑 → 不刷新，每 15 秒复查，**不设次数上限**
+    //     （紧急锁自带 TX_EMERGENCY_TIMEOUT 超时自愈、停采流程有硬上限，不会永远刷不了）。
+    //     决定刷新时查一次、location.reload() 落地前再查一次——0914 实录：后台节流下
+    //     "等 1 秒再刷新"的定时器被拖到约 1 分钟，02:44 决定刷新时无操作，02:45:27 硬触发
+    //     紧急停采开始，02:45:28 刷新落地把它切断，9 只已跌破线的 kami 拖到 5.6 分钟后才停。
     //   - 日志兜底：任何路径的刷新前都先落盘日志
     // ▍可调参数：
     //   - baseMinutes = 45 —— 基础刷新周期（分钟）；调小更"干净"但
@@ -13629,7 +13635,26 @@
     let __reloadDelayCount = 0;
     const __RELOAD_MAX_DELAYS = 3;   // 最多延迟3次
     const __RELOAD_DELAY_MS = 3 * 60 * 1000;  // 每次延迟3分钟
+    const __RELOAD_EMERGENCY_RECHECK_MS = 15 * 1000;   // 🔻SYNC[测试版1.2.54] 紧急停采进行中：每 15 秒复查，不设上限
+    function __reloadBlockedByEmergency() {
+        try { return hasEmergencyLock() || window.__emergencyStopRunning === true; } catch (_) { return false; }
+    }
+    // 落地前最后一眼：后台节流下 setTimeout(…,1000) 可能拖到约 1 分钟，期间紧急停采可能已经开始
+    function __reloadIfStillClear() {
+        if (__reloadBlockedByEmergency()) {
+            log(`%c⏸️ [强制刷新] 刷新落地前发现紧急停采已开始，取消本次刷新，${__RELOAD_EMERGENCY_RECHECK_MS / 1000} 秒后重新走刷新流程`, 'color: orange; font-weight: bold;');
+            setTimeout(performScheduledReload, __RELOAD_EMERGENCY_RECHECK_MS);
+            return;
+        }
+        location.reload();
+    }
     function performScheduledReload() {
+        // 🔻SYNC[测试版1.2.54] 紧急停采进行中绝不刷新（先于其他判断；不计入 3 次延迟额度）
+        if (__reloadBlockedByEmergency()) {
+            log(`%c⏸️ [强制刷新] 紧急停采进行中（紧急锁/停采流程在握），暂不刷新，${__RELOAD_EMERGENCY_RECHECK_MS / 1000} 秒后再查`, 'color: orange; font-weight: bold;');
+            setTimeout(performScheduledReload, __RELOAD_EMERGENCY_RECHECK_MS);
+            return;
+        }
         // 有操作进行中且还有延迟额度 → 让路，3 分钟后再试
         if (window.__kamiOperationInProgress && __reloadDelayCount < __RELOAD_MAX_DELAYS) {
             __reloadDelayCount++;
@@ -13649,7 +13674,7 @@
         saveLogsBeforeReload();
 
         log(`🔄 [强制刷新] 执行定时刷新...`);
-        setTimeout(() => location.reload(), 1000);  // 等待1秒让下载完成
+        setTimeout(__reloadIfStillClear, 1000);  // 等待1秒让下载完成；落地前再查一次紧急停采（🔻SYNC[测试版1.2.54]）
     }
 
     setTimeout(performScheduledReload, totalDelayMs);  // 排定定时刷新；刷新后脚本重新注入，自动续期
