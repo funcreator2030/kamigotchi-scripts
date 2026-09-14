@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-公开版 (core)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.38
+// @version      1.2.39
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/13 10:59:48
+// @x-release-date 2026/9/14 10:07:36
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.38                ║
+// ║                    Kamigotchi 核心自动化脚本 · 公开版 v1.2.39                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -81,6 +81,16 @@
 //      ⚠️ 别拿「[版本检查] 已是最新」当判据——游戏页有 CSP，脚本 fetch 不到
 //         GitHub，这行**基本不会出现**，看不到属正常。以启动横幅和篡改猴面板
 //         里的版本号为准。
+//
+// ▍夜间挂机：两件事都要做
+//   1) 关闭电脑自动睡眠（Mac：系统设置→能耗→「显示器关闭时防止自动进入睡眠」开；
+//      Win：电源→「使设备保持唤醒状态」永不）——电脑一睡，页面 JS 全停，停采/喂食都不跑。
+//   2) 关掉 Chrome 对后台页的「强节流」——窗口被别的窗口挡住或熄屏超过 5 分钟后，Chrome 把
+//      页面定时器降到每分钟只醒一次，紧急停采会慢 1~2 分钟（2026-09-14 实测）。一次性设置、永久生效：
+//        Mac 终端：   defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
+//        Win 管理员cmd：reg add "HKLM\SOFTWARE\Policies\Google\Chrome" /v IntensiveWakeUpThrottlingEnabled /t REG_DWORD /d 0 /f
+//      然后完全退出 Chrome（⌘Q）再打开；地址栏 chrome://policy 里看到该项 = false 即生效。
+//      撤销：defaults delete com.google.Chrome IntensiveWakeUpThrottlingEnabled
 //
 // ▍更新：不用重装。@name 固定不带版本号，篡改猴会自动拉新版。
 //   想立刻更新：篡改猴面板 → 实用工具 → 检查用户脚本的更新。
@@ -1708,10 +1718,12 @@
     // ▍边界与保护：纯提示输出，无任何副作用。
     // ▍可调参数：无。
     // ============================================================
-    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.38 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+    log('%c✅ Kamigotchi核心脚本-公开版 v1.2.39 已成功启动，等待网页加载完成…', 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
         'color: #d4a017; font-size: 14px;');
+    log(`%c💡 [挂机提示] 还要关掉 Chrome 后台页强节流（否则夜里紧急停采慢 1~2 分钟）：Mac 终端一次性运行 defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false 后重启 Chrome；详见 安装说明()`,
+        'color: #8e44ad;');
     log(`%c   Mac: 系统设置 → 能耗 → 「显示器关闭时防止自动进入睡眠」打开`,
         'color: #d4a017;');
     log(`%c   Windows: 设置 → 系统 → 电源 → 「使设备保持唤醒状态」选「永不」`,
@@ -1737,7 +1749,7 @@
     // 🔻SYNC→内部版[1.1.18 版本检查]（内部版无 GitHub 分发，同步时可整块跳过）
     (function versionCheck() {
         const SELF_NAME = '核心脚本';
-        const SELF_VERSION = '1.2.38';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
+        const SELF_VERSION = '1.2.39';   // ⚠️ 版本仪式第6处：升版时必须同步改这里
         try { window.__kamiCoreVersion = SELF_VERSION; } catch (_) {}   // 供 安装说明() 打印，避免多出一处版本仪式
         const META_URL = 'https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.meta.js';
         let firstSeen = null;
@@ -1913,7 +1925,7 @@
     setTimeout(() => {
         clog('');
         clog('══════════════════════════════════════════════════════════════');
-        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.38 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
+        clog('%c🎮 Kamigotchi核心脚本-公开版 v1.2.39 可用命令（每条命令独占一行，直接复制粘贴）', 'color: #1e90ff; font-weight: bold;');   // 🔻SYNC→内部版[1.1.17 可观测性批次]
         clog('══════════════════════════════════════════════════════════════');
         clog('');
         clog('───────── 🛑 紧急控制 ─────────');
@@ -3869,6 +3881,16 @@
         clog('   4) 打开游戏页，控制台看到启动横幅即成功');
         clog('      ⚠️ 别拿「[版本检查] 已是最新」当判据 —— 游戏页 CSP 拦外联，');
         clog('         这行基本不会出现，看不到属正常');
+        clog('');
+        clog('%c【夜间挂机：两件事都要做】', 'font-weight: bold;');
+        clog('   1) 关闭电脑自动睡眠：Mac 系统设置→能耗→「显示器关闭时防止自动进入睡眠」开；');
+        clog('      Win 电源→「使设备保持唤醒状态」永不。电脑一睡，页面 JS 全停，停采/喂食都不跑。');
+        clog('   2) 关掉 Chrome 后台页「强节流」：窗口被挡住/熄屏超过 5 分钟后，页面定时器每分钟只醒一次，');
+        clog('      紧急停采会慢 1~2 分钟。一次性设置、永久生效：');
+        clog('      Mac 终端：   defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false');
+        clog('      Win 管理员cmd：reg add "HKLM\\SOFTWARE\\Policies\\Google\\Chrome" /v IntensiveWakeUpThrottlingEnabled /t REG_DWORD /d 0 /f');
+        clog('      然后完全退出 Chrome 再打开；chrome://policy 看到该项 = false 即生效。');
+        clog('      撤销：defaults delete com.google.Chrome IntensiveWakeUpThrottlingEnabled');
         clog('');
         clog('%c【更新】', 'font-weight: bold;');
         clog('   不用重装。@name 固定不带版本号，篡改猴自动拉新版。');

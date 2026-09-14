@@ -52,7 +52,7 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 | 脚本 | 版本 | 安装链接（点开即装） |
 |---|---|---|
-| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.54` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
+| Kamigotchi核心脚本-测试版 (core BETA) | `1.2.55` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js |
 | Kamigotchi辅助脚本-测试版 (helper BETA) | `1.2.13` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-helper-beta.user.js |
 | Kamigotchi精简数据库-测试版 (database BETA) | `1.2.6` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-database-beta.user.js |
 | Kamigotchi轻量杀手监控-测试版 (killer BETA) | `1.2.14` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-killer-monitor-beta.user.js |
@@ -61,7 +61,7 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 | 脚本 | 版本 | 安装链接（点开即装） |
 |---|---|---|
-| Kamigotchi核心脚本-公开版 (core) | `1.2.38` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js |
+| Kamigotchi核心脚本-公开版 (core) | `1.2.39` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-core.user.js |
 | Kamigotchi辅助脚本-公开版 (helper) | `1.2.9` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-helper.user.js |
 | Kamigotchi精简数据库-公开版 (database) | `1.2.3` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-database.user.js |
 | Kamigotchi轻量杀手监控-公开版 (killer monitor) | `1.2.7` | https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/kamigotchi-killer-monitor.user.js |
@@ -110,6 +110,16 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 > 静默升回最新版，回退等于没做。
 
 ---
+
+## 夜间挂机
+
+和主线一样：关电脑自动睡眠，**再关掉 Chrome 后台页强节流**（否则夜里紧急停采慢 1~2 分钟）。Mac 终端一次性运行：
+
+```bash
+defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
+```
+
+然后 ⌘Q 完全退出 Chrome 再打开，`chrome://policy` 看到该项 = false 即生效。Windows 与撤销方法见主线 README「夜间挂机」一节。
 
 ## 出了问题
 

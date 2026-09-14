@@ -175,6 +175,22 @@
 - **Mac**：系统设置 → 能耗 → 「显示器关闭时防止自动进入睡眠」**打开**；
 - **Windows**：设置 → 系统 → 电源 → 「使设备保持唤醒状态」选 **「永不」**。
 
+### 还要关掉 Chrome 对后台页的「强节流」
+
+浏览器窗口被别的窗口挡住、或熄屏超过 5 分钟后，Chrome 会把这个页面的定时器降到**每分钟只醒一次**，脚本还在跑但每一步等待都被拖到整分钟——实测紧急停采从 30 秒变成 2.5 分钟（2026-09-14）。一次性设置、永久生效：
+
+- **Mac**：终端运行
+  ```bash
+  defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
+  ```
+- **Windows**：管理员命令提示符运行
+  ```
+  reg add "HKLM\SOFTWARE\Policies\Google\Chrome" /v IntensiveWakeUpThrottlingEnabled /t REG_DWORD /d 0 /f
+  ```
+
+然后**完全退出 Chrome 再打开**（Mac 是 ⌘Q，不是只关窗口）。验证：地址栏打开 `chrome://policy`，看到 `IntensiveWakeUpThrottlingEnabled = false` 且状态正常即生效。撤销：`defaults delete com.google.Chrome IntensiveWakeUpThrottlingEnabled`（Windows 删掉那个注册表项）。
+
+
 ---
 
 ## 自动更新（装完就不用管了）
