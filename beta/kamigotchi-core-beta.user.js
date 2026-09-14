@@ -3,11 +3,11 @@
 // ==UserScript==
 // @name         Kamigotchi核心脚本-测试版 (core BETA)
 // @namespace    http://tampermonkey.net/
-// @version      1.2.55
+// @version      1.2.56
 // @downloadURL  https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.user.js
 // @updateURL    https://raw.githubusercontent.com/funcreator2030/kamigotchi-scripts/main/beta/kamigotchi-core-beta.meta.js
 // @homepageURL  https://github.com/funcreator2030/kamigotchi-scripts
-// @x-release-date 2026/9/14 10:07:36
+// @x-release-date 2026/9/14 16:38:15
 // @description  Kamigotchi自动化脚本公开版：自动部署/停采/喂食/复活/craft/scavenge/冷却公式预筛 + 前端卡死传感器(v1.1.25 Bug B) + 可观测性日志批次(1.1.17) + 停采退避复读+假卡链门禁(1.1.22) + 停摆检测器+醒来急救(1.2.9) + gas全口径统计mETH(1.2.10,对照cosmos口径1.2.11,续航智能数据源1.2.12,链上全量分类1.2.13,报告美化1.2.14/15,定时报告1.2.16,修剪36 1.2.17,扫掠可见性1.2.18,刷新即存日志1.2.19,复活让路紧急停采1.2.20,复活单轮限流1.2.21,卡链先试喂+救援按缺口选食1.2.22,救援互斥1.2.23,饿死救援提速1.2.24,预分配补齐热修1.2.25,STARVING只喂不停1.2.26,raw并行喂食1.2.27,地址运行时解析1.2.28,救援默认回归api通道1.2.29,撤回部署门禁1.2.31,gas报告入日志+分类表运行时自愈1.2.32)
 // @author       hongfei and allon
 // @match        https://*.kamigotchi.io/*
@@ -17,7 +17,7 @@
 
 // 🔻SYNC→内部版[1.1.17 可观测性批次]：版本仪式（@name/@version/banner/启动log/命令清单banner 同步升 v1.1.17）
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.55                ║
+// ║                    Kamigotchi 核心自动化脚本 · 测试版 v1.2.56                ║
 // ╠══════════════════════════════════════════════════════════════════════════════╣
 // ║  本脚本是 Kamigotchi（kamigotchi.io 链上宠物采集游戏）的自动化管理工具。         ║
 // ║  安装在 Tampermonkey 中，打开游戏页面后自动运行。主要功能：                      ║
@@ -1780,9 +1780,9 @@
     //   **日志撒谎比没有日志更糟**：它让排查往错误方向走。
     //   SCRIPT_BUILT 由发布器在打包时注入真实发布时间（同 @x-release-date，版本没变就沿用旧日期），
     //   本地未发布时保持占位值 —— 所以日志里看到「(本地未发布)」就说明这份不是从 GitHub 装的。
-    const SCRIPT_VERSION = '1.2.55';
+    const SCRIPT_VERSION = '1.2.56';
     const SCRIPT_LINE = '测试版';
-    const SCRIPT_BUILT = '2026/9/14 10:07:36';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
+    const SCRIPT_BUILT = '2026/9/14 16:38:15';   // ⚠️ 发布器打包时会替换成真实发布时间，勿手改
     log(`%c✅ Kamigotchi核心脚本-${SCRIPT_LINE} v${SCRIPT_VERSION}（${SCRIPT_BUILT}）已成功启动，等待网页加载完成…`, 'font-size:16px;font-weight:bold;color:#fff;background:#2e7d32;padding:3px 10px;border-radius:4px');   // 🔻SYNC→内部版[1.1.20 启动横幅醒目化]   // 🔻SYNC→内部版[1.1.17 可观测性批次]
     log(`📡 [停采通道] 当前=${_getStopTxChannel()}（v1.1.21 默认raw原始签名器/保守：mud队列回执形状未实盘验证前不作默认；实盘一次干净紧急停采后下版切回mud）｜切换命令 setStopTxChannel('mud'|'raw')`);   // 🔻SYNC→内部版[1.1.19 停采通道统一]   // 🔻SYNC→内部版[1.1.21 默认通道保守回raw]
     log(`%c💤 [挂机提示] 晚上长时间挂机请先关闭电脑自动睡眠，否则脚本会暂停导致 kami 被杀`,
@@ -2066,10 +2066,6 @@
         clog('');
         clog('// 人化活动保活开关(75s合成mousemove+5min全程扫掠;仅点HP文本/状态图标(白名单锚定,非随机);真人操作自动让路)；默认on');
         clog("setKeepAlive('on'|'off')");
-        clog('');
-        clog('───────── 🍬 步长补充（测试版新增）─────────');
-        clog('// 查看步长补充状态：现在步长多少、各档道具库存、本小时已吃几次');
-        clog('showStaminaTopUp()');
         clog('');
         clog('───────── 💰 Gas 真值账本 ─────────');
         clog('// 链上真值 gas 报告：按动作分类(部署/停采/喂食/复活/拾荒/XP) + 24h/3d/7d/30d + 日均 + revert白烧 + 余额续航（最强大）⭐');
@@ -4210,21 +4206,6 @@
     // ============================================================
 
     // 显示Gas消耗规则（静态说明文本，不发 tx）
-    // 🔻SYNC[测试版1.2.36] 步长补充状态查看（纯只读，不发 tx）
-    window.showStaminaTopUp = function () {
-        const raw = _spReadRaw();
-        const bal = _spItemBalances();
-        const gate = _spTopUpAllowed();
-        const L2 = ['═══════════ 🍬 步长自动补充 ═══════════'];
-        L2.push(`当前步长      ${raw == null ? '❌ 读不到（读不到一律不吃，防连吃）' : raw + ' / ' + SP_MAX}`);
-        L2.push(`本小时已吃    ${gate.used} / ${SP_TOPUP_MAX_PER_HOUR} 次${gate.ok ? '' : '（已达上限，本小时不再吃）'}`);
-        L2.push('道具库存：');
-        if (!bal) L2.push('   ❌ 背包读不到');
-        else for (const it of SP_ITEMS) L2.push(`   ${String(it.index).padEnd(8)}${it.name.padEnd(22)}+${String(it.sp).padEnd(4)}×${bal.get(it.index) || 0}`);
-        L2.push('触发条件：材料/工具都齐、只差步长时才吃；紧急锁存在时让路');
-        L2.push('═══════════════════════════════════════');
-        clog(L2.join('\n'));
-    };
 
 
     // ============================================================
@@ -11734,169 +11715,6 @@
         return 0;
     }
 
-    // ============================================================
-    // 【板块：步长自动补充（测试版 1.2.36 新增）】
-    // ------------------------------------------------------------
-    // ▍解决什么：步长不足时脚本只打一句"等恢复或喝体力药"就跳过合成，
-    //   而背包里常年躺着几百个步长道具从没被用过——`account.item.use`
-    //   在核心与辅助里出现 **0 次**。合成本不该被步长卡住。
-    // ▍0912 实机验证过的事实（全部真发交易确认，非推测）：
-    //   · system.account.use.item 可用，单次 gasUsed = 838,979
-    //   · 步长上限 100（DOM 读的是 xx/100）
-    //   · 四档道具 +20/+40/+80，按缺口挑能做到零浪费
-    // ▍三条安全红线（每条都对应一个实测出来的坑）：
-    //   ① **读不到 ≠ 0**。核心 getStamina() 把 DOM 读失败压成 0，
-    //      一旦混同，一次 DOM 抖动就会让脚本永远吃下去、吃光库存。
-    //      这里用 _spReadRaw()，读不到返回 **null**，null 一律不吃。
-    //   ② **吃完不重读 DOM 再判断**。实测 DOM 步长有可变延迟（有时 >4 秒），
-    //      吃完马上重读会读到旧值 → 判定没生效 → 再吃一次。
-    //      正确做法：**以交易回执为准**，成功即认定 min(100, 原值+恢复量)。
-    //      ⚠️ 辅助现有的 min(DOM重读, 本地推算) 双保险对**扣减**安全，
-    //         对**增加**恰好是反的（min(19,99)=19），绝不能照搬到这里。
-    //   ③ **只在"材料齐、单差步长"时才吃**。步长门禁是复合条件
-    //      （步长 AND 材料 AND 工具），只盯步长那一项会在材料本就不够的
-    //      轮次白白吃掉道具。
-    // ▍频率闸门：每小时最多 SP_TOPUP_MAX_PER_HOUR 次（localStorage 持久化，
-    //   刷新不清零）。合成流程每次页面加载只跑一轮、页面约 45 分钟强制刷新一次，
-    //   正常节奏远低于这个上限；闸门是防"逻辑坏掉后连吃"的兜底。
-    // ▍走 api 通道（window.network.api.player.account.item.use），不走 raw：
-    //   nonce 由 MUD 队列统一管，不跟停采的 raw 通道抢号（0710 双通道分叉旧伤）。
-    // 🔻SYNC→内部版[测试版1.2.36 步长自动补充]
-    // ============================================================
-    const SP_MAX = 100;                       // 步长上限（DOM 实测 xx/100）
-    const SP_TOPUP_MAX_PER_HOUR = 3;          // 每小时吃道具次数上限（防连吃兜底）
-    const SP_ITEMS = [                        // 账户级步长道具，index 与恢复量来自 items.csv 实测
-        { index: 21201, name: 'Ice Cream',          sp: 20 },
-        { index: 21202, name: 'Better Ice Cream',   sp: 40 },
-        { index: 21203, name: 'Best Ice Cream',     sp: 80 },
-        { index: 21205, name: 'Rock Candyfloss',    sp: 80 },
-        { index: 21204, name: "Neith's Spell Card", sp: 80 },
-    ];
-
-    // 读步长：**读不到返回 null**（对比 getStamina() 读不到返回 0）。红线①
-    function _spReadRaw() {
-        try {
-            if (typeof window.getStaminaFromDOM === 'function') {
-                const v = window.getStaminaFromDOM();
-                if (Number.isFinite(v)) return v;
-            }
-        } catch (_) {}
-        return null;
-    }
-
-    // 读步长道具余额：按 item.index 直读 acc.inventories（复数！同步读）。
-    // 不走 fetchInventoryItems() —— 那条路过了一层显示名白名单，里面根本没有步长道具。
-    // 读不到返回 null（不是空 Map），让调用方能区分"没有货"和"没读到"。
-    function _spItemBalances() {
-        try {
-            const addr = window.network?.network?.connectedAddress?.value_;
-            const acc = window.network.explorer.accounts.getByOperator(addr);
-            const inv = Array.isArray(acc?.inventories) ? acc.inventories : null;
-            if (!inv) return null;
-            const m = new Map();
-            for (const it of SP_ITEMS) {
-                m.set(it.index, Number(inv.find(x => Number(x?.item?.index) === it.index)?.balance || 0));
-            }
-            return m;
-        } catch (_) { return null; }
-    }
-
-    // 频率闸门：滚动一小时窗口，localStorage 持久化（刷新不清零）
-    function _spTopUpAllowed() {
-        try {
-            const now = Date.now();
-            const arr = JSON.parse(localStorage.getItem('kami_sp_topup_log') || '[]')
-                .filter(t => now - t < 3600000);
-            return { ok: arr.length < SP_TOPUP_MAX_PER_HOUR, used: arr.length, arr };
-        } catch (_) { return { ok: true, used: 0, arr: [] }; }
-    }
-    function _spTopUpRecord(arr) {
-        try { localStorage.setItem('kami_sp_topup_log', JSON.stringify([...arr, Date.now()])); } catch (_) {}
-    }
-
-    // 挑道具：能把步长补到 need 的里面，浪费最少的（上限 100 会截顶）
-    function _spPick(cur, need, balMap) {
-        const usable = SP_ITEMS
-            .filter(it => (balMap.get(it.index) || 0) > 0)
-            .map(it => ({ ...it, after: Math.min(SP_MAX, cur + it.sp), waste: Math.max(0, cur + it.sp - SP_MAX) }));
-        const enough = usable.filter(o => o.after >= need).sort((a, b) => a.waste - b.waste || a.sp - b.sp);
-        return enough[0] || null;   // 一个都补不够就不吃（吃了也做不成，纯浪费）
-    }
-
-    /**
-     * 🔻SYNC→内部版[测试版1.2.37 A08 修复] **纯读**判断"现在能不能补步长"，不发任何交易。
-     * 为什么要把判断和动作拆开：1.2.36 把会发 tx 的 _topUpStamina 放进了
-     * autoXPPotionFlow 的**无锁预判区**——那个区域的原注释写着"都是纯读操作、不发 TX，
-     * 不需要占锁"，我往里塞了一笔真交易，直接破坏了它的前提。
-     * 后果（ChatGPT 审计 A08 离线复现）：辅助脚本的合成已持有普通锁时，核心照样把道具吃下去，
-     * 然后 tryAcquireNormalLock 失败、整轮 XP 流程退出 —— **道具白吃一个，什么也没做成**。
-     * 修法：无锁阶段只用本函数算"若补上就有活干"，真正的吃道具挪到**拿到锁之后**。
-     * @returns {boolean} 有可用道具、没撞频率闸门、没有紧急锁 → true
-     */
-    function _spTopUpFeasible() {
-        try {
-            if (hasEmergencyLock()) return false;
-            if (!_spTopUpAllowed().ok) return false;
-            const bal = _spItemBalances();
-            if (!bal) return false;
-            return SP_ITEMS.some(it => (bal.get(it.index) || 0) > 0);
-        } catch (_) { return false; }
-    }
-
-    /**
-     * 步长不足时吃一个道具补上。只在"材料齐、单差步长"时调用。
-     * ⚠️ 本函数会发交易 —— **必须在持有普通锁之后调用**（见 _spTopUpFeasible 的说明）。
-     * @returns {Promise<number|null>} 补充后的步长（本地推算，不重读 DOM）；没吃则原样返回
-     */
-    async function _topUpStamina(cur, need, whatFor) {
-        if (cur == null) {                                  // 红线①：读不到，一律不吃
-            log(`⚠️ [步长补充] 步长读不到（不是 0，是读失败），本轮不吃道具——读不到就吃会变成连吃`);
-            return cur;
-        }
-        if (cur >= need) return cur;
-        if (hasEmergencyLock()) {                            // 紧急停采期间把 tx 通道让出去
-            log(`⏸️ [步长补充] 紧急锁存在，本轮不吃道具（tx 通道留给救 kami）`);
-            return cur;
-        }
-        const gate = _spTopUpAllowed();
-        if (!gate.ok) {
-            log(`⛔ [步长补充] 一小时内已吃 ${gate.used} 次，达上限 ${SP_TOPUP_MAX_PER_HOUR}，本轮不吃（防连吃兜底）`);
-            return cur;
-        }
-        const bal = _spItemBalances();
-        if (!bal) {
-            log(`⚠️ [步长补充] 背包读不到（acc.inventories 不可用），本轮不吃`);
-            return cur;
-        }
-        const pick = _spPick(cur, need, bal);
-        if (!pick) {
-            const have = SP_ITEMS.map(i => `${i.name}+${i.sp}×${bal.get(i.index) || 0}`).join('  ');
-            log(`⚠️ [步长补充] 没有道具能把步长从 ${cur} 补到 ${need}（${whatFor}）；现有：${have}`);
-            return cur;
-        }
-        const fn = window.network?.api?.player?.account?.item?.use;
-        if (typeof fn !== 'function') {
-            log(`⚠️ [步长补充] api.player.account.item.use 不可用，本轮不吃`);
-            return cur;
-        }
-        log(`%c🍬 [步长补充] ${whatFor} 需步长 ${need}，当前 ${cur}，吃 1 个 ${pick.name}(+${pick.sp})`
-            + `${pick.waste ? `（会浪费 ${pick.waste}，上限 ${SP_MAX} 截顶）` : '（零浪费）'}`,
-            'color:#8e44ad; font-weight:bold;');
-        try {
-            const tx = await fn(pick.index, 1);
-            _gasLedgerRecord('stamina', [pick.index], tx);   // gas 真值账本记一笔
-            _spTopUpRecord(gate.arr);
-            // 红线②：**以回执为准，不重读 DOM**（DOM 有可变延迟，重读会误判成没生效→再吃）
-            const after = Math.min(SP_MAX, cur + pick.sp);
-            log(`✅ [步长补充] 已吃 ${pick.name}，步长 ${cur} → ${after}（按回执推算，不重读 DOM——`
-                + `实测 DOM 有可变延迟，重读会误判成没生效然后再吃一次）`);
-            return after;
-        } catch (e) {
-            log(`❌ [步长补充] 吃 ${pick.name} 失败：${(e?.message || e + '').toString().slice(0, 120)}`);
-            return cur;
-        }
-    }
-
     async function fetchInventoryItems() {
         try {
             const addr = window.network.network.connectedAddress.value_;
@@ -12569,18 +12387,9 @@
         let stamina = await getStamina();
         const items = await fetchInventoryItems();
 
-        // 🔻SYNC→内部版[测试版1.2.37 A08 修复] 本区域**只计算、不发交易**（恢复它原本的前提）。
-        //   1.2.36 在这里直接吃道具 → 辅助持锁时白吃一个道具还什么都没做成。
-        //   现在只算"若补上步长就有活干"，把这个结论并入下面的早退条件，
-        //   真正的吃道具挪到**拿到普通锁之后**、并在锁内复查材料与步长。
-        const _matGreater = (items.pine_pollen ?? 0) >= 2500 &&
-                            (items.glass_jar ?? 0) >= 1 && (items.portable_burner ?? 0) >= 1;
-        const _matPollen  = (items.pine_cone ?? 0) >= 10 && (items.spice_grinder ?? 0) >= 1;
-        const _spFeasible = _spTopUpFeasible();          // 纯读：有道具 + 没撞闸门 + 无紧急锁
-        //   红线③保持：只在**材料/工具都齐、单差步长**时才考虑补——步长门禁是复合条件，
-        //   只盯步长那一项会在材料本就不够的轮次白白吃掉道具。
-        const _needTopUpGreater = _matGreater && stamina < 50  && _spFeasible;
-        const _needTopUpPollen  = _matPollen  && stamina < 100 && _spFeasible && !_matGreater;
+        // 🔻SYNC[测试版1.2.56] 步长不够就等它随时间恢复，不吃步长道具（用户 0914 定案：
+        //   "我们是用时间等它步长恢复的，不要再花钱"）。1.2.36~1.2.55 测试线曾在这里判断"补上步长就有活干"、
+        //   并在锁内自动吃步长道具——那是测试合成功能时为了能立刻操作临时加的，已整段移除。
 
         // 预判①：Greater XP Potion 合成条件（步长≥50 + 松花粉≥2500 + 玻璃罐≥1 + 便携炉≥1）
         const _greaterOk = stamina >= 50 && (items.pine_pollen ?? 0) >= 2500 &&
@@ -12593,9 +12402,7 @@
         // 落在两个阈值之间的 kami 会被预判挡在门外（判定"无事可做"不拿锁），永远轮不到喂食。
         const _feedMaybe = ((items.fortified_xp_potion ?? 0) > 0 || (items.greater_xp_potion ?? 0) > GREATER_RESERVE) &&
                            (window.kami_core_db || []).some(r => Number(r?.LT) > XP_POTION_LT_THRESHOLD);
-        // 🔻SYNC[测试版1.2.37 A08] 早退要把"补上步长就能干活"也算成有活干，
-        //   否则补步长这条路永远走不到拿锁那一步（这正是 1.2.36 当初把它塞进无锁区的原因）。
-        if (!_greaterOk && !_pollenOk && !_feedMaybe && !_needTopUpGreater && !_needTopUpPollen) {
+        if (!_greaterOk && !_pollenOk && !_feedMaybe) {
             log(`💤 [XP流程] 合成/喂食条件均不满足，本轮不占锁，直接给诊断：`);
             log("%c⚠️ 不满足 Greater XP Potion 合成条件，跳过合成", 'color: red; font-weight: bold;');
             _diagnoseCraft('greater_xp_potion', items, stamina);
@@ -12611,25 +12418,6 @@
         }
 
         try {
-
-        // 🔻SYNC→内部版[测试版1.2.37 A08 修复] **锁内才发交易。** 吃道具前在锁内复查一遍：
-        //   材料用最新库存、步长用 _spReadRaw()（读不到返回 null，不是 0），紧急锁由 _topUpStamina 自己再查。
-        //   无锁阶段的 _needTopUp* 只是"值得去拿锁"的依据，不能当成"现在就该吃"。
-        if (_needTopUpGreater || _needTopUpPollen) {
-            const _it2 = await fetchInventoryItems();                    // 锁内复查材料
-            const _m2G = (_it2.pine_pollen ?? 0) >= 2500 && (_it2.glass_jar ?? 0) >= 1 && (_it2.portable_burner ?? 0) >= 1;
-            const _m2P = (_it2.pine_cone ?? 0) >= 10 && (_it2.spice_grinder ?? 0) >= 1;
-            const _raw2 = _spReadRaw();
-            if (_m2G && (_raw2 == null || _raw2 < 50)) {
-                const r = await _topUpStamina(_raw2, 50, 'Greater XP Potion 合成');
-                if (r != null) stamina = r;
-            } else if (_m2P && !_m2G && (_raw2 == null || _raw2 < 100)) {
-                const r = await _topUpStamina(_raw2, 100, 'Pine Pollen 凑批合成');
-                if (r != null) stamina = r;
-            } else {
-                log(`ℹ️ [步长补充] 锁内复查后条件已变（材料或步长），本轮不吃道具`);
-            }
-        }
 
         // Greater XP Potion 合成门槛：步长≥50 + 松花粉≥2500 + 玻璃罐≥1 + 便携炉≥1
         if (stamina >= 50 &&
@@ -12653,13 +12441,9 @@
 
         // 前面的合成/喂食已消耗材料，重新读一次库存再判断 Pine Pollen 凑批
         const currentInventory = await fetchInventoryItems();
-        // 🔻SYNC→内部版[测试版1.2.37 A09 修复] **这里绝不重读 DOM 步长。**
-        //   1.2.36 在这里调 getStamina() 重读 DOM：吃完道具本地已是 100，而 DOM 有可变延迟
-        //   （实测有时 >4 秒）仍显示 20 → 松花粉合成立刻被跳过。**吃了道具却没合成。**
-        //   （ChatGPT 审计 A09 离线复现："步长 20 → 100" 紧接 "步长：20/100，跳过"，合成 tx 数 0。）
-        //   改为在本流程内延续**已确认**的增减：吃成功 +恢复量（_topUpStamina 返回值）、
-        //   合成成功 -50（上面 _craftOk）。不取 max(DOM, 本地)——合成后 DOM 滞后在偏高一侧，
-        //   取 max 会高估步长、让凑批合成白发一笔。
+        // 🔻SYNC[测试版1.2.37 A09 / 1.2.56] **这里不重读 DOM 步长**，沿用本流程内已确认的增减（Greater 合成成功 -50，见上面 _craftOk）。
+        //   合成后 DOM 步长有可变延迟（实测有时 >4 秒）、滞后在偏高一侧，重读或取 max(DOM, 本地) 会高估步长，
+        //   让 Pine Pollen 凑批合成白发一笔必然失败的 tx。
         const currentStamina = stamina;
 
         // 【设计说明】Pine Pollen 固定凑满 10 次一笔 tx，不拆小批：
