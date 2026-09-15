@@ -177,18 +177,22 @@
 
 ### 还要关掉 Chrome 对后台页的「强节流」
 
-浏览器窗口被别的窗口挡住、或熄屏超过 5 分钟后，Chrome 会把这个页面的定时器降到**每分钟只醒一次**，脚本还在跑但每一步等待都被拖到整分钟——实测紧急停采从 30 秒变成 2.5 分钟（2026-09-14）。一次性设置、永久生效：
+浏览器窗口被别的窗口挡住、最小化或熄屏后，Chrome 会把这个页面的定时器降到**每分钟只醒一次**，脚本还在跑但每一步等待都被拖到整分钟——实测紧急停采从 30 秒变成 2.5 分钟（2026-09-14）。
 
-- **Mac**：终端运行
-  ```bash
-  defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
-  ```
-- **Windows**：管理员命令提示符运行
+- **Mac**：⚠️ **不要用** `defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false`——那样写进去的是「推荐」级设置，而 Chrome 这一项只认「强制」级，`chrome://policy` 里显示 false 也不生效（2026-09-15 实测：四个显示 false 的浏览器里两个照样被节流）。之前按旧说明设过的，可以运行 `defaults delete com.google.Chrome IntensiveWakeUpThrottlingEnabled` 清掉。可靠做法是**带启动参数打开 Chrome**：
+  1. 先在 Chrome 里按 **⌘Q 完全退出**（多开的话每个都要退；旧的 Chrome 进程还在时，新参数不会生效）；
+  2. 终端运行：
+     ```bash
+     open -na "Google Chrome" --args --disable-background-timer-throttling
+     ```
+     多开时，每个实例在命令后面加上它原来的 `--user-data-dir=目录`。以后每次打开 Chrome 都要带这个参数（可以把命令存成双击就能运行的 `.command` 文件）。
+- **Windows**：管理员命令提示符运行（写在 `HKLM\SOFTWARE\Policies` 下就是「强制」级，有效）
   ```
   reg add "HKLM\SOFTWARE\Policies\Google\Chrome" /v IntensiveWakeUpThrottlingEnabled /t REG_DWORD /d 0 /f
   ```
+  然后完全退出 Chrome 再打开，`chrome://policy` 里该项的「级别」显示「强制」即生效。撤销：删掉那个注册表项。
 
-然后**完全退出 Chrome 再打开**（Mac 是 ⌘Q，不是只关窗口）。验证：地址栏打开 `chrome://policy`，看到 `IntensiveWakeUpThrottlingEnabled = false` 且状态正常即生效。撤销：`defaults delete com.google.Chrome IntensiveWakeUpThrottlingEnabled`（Windows 删掉那个注册表项）。
+**怎么确认真关掉了**：第二天导出日志看夜里的「✅ [紧急停采] 完成! … 耗时」，在 1 分钟以内就是生效了；还是 2 分半左右就是没关掉。
 
 
 ---

@@ -113,13 +113,15 @@ beta 的核心会用到 beta 辅助里才有的函数。混装（beta 核心 + �
 
 ## 夜间挂机
 
-和主线一样：关电脑自动睡眠，**再关掉 Chrome 后台页强节流**（否则夜里紧急停采慢 1~2 分钟）。Mac 终端一次性运行：
+和主线一样：关电脑自动睡眠，**再关掉 Chrome 后台页强节流**（否则夜里紧急停采慢 1~2 分钟）。
+
+⚠️ Mac 上 `defaults write … IntensiveWakeUpThrottlingEnabled` 写的是「推荐」级，这一项 Chrome 只认「强制」级，`chrome://policy` 显示 false 也不生效（2026-09-15 实测）。Mac 要 ⌘Q 完全退出 Chrome 后带启动参数重开：
 
 ```bash
-defaults write com.google.Chrome IntensiveWakeUpThrottlingEnabled -bool false
+open -na "Google Chrome" --args --disable-background-timer-throttling
 ```
 
-然后 ⌘Q 完全退出 Chrome 再打开，`chrome://policy` 看到该项 = false 即生效。Windows 与撤销方法见主线 README「夜间挂机」一节。
+多开时每个实例加上原来的 `--user-data-dir=目录`。Windows 的注册表方法有效。详见主线 README「夜间挂机」一节。
 
 ## 全功能手册
 
